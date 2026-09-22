@@ -11,7 +11,7 @@ export interface SalaryInput {
   dailyRate: number;
   overtimeHours: number;
   overtimeRate: number;
-  advances: number;
+  advanceRecovery: number;
   deductions?: number;
 }
 
@@ -29,7 +29,7 @@ export function calculateOvertimeAmount(hours: number, rate: number): number {
   return hours * rate;
 }
 
-/** Gross + Overtime − Advances − Deductions */
+/** Gross + Overtime − AdvanceRecovery − Deductions */
 export function calculateNetSalary(input: SalaryInput): {
   gross: number;
   overtimeAmount: number;
@@ -44,7 +44,7 @@ export function calculateNetSalary(input: SalaryInput): {
     input.overtimeHours,
     input.overtimeRate,
   );
-  const net = gross + overtimeAmount - input.advances - (input.deductions ?? 0);
+  const net = gross + overtimeAmount - input.advanceRecovery - (input.deductions ?? 0);
   return { gross, overtimeAmount, net };
 }
 

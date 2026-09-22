@@ -7,13 +7,14 @@ import { Labour } from "@/models/Labour";
 import { LabourAssignment } from "@/models/LabourAssignment";
 import { Attendance } from "@/models/Attendance";
 import { Salary } from "@/models/Salary";
-import { LabourAdvance } from "@/models/LabourAdvance";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { LabourActions } from "@/components/labour/labour-actions";
+import { LabourWriteOffSection } from "@/components/labour/labour-write-off";
+import { LabourAttendanceHistory } from "@/components/labour/labour-attendance-history";
 
 export default async function LabourDetailPage({
   params,
@@ -29,7 +30,7 @@ export default async function LabourDetailPage({
     .lean();
   if (!labour) notFound();
   const labourFilter = { labour: new Types.ObjectId(id) };
-  const [assignments, attendanceAgg, salaryAgg, recentAdvances] = await Promise.all([
+  const [assignments, attendanceAgg, salaryAgg] = await Promise.all([
     LabourAssignment.find({ labour: id })
       .populate("site", "name")
       .sort({ from: -1 })
@@ -49,7 +50,6 @@ export default async function LabourDetailPage({
         },
       },
     ]),
-    LabourAdvance.find({ labour: id }).sort({ date: -1 }).limit(5).lean(),
   ]);
 
   const attByStatus: Record<string, number> = {};
@@ -142,26 +142,18 @@ export default async function LabourDetailPage({
               <dd className="mt-0.5 font-semibold tnum">{attByStatus.present ?? 0}</dd>
             </div>
             <div>
-              <dt className="text-text-muted">Absent</dt>
-              <dd className="mt-0.5 font-semibold tnum">{attByStatus.absent ?? 0}</dd>
+              <dt className="text-text-muted">Half Day</dt>
+              <dd className="mt-0.5 font-semibold tnum">{attByStatus["half-day"] ?? 0}</dd>
             </div>
             <div>
-              <dt className="text-text-muted">Half / Leave</dt>
-              <dd className="mt-0.5 font-semibold tnum">
-                {(attByStatus["half-day"] ?? 0) + (attByStatus.leave ?? 0)}
-              </dd>
+              <dt className="text-text-muted">Absent</dt>
+              <dd className="mt-0.5 font-semibold tnum">{attByStatus.absent ?? 0}</dd>
             </div>
             <div>
               <dt className="text-text-muted">OT hours</dt>
               <dd className="mt-0.5 font-semibold tnum">{attOT}</dd>
             </div>
           </dl>
-          <Link
-            href={`/dashboard/attendance?tab=records&labour=${lid}`}
-            className="mt-3 inline-block text-sm text-primary hover:underline"
-          >
-            View attendance history
-          </Link>
           <h2 className="mt-6 text-base font-semibold text-text">Salary Summary</h2>
           {salaryTotals ? (
             <dl className="mt-3 grid grid-cols-3 gap-3 text-sm">
@@ -194,31 +186,9 @@ export default async function LabourDetailPage({
         </Card>
       </div>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold text-text">Recent Advances</h2>
-        {recentAdvances.length === 0 ? (
-          <p className="text-sm text-text-muted">No advances recorded.</p>
-        ) : (
-          <Table>
-            <THead>
-              <TR>
-                <TH>Date</TH>
-                <TH numeric>Amount</TH>
-                <TH>Reason</TH>
-              </TR>
-            </THead>
-            <tbody>
-              {recentAdvances.map((a) => (
-                <TR key={String(a._id)}>
-                  <TD className="tnum">{formatDateShort(a.date)}</TD>
-                  <TD numeric>{formatINR(a.amount)}</TD>
-                  <TD>{a.reason ?? "—"}</TD>
-                </TR>
-              ))}
-            </tbody>
-          </Table>
-        )}
-      </section>
+      <LabourWriteOffSection labourId={lid} />
+
+      <LabourAttendanceHistory labourId={lid} labourName={labour.name} />
 
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold text-text">Assignment History</h2>

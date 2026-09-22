@@ -237,8 +237,7 @@ async function main() {
       if (!w.assignedSite) continue;
       const site = w.assignedSite;
       const r = rand();
-      const status: "present" | "half-day" | "absent" | "leave" =
-        r < 0.85 ? "present" : r < 0.9 ? "half-day" : r < 0.95 ? "absent" : "leave";
+      const status: "present" | "half-day" | "absent" = r < 0.85 ? "present" : r < 0.9 ? "half-day" : "absent";
       const ot = status === "present" && rand() < 0.25 ? 1 + Math.floor(rand() * 2) : 0;
       await Attendance.create({
         labour: w._id,
@@ -246,8 +245,6 @@ async function main() {
         project: siteProject.get(String(site)) ?? farmhouse._id,
         date,
         status,
-        checkIn: status === "present" || status === "half-day" ? "09:00" : null,
-        checkOut: status === "present" ? "18:00" : null,
         overtimeHours: ot,
         notes: null,
       });

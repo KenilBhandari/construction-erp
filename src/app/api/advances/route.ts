@@ -4,7 +4,6 @@ import { fail, ok, requireAuth } from "@/lib/api";
 import { objectIdSchema, paginationSchema } from "@/lib/validation";
 import { advanceCreateSchema } from "@/lib/schemas";
 import { toDayDate, dayRange } from "@/lib/utils";
-import { recomputeSalariesFor } from "@/lib/salary";
 import { LabourAdvance } from "@/models/LabourAdvance";
 import { Labour } from "@/models/Labour";
 import { Site } from "@/models/Site";
@@ -42,7 +41,8 @@ export async function GET(req: Request) {
     const [data, total, totals] = await Promise.all([
       LabourAdvance.find(filter)
         .populate("labour", "name")
-        .populate("site", "name")
+        .populate({ path: "site", select: "name", strictPopulate: false })
+        .populate({ path: "project", select: "name", strictPopulate: false })
         .sort({ date: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
@@ -76,25 +76,35 @@ export async function POST(req: Request) {
 
     const labourExists = await Labour.exists({ _id: body.labour });
     if (!labourExists) return fail(new Error("Worker not found."), 404);
+
+    let siteOid: Types.ObjectId | null = null;
+    let projectOid: Types.ObjectId | null = null;
     if (body.site) {
-      const siteExists = await Site.exists({ _id: body.site });
-      if (!siteExists) return fail(new Error("Selected site not found."), 404);
+      const siteDoc = await Site.findById(body.site).select("project").lean();
+      if (!siteDoc) return fail(new Error("Selected site not found."), 404);
+      siteOid = new Types.ObjectId(body.site);
+      const siteProjectId = String(siteDoc.project);
+      if (body.project && String(body.project) !== siteProjectId) {
+        return fail(new Error("Selected project does not match the site's project."), 422);
+      }
+      projectOid = body.project ? new Types.ObjectId(body.project) : new Types.ObjectId(siteProjectId);
+    } else if (body.project) {
+      projectOid = new Types.ObjectId(body.project);
     }
 
     const created = await LabourAdvance.create({
       labour: new Types.ObjectId(body.labour),
-      site: body.site ? new Types.ObjectId(body.site) : null,
+      site: siteOid,
+      project: projectOid,
       date: toDayDate(body.date),
       amount: body.amount,
       reason: body.reason ?? null,
+      paymentMethod: body.paymentMethod ?? null,
+      reference: body.reference ?? null,
       notes: body.notes ?? null,
     });
 
-    try {
-      await recomputeSalariesFor([body.labour], created.date);
-    } catch (err) {
-      console.warn("[advances] salary recompute skipped:", (err as Error).message);
-    }
+    // Advances have zero automatic effect on salary (Phase 3) — no recompute.
 
     return ok(created, { status: 201 });
   } catch (err) {

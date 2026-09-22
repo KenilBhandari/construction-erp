@@ -26,7 +26,8 @@ interface ListResponse {
   totalAmount: number;
 }
 
-function refName(ref: OvertimeDTO["labour"]): string {
+function refName(ref: OvertimeDTO["labour"] | OvertimeDTO["site"]): string {
+  if (!ref) return "—";
   return typeof ref === "string" ? ref : ref.name;
 }
 
@@ -59,7 +60,7 @@ export function OvertimeList() {
         if (Array.isArray(j.data)) setProjects(j.data);
       })
       .catch(() => {});
-    fetch("/api/labour?limit=200&sort=name")
+    fetch("/api/labour?limit=100&sort=name")
       .then(async (r) => r.json())
       .then((j) => {
         if (Array.isArray(j.data)) setLabour(j.data);
@@ -88,6 +89,7 @@ export function OvertimeList() {
       .then(async (res) => {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "Failed to load overtime.");
+        if (!json || !Array.isArray(json.data)) throw new Error("Invalid overtime response.");
         setData(json);
         setError(null);
       })

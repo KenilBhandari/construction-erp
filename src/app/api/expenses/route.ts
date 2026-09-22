@@ -99,6 +99,9 @@ export async function POST(req: Request) {
       paymentMethod: body.paymentMethod,
       reference: body.reference ?? null,
       notes: body.notes ?? null,
+      expenseType: body.expenseType ?? null,
+      labour: body.labour ? new Types.ObjectId(body.labour) : null,
+      labourAdvance: body.labourAdvance ? new Types.ObjectId(body.labourAdvance) : null,
     });
 
     return ok(created, { status: 201 });

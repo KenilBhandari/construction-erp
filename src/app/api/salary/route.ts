@@ -42,6 +42,8 @@ export async function GET(req: Request) {
     const [data, total] = await Promise.all([
       Salary.find(filter)
         .populate("labour", "name")
+        .populate({ path: "site", select: "name", strictPopulate: false })
+        .populate({ path: "project", select: "name", strictPopulate: false })
         .sort({ periodEnd: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
@@ -67,6 +69,9 @@ export async function POST(req: Request) {
       labourId: body.labour,
       periodStart: body.periodStart,
       periodEnd: body.periodEnd,
+      advanceRecovery: body.advanceRecovery ?? 0,
+      site: body.site ?? null,
+      project: body.project ?? null,
       notes: body.notes ?? null,
     });
     return ok(saved);

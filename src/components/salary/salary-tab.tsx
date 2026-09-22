@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import type { SalaryDTO, SalaryStatus } from "@/types/salary";
 import { salaryLabourName } from "@/types/salary";
 import type { LabourDTO } from "@/types/labour";
+import type { SiteDTO } from "@/types/site";
 
 interface ListResponse {
   data: SalaryDTO[];
@@ -48,13 +49,22 @@ function firstOfMonth(): string {
   return toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
 }
 
+function siteNameOf(s: SalaryDTO): string | null {
+  if (!s.site) return null;
+  return typeof s.site === "string" ? s.site : s.site.name;
+}
+
 export function SalaryTab() {
   // Calculate form
   const [calcLabour, setCalcLabour] = useState("");
   const [calcStart, setCalcStart] = useState(() => mondayOfThisWeek());
   const [calcEnd, setCalcEnd] = useState(() => toDateInputValue());
+  const [calcRecovery, setCalcRecovery] = useState("0");
+  const [calcSite, setCalcSite] = useState("");
   const [calcPending, setCalcPending] = useState(false);
   const [calcMessage, setCalcMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const [outstanding, setOutstanding] = useState<number | null>(null);
+  const [outstandingLoading, setOutstandingLoading] = useState(false);
 
   // Table filters
   const [labourId, setLabourId] = useState("");
@@ -62,6 +72,7 @@ export function SalaryTab() {
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
   const [labour, setLabour] = useState<LabourDTO[]>([]);
+  const [sites, setSites] = useState<SiteDTO[]>([]);
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,13 +82,36 @@ export function SalaryTab() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/labour?limit=200&sort=name")
+    fetch("/api/labour?limit=100&sort=name")
       .then(async (r) => r.json())
       .then((j) => {
         if (Array.isArray(j.data)) setLabour(j.data);
       })
       .catch(() => {});
+    fetch("/api/sites?limit=100")
+      .then(async (r) => r.json())
+      .then((j) => {
+        if (Array.isArray(j.data)) setSites(j.data);
+      })
+      .catch(() => {});
   }, []);
+
+  // Fetch outstanding for selected labour in calculate form
+  useEffect(() => {
+    if (!calcLabour) {
+      setOutstanding(null);
+      return;
+    }
+    setOutstandingLoading(true);
+    fetch(`/api/labour/${calcLabour}/advance-summary`)
+      .then(async (r) => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error ?? "Failed to load outstanding.");
+        setOutstanding(j.outstanding ?? 0);
+      })
+      .catch(() => setOutstanding(null))
+      .finally(() => setOutstandingLoading(false));
+  }, [calcLabour, reloadKey]);
 
   useEffect(() => {
     const params = new URLSearchParams({ page: String(page), limit: "20" });
@@ -87,6 +121,7 @@ export function SalaryTab() {
       .then(async (res) => {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "Failed to load salary.");
+        if (!json || !Array.isArray(json.data)) throw new Error("Invalid salary response.");
         setData(json);
         setError(null);
       })
@@ -108,6 +143,11 @@ export function SalaryTab() {
       setCalcMessage({ kind: "error", text: "Pick a valid period." });
       return;
     }
+    const recovery = calcRecovery === "" ? 0 : Number(calcRecovery);
+    if (Number.isNaN(recovery) || recovery < 0) {
+      setCalcMessage({ kind: "error", text: "Advance recovery must be 0 or more." });
+      return;
+    }
     setCalcPending(true);
     setCalcMessage(null);
     try {
@@ -118,6 +158,9 @@ export function SalaryTab() {
           labour: calcLabour,
           periodStart: calcStart,
           periodEnd: calcEnd,
+          advanceRecovery: recovery,
+          site: calcSite || null,
+          notes: null,
         }),
       });
       const json = await res.json();
@@ -125,7 +168,7 @@ export function SalaryTab() {
       const s = json as SalaryDTO;
       setCalcMessage({
         kind: "ok",
-        text: `Net payable ${formatINR(s.net)} (${s.presentDays} present, ${s.halfDays} half, ${s.overtimeHours} OT hrs, ${formatINR(s.advances)} advances).`,
+        text: `Net payable ${formatINR(s.net)} (${s.presentDays} present, ${s.halfDays} half, ${s.overtimeHours} OT hrs, recovery ${formatINR(s.advanceRecovery)}).`,
       });
       refresh();
     } catch (err) {
@@ -136,15 +179,18 @@ export function SalaryTab() {
   }
 
   async function handleRecalculate(s: SalaryDTO) {
-    const labour = typeof s.labour === "string" ? s.labour : s.labour._id;
+    const recalcLabourId = typeof s.labour === "string" ? s.labour : s.labour._id;
+    const recalcSiteId = s.site ? (typeof s.site === "string" ? s.site : s.site._id) : null;
     try {
       const res = await fetch("/api/salary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          labour,
+          labour: recalcLabourId,
           periodStart: new Date(s.periodStart).toISOString().slice(0, 10),
           periodEnd: new Date(s.periodEnd).toISOString().slice(0, 10),
+          advanceRecovery: s.advanceRecovery,
+          site: recalcSiteId,
         }),
       });
       const json = await res.json();
@@ -179,7 +225,10 @@ export function SalaryTab() {
       <Card className="p-5">
         <h2 className="text-base font-semibold text-text">Calculate Salary</h2>
         <p className="mt-1 text-sm text-text-muted">
-          From attendance in the period: present × daily + half × half + OT − advances.
+          Attendance → gross. Advance = money previously given (recoverable). Recovery = amount you choose to recover this settlement. Write-off = unrecoverable amount converted to expense (via labour profile).
+        </p>
+        <p className="mt-1 text-xs text-text-muted">
+          Formula: gross (present × daily + half × half + OT) − recovery (this settlement) − deductions = net. Advances never auto-deduct.
         </p>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
           <Select label="Worker" value={calcLabour} onChange={(e) => setCalcLabour(e.target.value)}>
@@ -190,6 +239,28 @@ export function SalaryTab() {
           </Select>
           <Input label="Period start" type="date" value={calcStart} onChange={(e) => setCalcStart(e.target.value)} />
           <Input label="Period end" type="date" value={calcEnd} onChange={(e) => setCalcEnd(e.target.value)} />
+          <Select label="Site (attribution)" value={calcSite} onChange={(e) => setCalcSite(e.target.value)}>
+            <option value="">No site</option>
+            {sites.map((s) => (
+              <option key={s._id} value={s._id}>{s.name}</option>
+            ))}
+          </Select>
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Input
+            label="Advance recovery this settlement (₹)"
+            type="number"
+            min={0}
+            value={calcRecovery}
+            onChange={(e) => setCalcRecovery(e.target.value)}
+            placeholder="0"
+          />
+          <div className="flex flex-col justify-end gap-1">
+            <p className="text-xs text-text-muted">
+              Outstanding: {outstandingLoading ? "…" : outstanding !== null ? formatINR(outstanding) : "—"} (labour-level, not site)
+            </p>
+            <p className="text-[11px] text-text-muted">Recovery recovers previously given advance. 0 is valid. Cannot exceed outstanding.</p>
+          </div>
           <div className="flex items-end gap-2">
             <Button onClick={handleCalculate} disabled={calcPending}>
               {calcPending ? "Calculating…" : "Calculate"}
@@ -259,7 +330,8 @@ export function SalaryTab() {
                 <TH numeric>P / H</TH>
                 <TH numeric>OT hrs</TH>
                 <TH numeric>Gross</TH>
-                <TH numeric>Adv</TH>
+                <TH numeric>Recovery</TH>
+                <TH numeric>Ded.</TH>
                 <TH numeric>Net</TH>
                 <TH numeric>Paid</TH>
                 <TH>Status</TH>
@@ -273,12 +345,14 @@ export function SalaryTab() {
                     <span className="font-medium">{salaryLabourName(s)}</span>
                     <p className="text-xs text-text-muted tnum">
                       {formatDateShort(s.periodStart)} – {formatDateShort(s.periodEnd)}
+                      {siteNameOf(s) ? ` · ${siteNameOf(s)}` : ""}
                     </p>
                   </TD>
                   <TD numeric>{s.presentDays} / {s.halfDays}</TD>
                   <TD numeric>{s.overtimeHours}</TD>
                   <TD numeric>{formatINR(s.gross + s.overtimeAmount)}</TD>
-                  <TD numeric>{formatINR(s.advances + s.deductions)}</TD>
+                  <TD numeric><span title="Amount intentionally recovered from this salary">{formatINR(s.advanceRecovery)}</span></TD>
+                  <TD numeric><span title="Other deductions">{formatINR(s.deductions)}</span></TD>
                   <TD numeric>{formatINR(s.net)}</TD>
                   <TD numeric>{formatINR(s.paidAmount)}</TD>
                   <TD>
@@ -364,15 +438,36 @@ function PaymentModal({
   const remaining = record.net - record.paidAmount;
   const [addPayment, setAddPayment] = useState(remaining > 0 ? String(remaining) : "");
   const [deductions, setDeductions] = useState(String(record.deductions));
+  const [advanceRecovery, setAdvanceRecovery] = useState(String(record.advanceRecovery));
+  const [outstanding, setOutstanding] = useState<number | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const labourId = typeof record.labour === "string" ? record.labour : record.labour._id;
+
+  useEffect(() => {
+    fetch(`/api/labour/${labourId}/advance-summary`)
+      .then(async (r) => {
+        const j = await r.json();
+        if (r.ok) setOutstanding(j.outstanding);
+      })
+      .catch(() => {});
+  }, [labourId]);
+
+  // Available for edit = outstanding + current recovery (so current value is always valid)
+  const available = (outstanding ?? 0) + record.advanceRecovery;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const add = addPayment === "" ? 0 : Number(addPayment);
     const ded = deductions === "" ? 0 : Number(deductions);
-    if (Number.isNaN(add) || add < 0 || Number.isNaN(ded) || ded < 0) {
+    const rec = advanceRecovery === "" ? 0 : Number(advanceRecovery);
+    if ([add, ded, rec].some((v) => Number.isNaN(v) || v < 0)) {
       setError("Amounts must be 0 or more.");
+      return;
+    }
+    if (outstanding !== null && rec > available) {
+      setError(`Recovery ₹${rec} exceeds available ₹${available} (outstanding ₹${outstanding} + current ₹${record.advanceRecovery}).`);
       return;
     }
     setPending(true);
@@ -381,7 +476,7 @@ function PaymentModal({
       const res = await fetch(`/api/salary/${record._id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paidAmount: record.paidAmount + add, deductions: ded }),
+        body: JSON.stringify({ paidAmount: record.paidAmount + add, deductions: ded, advanceRecovery: rec }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Save failed.");
@@ -409,6 +504,10 @@ function PaymentModal({
           <dd className="mt-0.5 font-semibold tnum">{formatINR(remaining)}</dd>
         </div>
       </dl>
+      <p className="mt-2 text-xs text-text-muted">
+        Advance given (recoverable) outstanding: {outstanding !== null ? formatINR(outstanding) : "…"} · Available for this settlement: {outstanding !== null ? formatINR(available) : "…"} (outstanding + current recovery)
+      </p>
+      <p className="text-[11px] text-text-muted">Recovery recovers previously given advance. Write-off (unrecoverable → expense) is done in the labour profile.</p>
       <form className="mt-4 flex flex-col gap-4" onSubmit={handleSubmit}>
         <Input
           label="Add payment (₹)"
@@ -419,7 +518,14 @@ function PaymentModal({
           placeholder="0"
         />
         <Input
-          label="Total deductions (₹)"
+          label="Advance recovery this settlement (₹)"
+          type="number"
+          min={0}
+          value={advanceRecovery}
+          onChange={(e) => setAdvanceRecovery(e.target.value)}
+        />
+        <Input
+          label="Other deductions (₹)"
           type="number"
           min={0}
           value={deductions}

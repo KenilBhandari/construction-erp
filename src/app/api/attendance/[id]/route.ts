@@ -21,9 +21,9 @@ export async function GET(
     const id = await getId(params);
     await connectDB();
     const record = await Attendance.findById(id)
-      .populate("labour", "name skill")
-      .populate("site", "name")
-      .populate("project", "name")
+      .populate("labour", "name skill phone")
+      .populate({ path: "site", select: "name", strictPopulate: false })
+      .populate({ path: "project", select: "name", strictPopulate: false })
       .lean();
     if (!record) return fail(new Error("Attendance record not found."), 404);
     return ok(record);
@@ -42,19 +42,40 @@ export async function PATCH(
   try {
     const id = await getId(params);
     await connectDB();
-    // Labour/site/date never move — corrections only (keeps history sound).
     const body = attendanceUpdateSchema.parse(await req.json());
-    const updated = await Attendance.findByIdAndUpdate(id, { $set: body }, {
-      new: true,
-      runValidators: true,
-    }).lean();
-    if (!updated) return fail(new Error("Attendance record not found."), 404);
+
+    const existing = await Attendance.findById(id);
+    if (!existing) return fail(new Error("Attendance record not found."), 404);
+
+    if (body.status !== undefined) existing.status = body.status as typeof existing.status;
+    if (body.notes !== undefined) existing.notes = body.notes ?? null;
+
+    if (body.site !== undefined) {
+      if (body.site) {
+        const { Site } = await import("@/models/Site");
+        const siteDoc = await Site.findById(body.site).select("project").lean();
+        if (!siteDoc?.project) return fail(new Error("Selected site not found."), 404);
+        existing.site = body.site as unknown as typeof existing.site;
+        existing.project = siteDoc.project as unknown as typeof existing.project;
+      } else {
+        existing.site = null as unknown as typeof existing.site;
+        existing.project = null as unknown as typeof existing.project;
+      }
+    }
+
+    await existing.save();
+
     try {
-      await recomputeSalariesFor([String(updated.labour)], updated.date);
+      await recomputeSalariesFor([String(existing.labour)], existing.date);
     } catch (err) {
       console.warn("[attendance] salary recompute skipped:", (err as Error).message);
     }
-    return ok(updated);
+    const populated = await Attendance.findById(id)
+      .populate("labour", "name skill phone")
+      .populate({ path: "site", select: "name", strictPopulate: false })
+      .populate({ path: "project", select: "name", strictPopulate: false })
+      .lean();
+    return ok(populated);
   } catch (err) {
     return fail(err, 422);
   }

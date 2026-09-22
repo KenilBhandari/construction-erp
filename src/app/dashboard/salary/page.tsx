@@ -13,7 +13,7 @@ export default function SalaryPage() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Salary"
-        description="Calculated from attendance — weekly, monthly or any custom period. Advances deduct automatically."
+        description="Calculated from attendance — weekly, monthly or any custom period. Advance recovery is explicit per settlement."
       />
       <div className="flex gap-1 border-b border-border">
         {(

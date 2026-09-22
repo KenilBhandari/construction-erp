@@ -17,10 +17,7 @@ export interface SalaryDTO {
   overtimeRecordsAmount: number;
   gross: number;
   overtimeAmount: number;
-  /** Canonical explicit recovery for this settlement (contractor-chosen). */
   advanceRecovery: number;
-  /** @deprecated — legacy alias kept for compat, equals advanceRecovery. */
-  advances: number;
   deductions: number;
   net: number;
   paidAmount: number;

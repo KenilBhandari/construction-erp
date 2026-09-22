@@ -22,15 +22,15 @@ interface ListResponse {
   total: number;
 }
 
-function nameOf(ref: string | { name: string }): string {
-  return typeof ref === "string" ? ref : ref.name;
+function nameOf(ref: string | { name: string } | null | undefined): string {
+  if (!ref) return "—";
+  return typeof ref === "string" ? ref : (ref.name ?? "—");
 }
 
-const STATUS_TONE: Record<AttendanceStatus, "success" | "danger" | "warning" | "neutral"> = {
+const STATUS_TONE: Record<AttendanceStatus, "success" | "danger" | "warning"> = {
   present: "success",
   absent: "danger",
   "half-day": "warning",
-  leave: "neutral",
 };
 
 /** Date/site/labour-wise record history with inline corrections. */
@@ -92,6 +92,7 @@ export function AttendanceRecords({ initialLabourId = "" }: { initialLabourId?: 
       .then(async (res) => {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "Failed to load records.");
+        if (!json || !Array.isArray(json.data)) throw new Error("Invalid attendance response.");
         setData(json);
         setError(null);
       })
@@ -170,9 +171,8 @@ export function AttendanceRecords({ initialLabourId = "" }: { initialLabourId?: 
         <Select label="Status" value={status} onChange={(e) => { setStatus(e.target.value); resetPage(); }}>
           <option value="">All statuses</option>
           <option value="present">Present</option>
+          <option value="half-day">Half Day</option>
           <option value="absent">Absent</option>
-          <option value="half-day">Half day</option>
-          <option value="leave">Leave</option>
         </Select>
       </div>
 
@@ -219,9 +219,8 @@ export function AttendanceRecords({ initialLabourId = "" }: { initialLabourId?: 
                         className="rounded-md border border-border bg-surface px-1.5 py-1 text-xs text-text focus:border-primary focus:outline-none"
                       >
                         <option value="present">Present</option>
+                        <option value="half-day">Half Day</option>
                         <option value="absent">Absent</option>
-                        <option value="half-day">Half day</option>
-                        <option value="leave">Leave</option>
                       </select>
                     </div>
                   </TD>

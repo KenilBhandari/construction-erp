@@ -5,8 +5,8 @@ import mongoose, { Schema, type InferSchemaType } from "mongoose";
  * (labour, period) upserts — breakdown fields make every figure auditable.
  * `status` is derived from paidAmount vs net, never set directly.
  *
- * Phase 1: advanceRecovery is canonical (explicit recovery chosen per settlement).
- * `advances` is retained for backward compat and kept in sync (do not diverge).
+ * Phase 3: advanceRecovery is explicit contractor-chosen recovery for this
+ * settlement (0 allowed). Advances are never auto-deducted by date.
  */
 const SalarySchema = new Schema(
   {
@@ -16,7 +16,7 @@ const SalarySchema = new Schema(
       required: true,
       index: true,
     },
-    // Optional site/project attribution for reporting; not a second assignment system.
+    // Attribution for reporting; historical assignment remains in LabourAssignment.
     site: {
       type: Schema.Types.ObjectId,
       ref: "Site",
@@ -39,10 +39,7 @@ const SalarySchema = new Schema(
     overtimeRecordsAmount: { type: Number, min: 0, default: 0 },
     gross: { type: Number, default: 0 },
     overtimeAmount: { type: Number, default: 0 },
-    // Canonical explicit recovery for this settlement (§2-3). Not auto-deducted.
     advanceRecovery: { type: Number, min: 0, default: 0 },
-    // Legacy alias — kept in sync with advanceRecovery for backward compat.
-    advances: { type: Number, min: 0, default: 0 },
     deductions: { type: Number, min: 0, default: 0 },
     net: { type: Number, default: 0 },
     paidAmount: { type: Number, min: 0, default: 0 },
@@ -61,26 +58,22 @@ const SalarySchema = new Schema(
 
 SalarySchema.index({ labour: 1, periodStart: 1, periodEnd: 1 }, { unique: true });
 
-// Keep legacy `advances` in sync with canonical `advanceRecovery` so old
-// documents and future Phase 2 logic never diverge into two independent meanings.
-(SalarySchema as unknown as { pre: (e: string, fn: (next: (err?: unknown) => void) => void) => void }).pre(
-  "validate",
-  function (this: unknown, next: (err?: unknown) => void) {
-    const doc = this as unknown as Record<string, unknown>;
-    const recovery = doc["advanceRecovery"] as number | undefined;
-    const legacy = doc["advances"] as number | undefined;
-    if (recovery !== undefined && legacy !== recovery) {
-      doc["advances"] = recovery;
-    } else if (recovery === undefined && legacy !== undefined) {
-      doc["advanceRecovery"] = legacy;
-    }
-    next();
-  },
-);
-
 export type SalaryDoc = InferSchemaType<typeof SalarySchema> & {
   _id: mongoose.Types.ObjectId;
 };
+
+// Hot-reload safety: Phase 1-5 added site/project/advanceRecovery. If dev server
+// still holds an old compiled model without those paths, delete it so the new
+// schema takes effect instead of throwing "Cannot populate path `site`".
+const _existingSalary = mongoose.models.Salary as mongoose.Model<SalaryDoc> | undefined;
+if (_existingSalary) {
+  const p: unknown = _existingSalary.schema.path("site");
+  const pp: unknown = _existingSalary.schema.path("project");
+  const ar: unknown = _existingSalary.schema.path("advanceRecovery");
+  if (!p || !pp || !ar) {
+    delete (mongoose.models as Record<string, unknown>).Salary;
+  }
+}
 
 export const Salary =
   (mongoose.models.Salary as mongoose.Model<SalaryDoc> | undefined) ??

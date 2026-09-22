@@ -76,35 +76,35 @@ const dayString = z
     message: "Invalid date.",
   });
 
-const timeString = z
-  .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM.")
-  .nullish()
-  .transform((v) => v ?? null);
+export const attendanceCreateSchema = z.object({
+  labour: objectIdSchema,
+  date: dayString,
+  status: z.enum(ATTENDANCE_STATUSES),
+  site: objectIdSchema.nullish(),
+  notes: optionalText,
+});
 
 export const attendanceBulkSchema = z.object({
   date: dayString,
-  site: objectIdSchema,
+  // Site is optional at bulk level (legacy) — if provided, used as default for records without site.
+  site: objectIdSchema.nullish(),
   records: z
     .array(
       z.object({
         labour: objectIdSchema,
         status: z.enum(ATTENDANCE_STATUSES),
-        checkIn: timeString,
-        checkOut: timeString,
-        overtimeHours: z.coerce.number().min(0).default(0),
+        site: objectIdSchema.nullish(),
         notes: optionalText,
       }),
     )
     .min(1, "Add at least one record.")
     .max(500, "Too many records at once."),
+  overwrite: z.boolean().nullish().transform((v) => v ?? false),
 });
 
 export const attendanceUpdateSchema = z.object({
   status: z.enum(ATTENDANCE_STATUSES).optional(),
-  checkIn: timeString.optional(),
-  checkOut: timeString.optional(),
-  overtimeHours: z.coerce.number().min(0).optional(),
+  site: objectIdSchema.nullish().optional(),
   notes: optionalText.optional(),
 });
 
@@ -129,7 +129,6 @@ export const salaryComputeSchema = z.object({
   project: objectIdSchema.nullish(),
   periodStart: dayString,
   periodEnd: dayString,
-  // Canonical explicit recovery for this settlement; 0 = no recovery this period.
   advanceRecovery: z.coerce.number().min(0).default(0),
   notes: optionalText,
 });
@@ -138,8 +137,6 @@ export const salaryUpdateSchema = z.object({
   site: objectIdSchema.nullish().optional(),
   project: objectIdSchema.nullish().optional(),
   advanceRecovery: z.coerce.number().min(0).optional(),
-  // Legacy alias — accepted but mapped to advanceRecovery; do not diverge.
-  advances: z.coerce.number().min(0).optional(),
   paidAmount: z.coerce.number().min(0).optional(),
   deductions: z.coerce.number().min(0).optional(),
   paymentMethod: z.string().trim().max(30).nullish().optional(),
@@ -246,6 +243,18 @@ export const expenseCreateSchema = z.object({
 });
 
 export const expenseUpdateSchema = expenseCreateSchema.partial();
+
+/** Labour advance write-off via dedicated route — minimal, no ledger. */
+export const writeOffCreateSchema = z.object({
+  amount: z.coerce.number().min(1, "Amount must be at least ₹1."),
+  date: dayString.nullish(),
+  site: objectIdSchema.nullish(),
+  project: objectIdSchema.nullish(),
+  description: z.string().trim().min(2).max(300).nullish(),
+  labourAdvance: objectIdSchema.nullish(),
+  expenseType: z.enum(EXPENSE_TYPES).nullish(),
+  notes: optionalText,
+});
 
 export const paymentCreateSchema = z.object({
   project: objectIdSchema,

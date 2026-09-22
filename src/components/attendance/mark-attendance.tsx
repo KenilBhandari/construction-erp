@@ -24,9 +24,8 @@ interface RowMark {
 
 const STATUS_BUTTONS: { value: AttendanceStatus; label: string; active: string }[] = [
   { value: "present", label: "Present", active: "bg-green-600 text-white border-transparent" },
-  { value: "absent", label: "Absent", active: "bg-danger text-white border-transparent" },
   { value: "half-day", label: "Half", active: "bg-amber-500 text-white border-transparent" },
-  { value: "leave", label: "Leave", active: "bg-text-muted text-white border-transparent" },
+  { value: "absent", label: "Absent", active: "bg-danger text-white border-transparent" },
 ];
 
 /**
@@ -64,19 +63,26 @@ export function MarkAttendance() {
   }, [projectId]);
 
   // Load assigned labour + existing marks when site+date are set.
-  // State updates live in the promise callbacks (hooks-lint clean).
   useEffect(() => {
     if (!siteId || !date) return;
     Promise.all([
-      fetch(`/api/labour?site=${siteId}&status=active&limit=200&sort=name`).then((r) => r.json()),
-      fetch(`/api/attendance?date=${date}&site=${siteId}&limit=200`).then((r) => r.json()),
+      fetch(`/api/labour?site=${siteId}&status=active&limit=100&sort=name`).then(async (r) => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error ?? "Failed to load labour");
+        return j;
+      }),
+      fetch(`/api/attendance?date=${date}&site=${siteId}&limit=100`).then(async (r) => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error ?? "Failed to load attendance");
+        return j;
+      }),
     ])
       .then(([labourJson, attJson]) => {
         const labour: LabourDTO[] = Array.isArray(labourJson.data) ? labourJson.data : [];
         const existing: Record<string, { status: AttendanceStatus; overtimeHours: number }> = {};
         if (Array.isArray(attJson.data)) {
           for (const a of attJson.data) {
-            const lid = typeof a.labour === "string" ? a.labour : a.labour._id;
+            const lid = typeof a.labour === "string" ? a.labour : (a.labour as { _id: string })._id;
             existing[lid] = { status: a.status, overtimeHours: a.overtimeHours ?? 0 };
           }
         }
@@ -91,9 +97,9 @@ export function MarkAttendance() {
         );
         setMessage(null);
       })
-      .catch(() => {
+      .catch((err: Error) => {
         setRows([]);
-        setMessage({ kind: "error", text: "Failed to load roster." });
+        setMessage({ kind: "error", text: err.message || "Failed to load roster." });
       });
   }, [siteId, date]);
 
@@ -200,11 +206,16 @@ export function MarkAttendance() {
         </div>
       )}
 
-      {siteId && rows !== null && rows.length === 0 && (
+      {siteId && rows !== null && rows.length === 0 && !message && (
         <EmptyState
           title="No active workers on this site"
           description="Assign labour to this site first — then return here to mark attendance."
         />
+      )}
+      {message?.kind === "error" && (
+        <p role="alert" className="text-sm text-danger">
+          {message.text} <button type="button" className="underline ml-2" onClick={() => { setRows(null); setMessage(null); }}>Retry</button>
+        </p>
       )}
 
       {siteId && rows !== null && rows.length > 0 && (

@@ -15,6 +15,7 @@ import type { AdvanceDTO } from "@/types/salary";
 import { advanceLabourName, advanceSiteName } from "@/types/salary";
 import type { LabourDTO } from "@/types/labour";
 import type { SiteDTO } from "@/types/site";
+import { PAYMENT_METHODS } from "@/types/finance";
 
 interface ListResponse {
   data: AdvanceDTO[];
@@ -41,7 +42,7 @@ export function AdvancesTab() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/labour?limit=200&sort=name")
+    fetch("/api/labour?limit=100&sort=name")
       .then(async (r) => r.json())
       .then((j) => {
         if (Array.isArray(j.data)) setLabour(j.data);
@@ -58,6 +59,8 @@ export function AdvancesTab() {
       .then(async (res) => {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "Failed to load advances.");
+        // Guard: backend returns { data, page, limit, total, totalAmount } — ensure shape
+        if (!json || !Array.isArray(json.data)) throw new Error("Invalid advances response.");
         setData(json);
         setError(null);
       })
@@ -95,20 +98,24 @@ export function AdvancesTab() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-text-muted">
-          Advances deduct from the salary period containing their date — affected
-          periods recalculate automatically.
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-text-muted">
+            Advance given = recoverable amount (not an expense). Not auto-deducted — recovered intentionally per salary, or written off in the labour profile.
+          </p>
+          <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
+            Add Advance
+          </Button>
+        </div>
+        <p className="text-xs text-text-muted">
+          Site/project on an advance is attribution only — outstanding belongs to the labour, not a site.
         </p>
-        <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
-          Add Advance
-        </Button>
       </div>
 
       <StatCard
-        label="Total Advances"
+        label="Total advance given (recoverable)"
         value={data ? formatINR(data.totalAmount) : "—"}
-        hint="In selected filters"
+        hint="Sum of Amount in selected filters"
       />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -132,7 +139,7 @@ export function AdvancesTab() {
       {!loading && !error && data && data.data.length === 0 && (
         <EmptyState
           title="No advances yet"
-          description="Record money given in advance — it deducts from that period's salary."
+          description="Record money given in advance — outstanding until recovered or written off."
           action={
             <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
               Add Advance
@@ -143,47 +150,67 @@ export function AdvancesTab() {
 
       {!loading && !error && data && data.data.length > 0 && (
         <>
-          <Table>
-            <THead>
-              <TR>
-                <TH>Date</TH>
-                <TH>Worker</TH>
-                <TH>Site</TH>
-                <TH>Reason</TH>
-                <TH numeric>Amount</TH>
-                <TH>Actions</TH>
-              </TR>
-            </THead>
-            <tbody>
-              {data.data.map((a) => (
-                <TR key={a._id}>
-                  <TD className="tnum">{formatDateShort(a.date)}</TD>
-                  <TD className="font-medium">{advanceLabourName(a)}</TD>
-                  <TD>{advanceSiteName(a) ?? "—"}</TD>
-                  <TD>{a.reason ?? "—"}</TD>
-                  <TD numeric>{formatINR(a.amount)}</TD>
-                  <TD>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => { setEditing(a); setFormOpen(true); }}
-                        className="text-sm text-text-muted hover:underline"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setDeleting(a); setDeleteError(null); }}
-                        className="text-sm text-danger hover:underline"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </TD>
+          <div className="overflow-x-auto">
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Date</TH>
+                  <TH>Worker</TH>
+                  <TH>Site / Project</TH>
+                  <TH>Payment</TH>
+                  <TH>Reference</TH>
+                  <TH>Reason / Notes</TH>
+                  <TH numeric>Amount</TH>
+                  <TH>Actions</TH>
                 </TR>
-              ))}
-            </tbody>
-          </Table>
+              </THead>
+              <tbody>
+                {data.data.map((a) => {
+                  const siteLabel = advanceSiteName(a) ?? "—";
+                  const projectLabel =
+                    a.project && typeof a.project === "object" && "name" in a.project
+                      ? (a.project as { name: string }).name
+                      : a.project
+                        ? String(a.project)
+                        : "";
+                  const siteProject = projectLabel ? `${siteLabel} · ${projectLabel}` : siteLabel;
+                  const reasonNotes =
+                    [a.reason, a.notes].filter(Boolean).join(" — ") || "—";
+                  return (
+                    <TR key={a._id}>
+                      <TD className="tnum">{formatDateShort(a.date)}</TD>
+                      <TD className="font-medium">{advanceLabourName(a)}</TD>
+                      <TD>{siteProject}</TD>
+                      <TD>{a.paymentMethod ?? "—"}</TD>
+                      <TD className="tnum">{a.reference ?? "—"}</TD>
+                      <TD className="max-w-[220px] truncate">
+                        <span title={reasonNotes}>{reasonNotes}</span>
+                      </TD>
+                      <TD numeric>{formatINR(a.amount)}</TD>
+                      <TD>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => { setEditing(a); setFormOpen(true); }}
+                            className="text-sm text-text-muted hover:underline"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setDeleting(a); setDeleteError(null); }}
+                            className="text-sm text-danger hover:underline"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </TD>
+                    </TR>
+                  );
+                })}
+              </tbody>
+            </Table>
+          </div>
 
           <div className="flex items-center justify-between text-sm text-text-muted">
             <p className="tnum">{data.total} advance(s) · Page {data.page} of {totalPages}</p>
@@ -217,7 +244,7 @@ export function AdvancesTab() {
         onClose={() => setDeleting(null)}
         onConfirm={handleDelete}
         title="Delete this advance?"
-        description={deleteError ?? "Salary periods containing this date recalculate automatically."}
+        description={deleteError ?? "This does not affect existing salary recoveries."}
         pending={deletePending}
       />
     </div>
@@ -247,6 +274,8 @@ function AdvanceFormModal({
   const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
   const [reason, setReason] = useState(initial?.reason ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [paymentMethod, setPaymentMethod] = useState<string>(initial?.paymentMethod ?? "Cash");
+  const [reference, setReference] = useState(initial?.reference ?? "");
   const [sites, setSites] = useState<SiteDTO[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -273,11 +302,13 @@ function AdvanceFormModal({
     setPending(true);
     setError(null);
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         amount: Number(amount),
         date: date === "" ? undefined : date,
         site: siteId === "" ? null : siteId,
         reason: reason.trim() === "" ? null : reason.trim(),
+        paymentMethod: paymentMethod || null,
+        reference: reference.trim() === "" ? null : reference.trim(),
         notes: notes.trim() === "" ? null : notes.trim(),
         ...(initial ? {} : { labour: labourId }),
       };
@@ -312,12 +343,21 @@ function AdvanceFormModal({
           <Input label="Date" required type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           <Input label="Amount (₹)" required type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="5000" />
         </div>
-        <Select label="Site (optional)" value={siteId} onChange={(e) => setSiteId(e.target.value)}>
+        <Select label="Site (optional — attribution only)" value={siteId} onChange={(e) => setSiteId(e.target.value)}>
           <option value="">No site</option>
           {sites.map((s) => (
             <option key={s._id} value={s._id}>{s.name}</option>
           ))}
         </Select>
+        <p className="text-xs text-text-muted">Project is derived from site; mismatched project is rejected by the server.</p>
+        <div className="grid grid-cols-2 gap-4">
+          <Select label="Payment method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+            {PAYMENT_METHODS.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </Select>
+          <Input label="Reference" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Txn / cheque no." />
+        </div>
         <Input label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Family emergency…" />
         <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes…" />
         {error && (

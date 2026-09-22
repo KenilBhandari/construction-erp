@@ -88,7 +88,7 @@ export function TransactionsList({
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/materials?limit=200&sort=name")
+    fetch("/api/materials?limit=100&sort=name")
       .then(async (r) => r.json())
       .then((j) => {
         if (Array.isArray(j.data)) setMaterials(j.data);

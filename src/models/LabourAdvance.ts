@@ -40,6 +40,19 @@ export type LabourAdvanceDoc = InferSchemaType<typeof LabourAdvanceSchema> & {
   _id: mongoose.Types.ObjectId;
 };
 
+// Hot-reload safety: project/paymentMethod/reference added in Phase 2/3.
+// If dev server still holds old compiled model without those paths, force recompile.
+const _existingAdvance = mongoose.models.LabourAdvance as
+  | mongoose.Model<LabourAdvanceDoc>
+  | undefined;
+if (_existingAdvance) {
+  const hasProject = !!(_existingAdvance.schema.path("project") as unknown);
+  const hasPayment = !!(_existingAdvance.schema.path("paymentMethod") as unknown);
+  if (!hasProject || !hasPayment) {
+    delete (mongoose.models as Record<string, unknown>).LabourAdvance;
+  }
+}
+
 export const LabourAdvance =
   (mongoose.models.LabourAdvance as
     | mongoose.Model<LabourAdvanceDoc>
