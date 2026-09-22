@@ -31,15 +31,20 @@ export async function recomputeSalariesFor(labourIds: string[], date: Date | str
       labour: new Types.ObjectId(labourId),
       periodStart: { $lte: day },
       periodEnd: { $gte: day },
+      status: "pending",
     })
       .select("periodStart periodEnd")
       .lean();
     for (const s of affected) {
-      await computeAndSaveSalary({
-        labourId,
-        periodStart: s.periodStart.toISOString().slice(0, 10),
-        periodEnd: s.periodEnd.toISOString().slice(0, 10),
-      });
+      try {
+        await computeAndSaveSalary({
+          labourId,
+          periodStart: s.periodStart.toISOString().slice(0, 10),
+          periodEnd: s.periodEnd.toISOString().slice(0, 10),
+        });
+      } catch (e) {
+        console.warn("[salary] recompute skipped for", labourId, (e as Error).message);
+      }
     }
   }
 }
@@ -82,6 +87,22 @@ export async function computeAndSaveSalary(input: ComputeInput) {
     periodStart: start,
     periodEnd: endDate,
   }).lean();
+
+  // Prevent overlapping settlements for same labour (different period that overlaps)
+  const overlapping = await Salary.findOne({
+    labour: labourFilter.labour,
+    periodStart: { $lte: endDate },
+    periodEnd: { $gte: start },
+  }).lean();
+  if (overlapping && (!existing || String(overlapping._id) !== String(existing._id))) {
+    throw new Error(
+      `Salary settlement already exists for this worker in an overlapping period (${overlapping.periodStart.toISOString().slice(0, 10)} to ${overlapping.periodEnd.toISOString().slice(0, 10)}).`,
+    );
+  }
+
+  if (existing && existing.status !== "pending") {
+    throw new Error("Recalculate not allowed — this settlement has payments and its snapshot is frozen.");
+  }
 
   // Resolve site/project attribution: validate site.project matches supplied project.
   let siteOid: Types.ObjectId | null = null;
@@ -179,7 +200,14 @@ export async function computeAndSaveSalary(input: ComputeInput) {
   const paidAmount = existing?.paidAmount ?? 0;
   const advanceRecovery = requestedRecovery;
   const net = gross + overtimeAmount - advanceRecovery - deductions;
+  if (net <= 0) {
+    throw new Error("Salary settlement cannot be created because the net amount is ₹0 or less.");
+  }
+  if (advanceRecovery + deductions > gross + overtimeAmount) {
+    throw new Error("Advance recovery and deductions cannot exceed gross + overtime.");
+  }
   const status = deriveSalaryStatus(net, paidAmount);
+  const remainingAmount = Math.max(0, net - paidAmount);
 
   return Salary.findOneAndUpdate(
     {
@@ -203,6 +231,7 @@ export async function computeAndSaveSalary(input: ComputeInput) {
         deductions,
         net,
         paidAmount,
+        remainingAmount,
         status,
         notes: input.notes ?? existing?.notes ?? null,
       },

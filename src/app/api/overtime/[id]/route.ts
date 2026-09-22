@@ -54,6 +54,13 @@ export async function PATCH(
         calculateOvertimeAmount(existing.hours, existing.rate),
       );
     }
+    if (body.site !== undefined) {
+      const { Site } = await import("@/models/Site");
+      const siteDoc = await Site.findById(body.site).select("project").lean();
+      if (!siteDoc?.project) return fail(new Error("Selected site not found."), 404);
+      existing.site = body.site as unknown as typeof existing.site;
+      existing.project = siteDoc.project as unknown as typeof existing.project;
+    }
     if (body.notes !== undefined) existing.notes = body.notes;
     await existing.save();
     try {

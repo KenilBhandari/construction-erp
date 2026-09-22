@@ -21,6 +21,7 @@ export interface SalaryDTO {
   deductions: number;
   net: number;
   paidAmount: number;
+  remainingAmount: number;
   paymentMethod: string | null;
   paymentReference: string | null;
   status: SalaryStatus;

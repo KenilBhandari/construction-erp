@@ -7,7 +7,6 @@ import {
   Boxes,
   Building2,
   ClipboardCheck,
-  Clock,
   CreditCard,
   LayoutDashboard,
   MapPin,
@@ -45,7 +44,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard/labour", label: "All Labour", icon: Users },
       { href: "/dashboard/attendance", label: "Attendance", icon: ClipboardCheck },
-      { href: "/dashboard/overtime", label: "Overtime", icon: Clock },
       { href: "/dashboard/salary", label: "Salary", icon: Wallet },
     ],
   },

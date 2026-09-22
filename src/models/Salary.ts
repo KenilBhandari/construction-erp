@@ -43,6 +43,7 @@ const SalarySchema = new Schema(
     deductions: { type: Number, min: 0, default: 0 },
     net: { type: Number, default: 0 },
     paidAmount: { type: Number, min: 0, default: 0 },
+    remainingAmount: { type: Number, min: 0, default: 0 },
     paymentMethod: { type: String, default: null },
     paymentReference: { type: String, default: null },
     status: {
@@ -70,7 +71,8 @@ if (_existingSalary) {
   const p: unknown = _existingSalary.schema.path("site");
   const pp: unknown = _existingSalary.schema.path("project");
   const ar: unknown = _existingSalary.schema.path("advanceRecovery");
-  if (!p || !pp || !ar) {
+  const rem: unknown = _existingSalary.schema.path("remainingAmount");
+  if (!p || !pp || !ar || !rem) {
     delete (mongoose.models as Record<string, unknown>).Salary;
   }
 }

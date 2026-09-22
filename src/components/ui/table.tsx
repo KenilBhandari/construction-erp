@@ -46,13 +46,16 @@ export function TD({
   children,
   className,
   numeric,
+  onClick,
 }: {
   children: ReactNode;
   className?: string;
   numeric?: boolean;
+  onClick?: (e: React.MouseEvent<HTMLTableCellElement>) => void;
 }) {
   return (
     <td
+      onClick={onClick}
       className={cn(
         "border-b border-border px-4 py-2.5 text-text last:border-b-0",
         numeric && "text-right tnum",
@@ -67,9 +70,15 @@ export function TD({
 export function TR({
   children,
   className,
+  onClick,
 }: {
   children: ReactNode;
   className?: string;
+  onClick?: (e: React.MouseEvent<HTMLTableRowElement>) => void;
 }) {
-  return <tr className={cn("hover:bg-background/70", className)}>{children}</tr>;
+  return (
+    <tr onClick={onClick} className={cn("hover:bg-background/70", className)}>
+      {children}
+    </tr>
+  );
 }

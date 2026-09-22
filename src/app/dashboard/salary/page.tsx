@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
-import { SalaryTab } from "@/components/salary/salary-tab";
 import { AdvancesTab } from "@/components/salary/advances-tab";
+import { CalculatePendingTab } from "@/components/salary/calculate-pending-tab";
+import { SalaryRecordsTab } from "@/components/salary/salary-records-tab";
 import { cn } from "@/lib/utils";
 
 export default function SalaryPage() {
-  const [tab, setTab] = useState<"salary" | "advances">("salary");
+  const [tab, setTab] = useState<"calc" | "records" | "advances">("calc");
 
   return (
     <div className="flex flex-col gap-5">
@@ -18,7 +19,8 @@ export default function SalaryPage() {
       <div className="flex gap-1 border-b border-border">
         {(
           [
-            { value: "salary", label: "Salary" },
+            { value: "calc", label: "Calculate & Pending" },
+            { value: "records", label: "Salary Records" },
             { value: "advances", label: "Advances" },
           ] as const
         ).map((t) => (
@@ -37,7 +39,7 @@ export default function SalaryPage() {
           </button>
         ))}
       </div>
-      {tab === "salary" ? <SalaryTab /> : <AdvancesTab />}
+      {tab === "calc" ? <CalculatePendingTab /> : tab === "records" ? <SalaryRecordsTab /> : <AdvancesTab />}
     </div>
   );
 }

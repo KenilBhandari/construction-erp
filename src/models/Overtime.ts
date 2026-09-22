@@ -34,7 +34,7 @@ const OvertimeSchema = new Schema(
   { timestamps: true },
 );
 
-OvertimeSchema.index({ labour: 1, date: 1 });
+OvertimeSchema.index({ labour: 1, date: 1 }, { unique: true });
 OvertimeSchema.index({ site: 1, date: 1 });
 
 export type OvertimeDoc = InferSchemaType<typeof OvertimeSchema> & {
@@ -44,3 +44,6 @@ export type OvertimeDoc = InferSchemaType<typeof OvertimeSchema> & {
 export const Overtime =
   (mongoose.models.Overtime as mongoose.Model<OvertimeDoc> | undefined) ??
   mongoose.model<OvertimeDoc>("Overtime", OvertimeSchema);
+
+// Ensure V1 uniqueness: one OT per labour per date. Drop legacy non-unique index if it exists.
+Overtime.collection?.dropIndex?.("labour_1_date_1").catch(() => {});

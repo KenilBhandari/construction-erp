@@ -4,6 +4,7 @@ import { toDayDate } from "@/lib/utils";
 import { Attendance } from "@/models/Attendance";
 import { Labour } from "@/models/Labour";
 import { Site } from "@/models/Site";
+import { Overtime } from "@/models/Overtime";
 
 /**
  * GET /api/attendance/roster?date=2026-09-22
@@ -22,8 +23,8 @@ export async function GET(req: Request) {
     // Validate date
     const date = toDayDate(dateStr);
 
-    // Fetch active labour and attendance for date in parallel
-    const [labours, attendances, sites] = await Promise.all([
+    // Fetch active labour, attendance and overtime for date in parallel
+    const [labours, attendances, sites, overtimes] = await Promise.all([
       Labour.find({ status: "active" })
         .populate({ path: "assignedSite", select: "name", strictPopulate: false })
         .sort({ name: 1 })
@@ -33,17 +34,25 @@ export async function GET(req: Request) {
         .populate({ path: "project", select: "name", strictPopulate: false })
         .lean(),
       Site.find({ status: "active" }).select("name project").lean(),
+      Overtime.find({ date })
+        .populate({ path: "site", select: "name", strictPopulate: false })
+        .populate({ path: "project", select: "name", strictPopulate: false })
+        .lean(),
     ]);
 
     const attMap = new Map<string, (typeof attendances)[number]>();
     for (const a of attendances) {
-      // a.labour is ObjectId (not populated) — use string for map
       attMap.set(String(a.labour), a);
+    }
+    const otMap = new Map<string, (typeof overtimes)[number]>();
+    for (const o of overtimes) {
+      otMap.set(String(o.labour), o);
     }
 
     const roster = labours.map((lab) => {
       const lid = String(lab._id);
       const att = attMap.get(lid) ?? null;
+      const ot = otMap.get(lid) ?? null;
       let suggestedSite: { _id: string; name: string } | null = null;
       const rawSite = lab.assignedSite as unknown;
       if (rawSite) {
@@ -79,6 +88,19 @@ export async function GET(req: Request) {
             }
           : null,
         suggestedSite,
+        overtime: ot
+          ? {
+              _id: String(ot._id),
+              labour: lid,
+              site: ot.site,
+              project: ot.project,
+              date: ot.date,
+              hours: ot.hours,
+              rate: ot.rate,
+              amount: ot.amount,
+              notes: ot.notes,
+            }
+          : null,
       };
     });
 

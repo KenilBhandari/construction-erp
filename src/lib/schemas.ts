@@ -118,8 +118,9 @@ export const overtimeCreateSchema = z.object({
 });
 
 export const overtimeUpdateSchema = z.object({
-  hours: z.coerce.number().min(0.1).max(24).optional(),
+  hours: z.coerce.number().min(0.1, "Hours must be 0.1 - 24.").max(24).optional(),
   rate: z.coerce.number().min(0).optional(),
+  site: objectIdSchema.optional(),
   notes: optionalText.optional(),
 });
 
@@ -137,11 +138,18 @@ export const salaryUpdateSchema = z.object({
   site: objectIdSchema.nullish().optional(),
   project: objectIdSchema.nullish().optional(),
   advanceRecovery: z.coerce.number().min(0).optional(),
-  paidAmount: z.coerce.number().min(0).optional(),
   deductions: z.coerce.number().min(0).optional(),
   paymentMethod: z.string().trim().max(30).nullish().optional(),
   paymentReference: optionalText.optional(),
   notes: optionalText.optional(),
+});
+
+export const salaryPaymentCreateSchema = z.object({
+  amount: z.coerce.number().min(1, "Amount must be at least ₹1."),
+  date: dayString.nullish(),
+  paymentMethod: z.enum(PAYMENT_METHODS).default("Cash"),
+  reference: optionalText,
+  notes: optionalText,
 });
 
 export const advanceCreateSchema = z.object({

@@ -1,18 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
-import { Modal, ConfirmDialog } from "@/components/ui/modal";
-import { Textarea } from "@/components/ui/textarea";
+import { ConfirmDialog } from "@/components/ui/modal";
 import { formatDateShort, toDateInputValue } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { AttendanceStatus } from "@/types/attendance";
 import type { SiteDTO } from "@/types/site";
+import { AttendanceDayDetail } from "./attendance-day-detail";
+import { AttendanceOtModal } from "./attendance-ot-modal";
 
 interface RosterItem {
   labour: {
@@ -35,8 +37,20 @@ interface RosterItem {
     overtimeHours: number;
   } | null;
   suggestedSite: { _id: string; name: string } | null;
+  overtime: {
+    _id: string;
+    labour: string;
+    site: string | { _id: string; name: string } | null;
+    project: string | { _id: string; name: string } | null;
+    date: string;
+    hours: number;
+    rate: number;
+    amount: number;
+    notes: string | null;
+  } | null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface RosterResponse {
   date: string;
   total: number;
@@ -71,7 +85,12 @@ function attendanceSiteName(att: RosterItem["attendance"]): string | null {
   return siteNameOf(att.site as string | { _id: string; name: string });
 }
 
-export function AttendanceMuster() {
+function siteIdOf(site: string | { _id: string; name: string } | null | undefined): string | null {
+  if (!site) return null;
+  return typeof site === "string" ? site : (site as { _id: string })._id;
+}
+
+export function AttendanceMuster({ onOtChange }: { onOtChange?: () => void } = {}) {
   const [date, setDate] = useState(() => toDateInputValue());
   const [search, setSearch] = useState("");
   const [siteFilter, setSiteFilter] = useState<string>("all"); // all | siteId | "none"
@@ -84,9 +103,19 @@ export function AttendanceMuster() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState<RosterItem | null>(null);
   const [bulkSite, setBulkSite] = useState<string>("__none"); // for bulk site choice
   const [confirmBulk, setConfirmBulk] = useState<{ status: AttendanceStatus; mode: "remaining" | "allBelow" | "selected"; count: number; overwriteCount?: number } | null>(null);
+
+  // New UX states
+  const [pendingSite, setPendingSite] = useState<Record<string, string | null>>({});
+  const [editingSiteId, setEditingSiteId] = useState<string | null>(null);
+  const [siteSavingId, setSiteSavingId] = useState<string | null>(null);
+  const [siteSavedId, setSiteSavedId] = useState<string | null>(null);
+  const [detailItem, setDetailItem] = useState<RosterItem | null>(null);
+  const [otItem, setOtItem] = useState<RosterItem | null>(null);
+  const [otEditing, setOtEditing] = useState<{ _id: string; hours: number; rate: number; notes: string | null } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<RosterItem | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
 
   const fetchRoster = async () => {
     setLoading(true);
@@ -112,7 +141,6 @@ export function AttendanceMuster() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
 
-  // Also fetch sites for bulk site selector (if roster sites not enough)
   useEffect(() => {
     if (sites.length === 0) {
       fetch("/api/sites?limit=100")
@@ -124,49 +152,57 @@ export function AttendanceMuster() {
     }
   }, [sites.length]);
 
-  // Reset selection when filters change
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelected(new Set());
   }, [date, search, siteFilter, statusFilter, completion]);
 
+  // Clear pending sites when date changes
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPendingSite({});
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEditingSiteId(null);
+  }, [date]);
+
+  // Keep detailItem in sync with latest roster (so OT/site changes reflect immediately)
+  useEffect(() => {
+    if (!detailItem || !roster) return;
+    const fresh = roster.find((r) => r.labour._id === detailItem.labour._id);
+    if (fresh && fresh !== detailItem) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDetailItem(fresh);
+    }
+  }, [roster, detailItem]);
+
   const filtered = useMemo(() => {
     if (!roster) return [];
     let out = roster;
-    // Search
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       out = out.filter((r) => r.labour.name.toLowerCase().includes(q) || r.labour.phone.toLowerCase().includes(q) || r.labour.skill.toLowerCase().includes(q));
     }
-    // Completion
     if (completion === "remaining") out = out.filter((r) => !r.attendance);
     else if (completion === "marked") out = out.filter((r) => !!r.attendance);
-    // Status
     if (statusFilter !== "all") {
       out = out.filter((r) => r.attendance?.status === statusFilter);
     }
-    // Site
     if (siteFilter !== "all") {
       if (siteFilter === "none") {
         out = out.filter((r) => r.attendance && !r.attendance.site);
       } else {
-        // For remaining, filter by suggestedSite; for marked, filter by attendance.site
         out = out.filter((r) => {
           if (!r.attendance) {
-            // Not marked: use suggestedSite for filtering if available
             return r.suggestedSite?._id === siteFilter;
           }
           const s = r.attendance.site;
-          const sid = s ? (typeof s === "string" ? s : (s as { _id: string })._id) : null;
+          const sid = siteIdOf(s as string | { _id: string; name: string });
           return sid === siteFilter;
         });
       }
     }
     return out;
   }, [roster, search, siteFilter, statusFilter, completion]);
-
-  const remainingInFiltered = filtered.filter((r) => !r.attendance).length;
-  const markedInFiltered = filtered.filter((r) => !!r.attendance).length;
 
   const allVisibleSelected = filtered.length > 0 && filtered.every((r) => selected.has(r.labour._id));
   const selectedCount = selected.size;
@@ -194,21 +230,39 @@ export function AttendanceMuster() {
 
   const hasActiveFilters = search.trim() !== "" || siteFilter !== "all" || statusFilter !== "all" || completion !== "all";
 
-  // Fast individual marking
-  const markOne = async (item: RosterItem, status: AttendanceStatus, siteOverride?: string | null) => {
+  const handleSiteAutoSave = async (item: RosterItem, newSiteId: string | null) => {
+    if (!item.attendance) return;
+    setSiteSavingId(item.attendance._id);
+    setSiteSavedId(null);
+    try {
+      const res = await fetch(`/api/attendance/${item.attendance._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ site: newSiteId }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Site update failed");
+      setSiteSavedId(item.attendance._id);
+      setTimeout(() => setSiteSavedId((prev) => (prev === item.attendance?._id ? null : prev)), 2000);
+      setEditingSiteId(null);
+      await fetchRoster();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSiteSavingId(null);
+    }
+  };
+
+  const markOne = async (item: RosterItem, status: AttendanceStatus) => {
     setSaving(true);
     try {
-      // Site handling: if item has attendance.site, use it unless overridden; if not marked, use suggestedSite or bulkSite or null
       let site: string | null = null;
-      if (siteOverride !== undefined) site = siteOverride;
-      else if (item.attendance?.site) {
-        const s = item.attendance.site;
-        site = typeof s === "string" ? s : (s as { _id: string })._id;
-      } else if (item.suggestedSite) {
-        // For remaining, suggestedSite is shown but not auto-saved unless user is in site-filtered context
-        // If user is viewing a specific site, use that site
-        if (siteFilter !== "all" && siteFilter !== "none") site = siteFilter;
-        else site = null; // No Site unless explicitly chosen
+      if (item.attendance) {
+        site = siteIdOf(item.attendance.site as string | { _id: string; name: string });
+      } else {
+        const pending = pendingSite[item.labour._id];
+        if (pending !== undefined) site = pending;
+        else site = item.suggestedSite?._id ?? null;
       }
 
       const res = await fetch("/api/attendance", {
@@ -222,6 +276,12 @@ export function AttendanceMuster() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Failed to save");
+      // Clear pending for this labour after successful mark
+      setPendingSite((prev) => {
+        const next = { ...prev };
+        delete next[item.labour._id];
+        return next;
+      });
       await fetchRoster();
     } catch (e) {
       setError((e as Error).message);
@@ -230,32 +290,21 @@ export function AttendanceMuster() {
     }
   };
 
-  // Bulk helpers
-  const getBulkRecords = (items: RosterItem[], status: AttendanceStatus, siteForBulk: string | null): Array<{ labour: string; status: AttendanceStatus; site: string | null }> => {
-    return items.map((r) => {
-      const site: string | null = siteForBulk;
-      return { labour: r.labour._id, status, site };
-    });
-  };
-
   const handleMarkRemaining = async (status: AttendanceStatus) => {
     const remaining = filtered.filter((r) => !r.attendance);
     if (remaining.length === 0) return;
-    // Site for bulk: if siteFilter is specific site, use it; else ask
     let siteForBulk: string | null = null;
     if (siteFilter !== "all" && siteFilter !== "none") siteForBulk = siteFilter;
     else if (siteFilter === "none") siteForBulk = null;
-    else {
-      // All Sites + Remaining: need to ask site
-      // For now, default to No Site, but show bulkSite selector
-      siteForBulk = bulkSite === "__none" ? null : bulkSite;
-    }
+    else siteForBulk = bulkSite === "__none" ? null : bulkSite;
 
-    // If All Sites and no bulkSite chosen, prompt?
-    // We'll just use No Site for now if not filtered
     setSaving(true);
     try {
-      const records = getBulkRecords(remaining, status, siteForBulk);
+      const records = remaining.map((r) => {
+        const pending = pendingSite[r.labour._id];
+        const site = pending !== undefined ? pending : r.suggestedSite?._id ?? siteForBulk;
+        return { labour: r.labour._id, status, site };
+      });
       const res = await fetch("/api/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -263,6 +312,7 @@ export function AttendanceMuster() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Bulk failed");
+      setPendingSite({});
       await fetchRoster();
     } catch (e) {
       setError((e as Error).message);
@@ -272,14 +322,12 @@ export function AttendanceMuster() {
   };
 
   const handleMarkAllBelow = async (status: AttendanceStatus) => {
-    // Per spec, mark all below = currently displayed filtered rows, but only remaining unless overwrite confirmed
     const hasMarked = filtered.some((r) => !!r.attendance);
     if (hasMarked) {
       const overwriteCount = filtered.filter((r) => !!r.attendance).length;
       setConfirmBulk({ status, mode: "allBelow", count: filtered.length, overwriteCount });
       return;
     }
-    // Only remaining
     await handleMarkRemaining(status);
   };
 
@@ -292,8 +340,11 @@ export function AttendanceMuster() {
       let siteForBulk: string | null = null;
       if (siteFilter !== "all" && siteFilter !== "none") siteForBulk = siteFilter;
       else siteForBulk = bulkSite === "__none" ? null : bulkSite;
-
-      const records = getBulkRecords(filtered, status, siteForBulk);
+      const records = filtered.map((r) => {
+        const pending = pendingSite[r.labour._id];
+        const site = r.attendance ? siteIdOf(r.attendance.site as string | { _id: string; name: string }) : pending !== undefined ? pending : r.suggestedSite?._id ?? siteForBulk;
+        return { labour: r.labour._id, status, site };
+      });
       const res = await fetch("/api/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -301,6 +352,7 @@ export function AttendanceMuster() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Bulk failed");
+      setPendingSite({});
       await fetchRoster();
     } catch (e) {
       setError((e as Error).message);
@@ -315,10 +367,13 @@ export function AttendanceMuster() {
     let siteForBulk: string | null = null;
     if (siteFilter !== "all" && siteFilter !== "none") siteForBulk = siteFilter;
     else siteForBulk = bulkSite === "__none" ? null : bulkSite;
-
     setSaving(true);
     try {
-      const records = getBulkRecords(items, status, siteForBulk);
+      const records = items.map((r) => {
+        const pending = pendingSite[r.labour._id];
+        const site = r.attendance ? siteIdOf(r.attendance.site as string | { _id: string; name: string }) : pending !== undefined ? pending : r.suggestedSite?._id ?? siteForBulk;
+        return { labour: r.labour._id, status, site };
+      });
       const res = await fetch("/api/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -327,6 +382,7 @@ export function AttendanceMuster() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Bulk failed");
       setSelected(new Set());
+      setPendingSite({});
       await fetchRoster();
     } catch (e) {
       setError((e as Error).message);
@@ -335,21 +391,26 @@ export function AttendanceMuster() {
     }
   };
 
-  const handleDelete = async (item: RosterItem) => {
-    if (!item.attendance) return;
+  const handleDelete = async () => {
+    if (!deleteTarget?.attendance) return;
+    setDeletePending(true);
     try {
-      const res = await fetch(`/api/attendance/${item.attendance._id}`, { method: "DELETE" });
+      const res = await fetch(`/api/attendance/${deleteTarget.attendance._id}`, { method: "DELETE" });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Delete failed");
+      setDeleteTarget(null);
+      setDetailItem(null);
       await fetchRoster();
+      onOtChange?.();
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setDeletePending(false);
     }
   };
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Date + Counters */}
       <Card className="p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -361,35 +422,16 @@ export function AttendanceMuster() {
 
         {counters && (
           <div className="mt-4 grid grid-cols-3 gap-3 text-sm sm:grid-cols-6">
-            <div>
-              <dt className="text-text-muted">Total Labour</dt>
-              <dd className="font-semibold tnum">{counters.total}</dd>
-            </div>
-            <div>
-              <dt className="text-text-muted">Marked</dt>
-              <dd className="font-semibold tnum">{counters.marked}</dd>
-            </div>
-            <div>
-              <dt className="text-text-muted">Remaining</dt>
-              <dd className="font-semibold tnum">{counters.remaining}</dd>
-            </div>
-            <div>
-              <dt className="text-text-muted">Present</dt>
-              <dd className="font-semibold tnum text-success">{counters.present}</dd>
-            </div>
-            <div>
-              <dt className="text-text-muted">Half Day</dt>
-              <dd className="font-semibold tnum text-amber-600">{counters.halfDay}</dd>
-            </div>
-            <div>
-              <dt className="text-text-muted">Absent</dt>
-              <dd className="font-semibold tnum text-danger">{counters.absent}</dd>
-            </div>
+            <div><dt className="text-text-muted">Total Labour</dt><dd className="font-semibold tnum">{counters.total}</dd></div>
+            <div><dt className="text-text-muted">Marked</dt><dd className="font-semibold tnum">{counters.marked}</dd></div>
+            <div><dt className="text-text-muted">Remaining</dt><dd className="font-semibold tnum">{counters.remaining}</dd></div>
+            <div><dt className="text-text-muted">Present</dt><dd className="font-semibold tnum text-success">{counters.present}</dd></div>
+            <div><dt className="text-text-muted">Half Day</dt><dd className="font-semibold tnum text-amber-600">{counters.halfDay}</dd></div>
+            <div><dt className="text-text-muted">Absent</dt><dd className="font-semibold tnum text-danger">{counters.absent}</dd></div>
           </div>
         )}
       </Card>
 
-      {/* Filters */}
       <Card className="p-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
           <Input placeholder="Search name, phone, skill..." value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search labour" />
@@ -407,21 +449,11 @@ export function AttendanceMuster() {
           <Select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} aria-label="Site filter">
             <option value="all">All Sites</option>
             <option value="none">No Site</option>
-            {sites.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.name}
-              </option>
-            ))}
+            {sites.map((s) => (<option key={s._id} value={s._id}>{s.name}</option>))}
           </Select>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-text-muted tnum">
-              Showing {filtered.length} of {counters?.total ?? 0}
-            </span>
-            {hasActiveFilters && (
-              <Button variant="outline" size="sm" onClick={clearFilters}>
-                Clear
-              </Button>
-            )}
+            <span className="text-sm text-text-muted tnum">Showing {filtered.length} of {counters?.total ?? 0}</span>
+            {hasActiveFilters && <Button variant="outline" size="sm" onClick={clearFilters}>Clear</Button>}
           </div>
         </div>
         {hasActiveFilters && (
@@ -431,19 +463,29 @@ export function AttendanceMuster() {
               statusFilter !== "all" && STATUS_LABEL[statusFilter as AttendanceStatus],
               siteFilter !== "all" && (siteFilter === "none" ? "No Site" : sites.find((s) => s._id === siteFilter)?.name ?? siteFilter),
               search.trim() && `"${search.trim()}"`,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
+            ].filter(Boolean).join(" · ")}
           </p>
         )}
       </Card>
 
+      <Card className="p-4">
+        <div className="flex flex-col gap-3">
+    
+      
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium">Selected: {selectedCount}</span>
+            <Button size="sm" variant="outline" onClick={selectAllVisible} disabled={filtered.length === 0}>
+              {allVisibleSelected ? "Clear selection" : `Select all ${filtered.length}`}
+            </Button>
+            <Button size="sm" disabled={selectedCount === 0 || saving} onClick={() => handleSelectedBulk("present")}>Present</Button>
+            <Button size="sm" disabled={selectedCount === 0 || saving} onClick={() => handleSelectedBulk("half-day")}>Half Day</Button>
+            <Button size="sm" disabled={selectedCount === 0 || saving} onClick={() => handleSelectedBulk("absent")}>Absent</Button>
+          </div>
+        </div>
+      </Card>
+
       {loading && <div className="text-sm text-text-muted">Loading roster...</div>}
-      {error && (
-        <p role="alert" className="text-sm text-danger">
-          {error} <button type="button" className="underline" onClick={fetchRoster}>Retry</button>
-        </p>
-      )}
+      {error && <p role="alert" className="text-sm text-danger">{error} <button type="button" className="underline" onClick={fetchRoster}>Retry</button></p>}
 
       {!loading && !error && filtered.length === 0 && (
         <Card className="p-8 text-center">
@@ -458,9 +500,7 @@ export function AttendanceMuster() {
             <Table>
               <THead>
                 <TR>
-                  <TH>
-                    <input type="checkbox" checked={allVisibleSelected} onChange={selectAllVisible} aria-label="Select all visible" />
-                  </TH>
+                  <TH><input type="checkbox" checked={allVisibleSelected} onChange={selectAllVisible} aria-label="Select all" /></TH>
                   <TH>Labour</TH>
                   <TH>Site</TH>
                   <TH>Status</TH>
@@ -472,65 +512,90 @@ export function AttendanceMuster() {
                   const isSelected = selected.has(item.labour._id);
                   const att = item.attendance;
                   const siteName = att ? attendanceSiteName(att) : null;
-                  const suggested = !att ? item.suggestedSite?.name : null;
+                  const pendingVal = pendingSite[item.labour._id];
+                  const hasPending = pendingVal !== undefined;
+                  const isSiteSaving = att ? siteSavingId === att._id : false;
+                  const isSiteSaved = att ? siteSavedId === att._id : false;
                   return (
-                    <TR key={item.labour._id} className={cn(isSelected && "bg-primary/5")}>
-                      <TD>
+                    <TR key={item.labour._id} className={cn(isSelected && "bg-primary/5", "cursor-pointer hover:bg-background")} onClick={() => setDetailItem(item)}>
+                      <TD onClick={(e) => e.stopPropagation()}>
                         <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(item.labour._id)} aria-label={`Select ${item.labour.name}`} />
                       </TD>
+                      <TD onClick={(e) => e.stopPropagation()}>
+                        <Link href={`/dashboard/labour/${item.labour._id}`} className="font-medium text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
+                          {item.labour.name}
+                        </Link>
+                        <div className="text-xs text-text-muted tnum">{item.labour.skill} · {item.labour.phone}</div>
+                      </TD>
+                      <TD onClick={(e) => e.stopPropagation()}>
+                        {att ? (
+                          editingSiteId === att._id ? (
+                            <div className="flex items-center gap-1">
+                              <select
+                                autoFocus
+                                value={siteIdOf(att.site as string | { _id: string; name: string }) ?? "__none"}
+                                onChange={(e) => {
+                                  const v = e.target.value === "__none" ? null : e.target.value;
+                                  handleSiteAutoSave(item, v);
+                                }}
+                                disabled={isSiteSaving}
+                                className="rounded-md border border-primary bg-surface px-2 py-1 text-sm"
+                              >
+                                <option value="__none">No Site</option>
+                                {sites.map((s) => (<option key={s._id} value={s._id}>{s.name}</option>))}
+                              </select>
+                              <button type="button" className="text-xs text-text-muted hover:text-text" onClick={() => setEditingSiteId(null)}>✕</button>
+                            </div>
+                          ) : (
+                            <div className={cn("inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm", isSiteSaved ? "border-success bg-success/10" : "border-border bg-background")}>
+                              <span className={cn(isSiteSaved && "text-success font-medium")}>{siteName ?? "No Site"}</span>
+                              {isSiteSaving ? <span className="text-xs text-text-muted">Saving…</span> : isSiteSaved ? <span className="text-xs text-success">✓ Saved</span> : null}
+                              <button
+                                type="button"
+                                title="Change site"
+                                className="ml-1 rounded p-0.5 text-text-muted hover:bg-border hover:text-text"
+                                onClick={() => setEditingSiteId(att._id)}
+                              >
+                                {/* reset/edit icon */}
+                                <span className="text-xs">✎</span>
+                              </button>
+                            </div>
+                          )
+                        ) : (
+                          <select
+                            value={hasPending ? (pendingVal ?? "__none") : (item.suggestedSite?._id ?? "__none")}
+                            onChange={(e) => {
+                              const v = e.target.value === "__none" ? null : e.target.value;
+                              setPendingSite((prev) => ({ ...prev, [item.labour._id]: v }));
+                            }}
+                            className="h-8 rounded-md border border-border bg-surface px-2 text-sm focus:border-primary focus:outline-none"
+                          >
+                            <option value="__none">No Site</option>
+                            {sites.map((s) => (<option key={s._id} value={s._id}>{s.name}</option>))}
+                          </select>
+                        )}
+                      </TD>
                       <TD>
-                        <div className="font-medium">{item.labour.name}</div>
-                        <div className="text-xs text-text-muted tnum">
-                          {item.labour.skill} · {item.labour.phone}
+                        {att ? <Badge tone={STATUS_TONE[att.status]}>{STATUS_LABEL[att.status]}</Badge> : <Badge tone="neutral">Not Marked</Badge>}
+                      </TD>
+                      <TD onClick={(e) => e.stopPropagation()}>
+                        <div className="flex flex-wrap gap-1">
+                          <Button size="sm" variant={att?.status === "present" ? "primary" : "outline"} onClick={() => markOne(item, "present")} disabled={saving}>Present</Button>
+                          <Button size="sm" variant={att?.status === "half-day" ? "primary" : "outline"} onClick={() => markOne(item, "half-day")} disabled={saving}>Half</Button>
+                          <Button size="sm" variant={att?.status === "absent" ? "primary" : "outline"} onClick={() => markOne(item, "absent")} disabled={saving}>Absent</Button>
+                          {item.overtime ? (
+                            <Button size="sm" variant="primary" onClick={() => { if (!att) return; setOtItem(item); setOtEditing({ _id: item.overtime!._id, hours: item.overtime!.hours, rate: item.overtime!.rate, notes: item.overtime!.notes }); }} disabled={!att} title={`OT ${item.overtime.hours}h @ ${item.overtime.rate} → Edit`}>
+                              OT {item.overtime.hours}h
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={() => { if (!att) return; setOtItem(item); setOtEditing(null); }} disabled={!att} title={!att ? "Mark attendance first" : "Add OT"}>
+                              + OT
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" onClick={() => { if (!att) return; setDeleteTarget(item); }} disabled={!att} title="Delete attendance (also deletes OT)">
+                            X
+                          </Button>
                         </div>
-                      </TD>
-                      <TD>
-                        {att ? (
-                          siteName ?? <span className="text-text-muted">—</span>
-                        ) : suggested ? (
-                          <span className="text-text-muted" title="Suggested from current assignment">
-                            {suggested} <span className="text-xs">(suggested)</span>
-                          </span>
-                        ) : (
-                          <span className="text-text-muted">—</span>
-                        )}
-                      </TD>
-                      <TD>
-                        {att ? (
-                          <Badge tone={STATUS_TONE[att.status]}>{STATUS_LABEL[att.status]}</Badge>
-                        ) : (
-                          <Badge tone="neutral">Not Marked</Badge>
-                        )}
-                      </TD>
-                      <TD>
-                        {att ? (
-                          <div className="flex flex-wrap gap-1">
-                            <Button size="sm" variant={att.status === "present" ? "primary" : "outline"} onClick={() => markOne(item, "present")} disabled={saving}>
-                              Present
-                            </Button>
-                            <Button size="sm" variant={att.status === "half-day" ? "primary" : "outline"} onClick={() => markOne(item, "half-day")} disabled={saving}>
-                              Half
-                            </Button>
-                            <Button size="sm" variant={att.status === "absent" ? "primary" : "outline"} onClick={() => markOne(item, "absent")} disabled={saving}>
-                              Absent
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => setEditing(item)}>
-                              Edit
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="flex flex-wrap gap-1">
-                            <Button size="sm" variant="outline" onClick={() => markOne(item, "present")} disabled={saving}>
-                              Present
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => markOne(item, "half-day")} disabled={saving}>
-                              Half
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => markOne(item, "absent")} disabled={saving}>
-                              Absent
-                            </Button>
-                          </div>
-                        )}
                       </TD>
                     </TR>
                   );
@@ -541,20 +606,27 @@ export function AttendanceMuster() {
         </Card>
       )}
 
-      {editing && (
-        <EditAttendanceModal
-          item={editing}
+      {detailItem && (
+        <AttendanceDayDetail
+          open={!!detailItem}
+          onClose={() => setDetailItem(null)}
+          item={detailItem}
           date={date}
           sites={sites}
-          onClose={() => setEditing(null)}
-          onSaved={async () => {
-            setEditing(null);
-            await fetchRoster();
-          }}
-          onDeleted={async () => {
-            setEditing(null);
-            await fetchRoster();
-          }}
+          onSiteSaved={async () => { await fetchRoster(); onOtChange?.(); }}
+        />
+      )}
+
+      {otItem && (
+        <AttendanceOtModal
+          open={!!otItem}
+          onClose={() => { setOtItem(null); setOtEditing(null); }}
+          onSaved={() => { fetchRoster(); onOtChange?.(); }}
+          labour={otItem.labour}
+          date={date}
+          sites={sites}
+          suggestedSiteId={otItem.attendance ? siteIdOf(otItem.attendance.site as string | { _id: string; name: string }) : otItem.suggestedSite?._id ?? null}
+          existing={otEditing}
         />
       )}
 
@@ -563,146 +635,19 @@ export function AttendanceMuster() {
         onClose={() => setConfirmBulk(null)}
         onConfirm={confirmMarkAllBelow}
         title={`Change ${confirmBulk?.count} records?`}
-        description={
-          confirmBulk?.overwriteCount
-            ? `You are about to change ${confirmBulk.overwriteCount} existing attendance records and create ${confirmBulk.count - confirmBulk.overwriteCount} new ones to "${confirmBulk.status}". Continue?`
-            : `Mark ${confirmBulk?.count} labour as ${confirmBulk?.status}?`
-        }
+        description={confirmBulk?.overwriteCount ? `You are about to change ${confirmBulk.overwriteCount} existing records and create ${confirmBulk.count - confirmBulk.overwriteCount} new ones to "${confirmBulk?.status}". Continue?` : `Mark ${confirmBulk?.count} labour as ${confirmBulk?.status}?`}
         pending={saving}
       />
-    </div>
-  );
-}
-
-function EditAttendanceModal({
-  item,
-  date,
-  sites,
-  onClose,
-  onSaved,
-  onDeleted,
-}: {
-  item: RosterItem;
-  date: string;
-  sites: { _id: string; name: string }[];
-  onClose: () => void;
-  onSaved: () => void;
-  onDeleted: () => void;
-}) {
-  const [status, setStatus] = useState<AttendanceStatus>(item.attendance?.status ?? "present");
-  const [site, setSite] = useState<string>(() => {
-    const s = item.attendance?.site;
-    if (!s) return "__none";
-    return typeof s === "string" ? s : (s as { _id: string })._id;
-  });
-  const [notes, setNotes] = useState(item.attendance?.notes ?? "");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  const handleSave = async () => {
-    setPending(true);
-    setError(null);
-    try {
-      if (!item.attendance) {
-        // Create for the roster's selected date
-        const res = await fetch("/api/attendance", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            date,
-            records: [{ labour: item.labour._id, status, site: site === "__none" ? null : site, notes: notes.trim() || null }],
-            overwrite: true,
-          }),
-        });
-        const j = await res.json();
-        if (!res.ok) throw new Error(j.error ?? "Save failed");
-      } else {
-        const res = await fetch(`/api/attendance/${item.attendance._id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status, site: site === "__none" ? null : site, notes: notes.trim() || null }),
-        });
-        const j = await res.json();
-        if (!res.ok) throw new Error(j.error ?? "Save failed");
-      }
-      onSaved();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setPending(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!item.attendance) return;
-    try {
-      const res = await fetch(`/api/attendance/${item.attendance._id}`, { method: "DELETE" });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error ?? "Delete failed");
-      onDeleted();
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  };
-
-  return (
-    <>
-      <Modal open onClose={onClose} title={`Edit ${item.labour.name} — ${formatDateShort(item.attendance?.date ?? date)}`}>
-        <div className="flex flex-col gap-4">
-          <div>
-            <p className="text-sm font-medium">Status</p>
-            <div className="mt-2 flex gap-2">
-              {(["present", "half-day", "absent"] as AttendanceStatus[]).map((s) => (
-                <Button key={s} size="sm" variant={status === s ? "primary" : "outline"} onClick={() => setStatus(s)}>
-                  {STATUS_LABEL[s]}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          <Select label="Site" value={site} onChange={(e) => setSite(e.target.value)}>
-            <option value="__none">No Site</option>
-            {sites.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.name}
-              </option>
-            ))}
-          </Select>
-          <p className="text-xs text-text-muted">Historical site is preserved — changing current assignment does not affect past attendance.</p>
-
-          <Textarea label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Left after lunch..." />
-
-          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-
-          <div className="flex justify-between">
-            {item.attendance ? (
-              <Button variant="outline" onClick={() => setShowDeleteConfirm(true)} disabled={pending}>
-                Delete
-              </Button>
-            ) : (
-              <span />
-            )}
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={onClose} disabled={pending}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave} disabled={pending}>
-                {pending ? "Saving..." : "Save"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Modal>
 
       <ConfirmDialog
-        open={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
-        title="Delete attendance?"
-        description="This will remove the record and the labour will become Not Marked for this date."
-        pending={pending}
+        title="Remove attendance?"
+        description={deleteTarget ? `This will remove ${deleteTarget.labour.name}'s attendance for ${formatDateShort(date)} and return it to Not Marked. Overtime for this date will also be deleted.` : undefined}
+        confirmLabel="Remove Attendance"
+        pending={deletePending}
       />
-    </>
+    </div>
   );
 }

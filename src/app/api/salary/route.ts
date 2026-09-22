@@ -28,8 +28,11 @@ export async function GET(req: Request) {
       const parsed = objectIdSchema.safeParse(labour);
       if (parsed.success) filter.labour = parsed.data;
     }
-    if (status && (SALARY_STATUSES as readonly string[]).includes(status)) {
-      filter.status = status;
+    if (status) {
+      const parts = status.split(",").map((s) => s.trim()).filter(Boolean);
+      const valid = parts.filter((s) => (SALARY_STATUSES as readonly string[]).includes(s));
+      if (valid.length === 1) filter.status = valid[0];
+      else if (valid.length > 1) filter.status = { $in: valid } as unknown as string;
     }
     if (from || to) {
       // Periods overlapping the requested window.

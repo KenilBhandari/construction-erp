@@ -93,6 +93,15 @@ export async function DELETE(
     await connectDB();
     const deleted = await Attendance.findByIdAndDelete(id).lean();
     if (!deleted) return fail(new Error("Attendance record not found."), 404);
+    // Cascade: remove overtime for same labour+date (OT is explicitly tied to daily work)
+    try {
+      const { Overtime } = await import("@/models/Overtime");
+      const { toDayDate } = await import("@/lib/utils");
+      const day = toDayDate(deleted.date as unknown as string | Date);
+      await Overtime.deleteMany({ labour: deleted.labour, date: day });
+    } catch (err) {
+      console.warn("[attendance] OT cascade delete skipped:", (err as Error).message);
+    }
     try {
       await recomputeSalariesFor([String(deleted.labour)], deleted.date);
     } catch (err) {

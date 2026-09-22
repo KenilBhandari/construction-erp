@@ -89,19 +89,33 @@ export async function POST(req: Request) {
     if (!labour) return fail(new Error("Worker not found."), 404);
     if (!site?.project) return fail(new Error("Selected site not found."), 404);
 
+    const day = toDayDate(body.date);
+    const existingOt = await Overtime.findOne({ labour: new Types.ObjectId(body.labour), date: day }).lean();
+    if (existingOt) return fail(new Error("Overtime already exists for this worker on this date. Edit the existing record instead."), 409);
+
     const rate = body.rate ?? labour.hourlyRate;
     const amount = Math.round(calculateOvertimeAmount(body.hours, rate));
 
-    const created = await Overtime.create({
-      labour: new Types.ObjectId(body.labour),
-      site: new Types.ObjectId(body.site),
-      project: site.project,
-      date: toDayDate(body.date),
-      hours: body.hours,
-      rate,
-      amount,
-      notes: body.notes ?? null,
-    });
+    let created;
+    try {
+      created = await Overtime.create({
+        labour: new Types.ObjectId(body.labour),
+        site: new Types.ObjectId(body.site),
+        project: site.project,
+        date: day,
+        hours: body.hours,
+        rate,
+        amount,
+        notes: body.notes ?? null,
+      });
+    } catch (e: unknown) {
+      const msg = (e as { code?: number; message?: string })?.message ?? "";
+      const code = (e as { code?: number })?.code;
+      if (code === 11000 || msg.includes("duplicate key") || msg.includes("E11000")) {
+        return fail(new Error("Overtime already exists for this worker on this date. Edit the existing record instead."), 409);
+      }
+      throw e;
+    }
 
     try {
       await recomputeSalariesFor([body.labour], created.date);

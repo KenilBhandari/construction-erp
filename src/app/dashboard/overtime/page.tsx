@@ -1,5 +1,5 @@
-import { OvertimeList } from "@/components/overtime/overtime-list";
+import { redirect } from "next/navigation";
 
 export default function OvertimePage() {
-  return <OvertimeList />;
+  redirect("/dashboard/attendance");
 }

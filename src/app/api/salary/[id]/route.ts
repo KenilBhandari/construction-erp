@@ -50,7 +50,14 @@ export async function PATCH(
     const existing = await Salary.findById(id);
     if (!existing) return fail(new Error("Salary record not found."), 404);
 
-    // Handle site/project attribution with validation
+    // Lock: only PENDING can be mutated via PATCH; PARTIALLY_PAID/PAID snapshot frozen
+    const isLocked = existing.status !== "pending";
+    const mutatingFields = body.advanceRecovery !== undefined || body.deductions !== undefined || body.site !== undefined || body.project !== undefined;
+    if (isLocked && mutatingFields) {
+      return fail(new Error("This settlement has payments and its snapshot is frozen. Create a new settlement or record a payment instead."), 422);
+    }
+
+    // Handle site/project attribution with validation (only for pending)
     if (body.site !== undefined || body.project !== undefined) {
       const siteInput = body.site; // may be null or string
       const projectInput = body.project;
@@ -97,15 +104,23 @@ export async function PATCH(
       existing.advanceRecovery = body.advanceRecovery;
     }
 
-    if (body.paidAmount !== undefined) existing.paidAmount = body.paidAmount;
-    if (body.deductions !== undefined) existing.deductions = body.deductions;
+    if (body.deductions !== undefined) {
+      if (body.deductions < 0) return fail(new Error("Deductions cannot be negative."), 422);
+      existing.deductions = body.deductions;
+    }
     if (body.paymentMethod !== undefined) existing.paymentMethod = body.paymentMethod ?? null;
     if (body.paymentReference !== undefined) existing.paymentReference = body.paymentReference ?? null;
     if (body.notes !== undefined) existing.notes = body.notes;
 
-    existing.net =
-      existing.gross + existing.overtimeAmount - (existing.advanceRecovery ?? 0) - (existing.deductions ?? 0);
-    existing.status = deriveSalaryStatus(existing.net, existing.paidAmount);
+    // Recompute net and remaining, guard against net<=0 or over-deduction
+    const newNet = existing.gross + existing.overtimeAmount - (existing.advanceRecovery ?? 0) - (existing.deductions ?? 0);
+    if (newNet <= 0) return fail(new Error("Advance recovery and deductions cannot make net amount ₹0 or less."), 422);
+    if ((existing.advanceRecovery ?? 0) + (existing.deductions ?? 0) > existing.gross + existing.overtimeAmount) {
+      return fail(new Error("Recovery and deductions cannot exceed gross + overtime."), 422);
+    }
+    existing.net = newNet;
+    existing.remainingAmount = Math.max(0, newNet - existing.paidAmount);
+    existing.status = deriveSalaryStatus(newNet, existing.paidAmount);
     await existing.save();
 
     return ok(existing.toObject());
@@ -124,8 +139,13 @@ export async function DELETE(
   try {
     const id = await getId(params);
     await connectDB();
+    const existing = await Salary.findById(id).lean();
+    if (!existing) return fail(new Error("Salary record not found."), 404);
+    if (existing.status !== "pending") return fail(new Error("Only pending settlements can be deleted. Paid or partially paid records are locked."), 422);
     const deleted = await Salary.findByIdAndDelete(id).lean();
     if (!deleted) return fail(new Error("Salary record not found."), 404);
+    const { SalaryPayment } = await import("@/models/SalaryPayment");
+    await SalaryPayment.deleteMany({ salarySettlementId: id });
     return ok({ deleted: true });
   } catch (err) {
     return fail(err);
