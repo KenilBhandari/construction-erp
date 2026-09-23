@@ -36,30 +36,13 @@ export default async function SiteDetailPage({
     Attendance.aggregate([
       { $match: { site: sid } },
       {
-        $lookup: {
-          from: Labour.collection.name,
-          localField: "labour",
-          foreignField: "_id",
-          as: "worker",
-        },
-      },
-      { $unwind: "$worker" },
-      {
         $group: {
           _id: null,
           presentDays: { $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] } },
           halfDays: { $sum: { $cond: [{ $eq: ["$status", "half-day"] }, 1, 0] } },
           leaveDays: { $sum: { $cond: [{ $eq: ["$status", "leave"] }, 1, 0] } },
           absentDays: { $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] } },
-          cost: {
-            $sum: {
-              $add: [
-                { $cond: [{ $eq: ["$status", "present"] }, "$worker.dailyRate", 0] },
-                { $cond: [{ $eq: ["$status", "half-day"] }, { $multiply: ["$worker.dailyRate", 0.5] }, 0] },
-                { $multiply: ["$overtimeHours", "$worker.hourlyRate"] },
-              ],
-            },
-          },
+          cost: { $sum: { $ifNull: ["$cost", 0] } },
         },
       },
     ]),

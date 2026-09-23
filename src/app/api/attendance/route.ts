@@ -1,9 +1,9 @@
 import { connectDB } from "@/lib/mongodb";
-import { fail, ok, requireAuth } from "@/lib/api";
+import { fail, ok, requireAuth, idempotencyKeyFrom } from "@/lib/api";
 import { objectIdSchema, paginationSchema } from "@/lib/validation";
 import { attendanceBulkSchema } from "@/lib/schemas";
-import { toDayDate, dayRange } from "@/lib/utils";
-import { recomputeSalariesFor } from "@/lib/salary";
+import { toDayDate, dayRange, attendanceCostFor, perRecordIdempotencyKey } from "@/lib/utils";
+import { recomputeSalariesFor, handleAttendanceChangeForReconciliation } from "@/lib/salary";
 import { Attendance } from "@/models/Attendance";
 import { Labour } from "@/models/Labour";
 import { Site } from "@/models/Site";
@@ -44,7 +44,6 @@ export async function GET(req: Request) {
         if (parsed.success) filter[key] = parsed.data;
       }
     }
-    // Site filter: supports site ObjectId, or "null"/"none" for No Site (site is null)
     if (site) {
       if (site === "null" || site === "none" || site === "__none" || site === "No Site") {
         filter.site = null;
@@ -83,16 +82,29 @@ export async function POST(req: Request) {
   try {
     await connectDB();
     const body = attendanceBulkSchema.parse(await req.json());
+    const headerKey = idempotencyKeyFrom(req);
 
     const date = toDayDate(body.date);
 
+    // Idempotency: if header key present and all records already have per-record keys, return cached
+    if (headerKey) {
+      const perKeys = body.records.map((r) => perRecordIdempotencyKey(headerKey, r.labour, body.date));
+      const existing = await Attendance.countDocuments({ idempotencyKey: { $in: perKeys } });
+      if (existing === body.records.length && existing > 0) {
+        return ok({ saved: body.records.length, insertedOrUpdated: existing, date: body.date, idempotent: true });
+      }
+    }
+
     const labourIds = [...new Set(body.records.map((r) => r.labour))];
-    const existingCount = await Labour.countDocuments({ _id: { $in: labourIds } });
-    if (existingCount !== labourIds.length) {
+    const labourDocs = await Labour.find({ _id: { $in: labourIds } })
+      .select("dailyRate hourlyRate")
+      .lean();
+    const labourMap = new Map<string, { dailyRate: number; hourlyRate: number }>();
+    for (const d of labourDocs) labourMap.set(String(d._id), { dailyRate: d.dailyRate ?? 0, hourlyRate: d.hourlyRate ?? 0 });
+    if (labourMap.size !== labourIds.length) {
       return fail(new Error("One or more workers were not found."), 404);
     }
 
-    // Batch fetch sites for all records + default to avoid N queries
     const allSiteIds = new Set<string>();
     if (body.site) allSiteIds.add(body.site);
     for (const r of body.records) {
@@ -120,8 +132,6 @@ export async function POST(req: Request) {
       defaultProjectOid = projectMap.get(body.site) ?? null;
       if (!defaultProjectOid) return fail(new Error("Selected site not found."), 404);
     }
-    // For each record, resolve site/project (per-record site overrides bulk default)
-    // Use bulkWrite for performance and duplicate protection (unique labour+date)
     const ops: Array<{ updateOne: { filter: Record<string, unknown>; update: Record<string, unknown>; upsert: boolean } }> = [];
     const seen = new Set<string>();
     for (const r of body.records) {
@@ -134,7 +144,6 @@ export async function POST(req: Request) {
       let siteOid: Types.ObjectId | null = defaultSiteOid;
       let projectOid: Types.ObjectId | null = defaultProjectOid;
 
-      // Per-record site overrides default
       const recSite = (r as { site?: string | null }).site;
       if (recSite !== undefined) {
         if (recSite) {
@@ -147,24 +156,30 @@ export async function POST(req: Request) {
         }
       }
 
+      const rates = labourMap.get(r.labour)!;
+      const cost = attendanceCostFor(r.status, rates.dailyRate);
+      const perKey = headerKey ? perRecordIdempotencyKey(headerKey, r.labour, body.date) : null;
+
       const filter = { labour: new Types.ObjectId(r.labour), date };
-      const update: Record<string, unknown> = {
+      const baseUpdate: Record<string, unknown> = {
         status: r.status,
         site: siteOid,
         project: projectOid,
         notes: (r as { notes?: string | null }).notes ?? null,
+        dailyRateSnapshot: rates.dailyRate,
+        hourlyRateSnapshot: rates.hourlyRate,
+        cost,
       };
+      if (perKey) (baseUpdate as Record<string, unknown>).idempotencyKey = perKey;
 
       if (body.overwrite) {
-        ops.push({ updateOne: { filter, update: { $set: update }, upsert: true } });
+        ops.push({ updateOne: { filter, update: { $set: baseUpdate }, upsert: true } });
       } else {
-        // Only create if not exists — don't overwrite existing attendance
-        // Use $setOnInsert for status/site/project/notes, but still upsert
         ops.push({
           updateOne: {
             filter,
             update: {
-              $setOnInsert: update,
+              $setOnInsert: baseUpdate,
             },
             upsert: true,
           },
@@ -173,20 +188,16 @@ export async function POST(req: Request) {
     }
 
     if (ops.length > 0) {
-      // For overwrite=false, we use $setOnInsert which will not modify existing.
-      // Need to check which were actually inserted vs skipped.
-      // bulkWrite with upsert and $setOnInsert will not overwrite existing.
       await Attendance.bulkWrite(ops as unknown as Parameters<typeof Attendance.bulkWrite>[0], { ordered: false });
     }
 
-    // Keep computed salaries fresh (best-effort)
     try {
       await recomputeSalariesFor(labourIds, date);
+      await handleAttendanceChangeForReconciliation(labourIds, date);
     } catch (err) {
       console.warn("[attendance] salary recompute skipped:", (err as Error).message);
     }
 
-    // Count how many were actually affected (for UI feedback)
     const afterCount = await Attendance.countDocuments({ labour: { $in: labourIds }, date });
 
     return ok({ saved: ops.length, insertedOrUpdated: afterCount, date: body.date });

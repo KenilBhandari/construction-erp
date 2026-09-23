@@ -51,11 +51,13 @@ const ExpenseSchema = new Schema(
       default: null,
       index: true,
     },
+    idempotencyKey: { type: String },
   },
   { timestamps: true },
 );
 
 ExpenseSchema.index({ project: 1, date: -1 });
+ExpenseSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
 
 export type ExpenseDoc = InferSchemaType<typeof ExpenseSchema> & {
   _id: mongoose.Types.ObjectId;

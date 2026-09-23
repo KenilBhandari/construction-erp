@@ -52,3 +52,21 @@ export function dayRange(from: string, to: string): { start: Date; end: Date } {
   end.setUTCHours(23, 59, 59, 999);
   return { start, end };
 }
+
+/** Attendance cost: present=1, half-day=0.5, absent/leave=0 */
+export function attendanceCostFor(status: string, dailyRate: number): number {
+  if (status === "present") return Math.round(dailyRate);
+  if (status === "half-day") return Math.round(dailyRate * 0.5);
+  return 0;
+}
+
+export function getIdempotencyKey(req: Request): string | null {
+  const h = req.headers.get("x-idempotency-key") ?? req.headers.get("X-Idempotency-Key");
+  if (!h) return null;
+  const v = h.trim();
+  return v.length > 0 ? v.slice(0, 128) : null;
+}
+
+export function perRecordIdempotencyKey(baseKey: string, labourId: string, dateStr: string): string {
+  return `${baseKey}:${labourId}:${dateStr}`;
+}

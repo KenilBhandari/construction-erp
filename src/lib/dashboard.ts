@@ -32,6 +32,9 @@ export interface DashboardSummary {
   receivedTotal: number;
   outstandingTotal: number;
   profitTotal: number;
+  labourCostTotal: number;
+  labourCostAssigned: number;
+  labourCostUnassigned: number;
   lowStockCount: number;
   lowStock: { _id: string; name: string; currentStock: number; minimumStock: number; unit: string }[];
   recentActivity: { at: Date; text: string }[];
@@ -120,6 +123,8 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     receivedAgg,
     purchaseTotalAgg,
     attendanceCostAgg,
+    attendanceAssignedAgg,
+    attendanceUnassignedAgg,
     overtimeTotalAgg,
     manualTotalAgg,
     lowStock,
@@ -166,36 +171,15 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       { $group: { _id: null, amount: { $sum: "$total" } } },
     ]),
       Attendance.aggregate([
-        {
-          $lookup: {
-            // Model-derived: "Labour" pluralizes to "labour", not "labours".
-            from: Labour.collection.name,
-            localField: "labour",
-            foreignField: "_id",
-            as: "worker",
-          },
-        },
-      { $unwind: "$worker" },
-      {
-        $group: {
-          _id: null,
-          cost: {
-            $sum: {
-              $add: [
-                { $cond: [{ $eq: ["$status", "present"] }, "$worker.dailyRate", 0] },
-                {
-                  $cond: [
-                    { $eq: ["$status", "half-day"] },
-                    { $multiply: ["$worker.dailyRate", 0.5] },
-                    0,
-                  ],
-                },
-                { $multiply: ["$overtimeHours", "$worker.hourlyRate"] },
-              ],
-            },
-          },
-        },
-      },
+      { $group: { _id: null, cost: { $sum: { $ifNull: ["$cost", 0] } } } },
+    ]),
+    Attendance.aggregate([
+      { $match: { site: { $ne: null } } },
+      { $group: { _id: null, cost: { $sum: { $ifNull: ["$cost", 0] } } } },
+    ]),
+    Attendance.aggregate([
+      { $match: { site: null } },
+      { $group: { _id: null, cost: { $sum: { $ifNull: ["$cost", 0] } } } },
     ]),
     Overtime.aggregate([{ $group: { _id: null, amount: { $sum: "$amount" } } }]),
     Expense.aggregate([{ $group: { _id: null, amount: { $sum: "$amount" } } }]),
@@ -218,6 +202,9 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
 
   const contracts = contractAgg[0]?.amount ?? 0;
   const received = receivedAgg[0]?.amount ?? 0;
+  const assignedLabour = Math.round(attendanceAssignedAgg[0]?.cost ?? 0);
+  const unassignedLabour = Math.round(attendanceUnassignedAgg[0]?.cost ?? 0);
+  const totalLabourCost = Math.round(attendanceCostAgg[0]?.cost ?? 0) + (overtimeTotalAgg[0]?.amount ?? 0);
   const allCosts =
     (purchaseTotalAgg[0]?.amount ?? 0) +
     Math.round(attendanceCostAgg[0]?.cost ?? 0) +
@@ -311,6 +298,9 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     receivedTotal: received,
     outstandingTotal: contracts - received,
     profitTotal: contracts - allCosts,
+    labourCostTotal: totalLabourCost,
+    labourCostAssigned: assignedLabour,
+    labourCostUnassigned: unassignedLabour,
     lowStockCount: lowStock.length,
     lowStock: lowStock.map((m) => ({
       _id: String(m._id),

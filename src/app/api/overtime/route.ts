@@ -1,11 +1,11 @@
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
-import { fail, ok, requireAuth } from "@/lib/api";
+import { fail, ok, requireAuth, idempotencyKeyFrom } from "@/lib/api";
 import { objectIdSchema, paginationSchema } from "@/lib/validation";
 import { overtimeCreateSchema } from "@/lib/schemas";
 import { toDayDate, dayRange } from "@/lib/utils";
 import { calculateOvertimeAmount } from "@/lib/calculations";
-import { recomputeSalariesFor } from "@/lib/salary";
+import { recomputeSalariesFor, handleAttendanceChangeForReconciliation } from "@/lib/salary";
 import { Overtime } from "@/models/Overtime";
 import { Labour } from "@/models/Labour";
 import { Site } from "@/models/Site";
@@ -81,6 +81,11 @@ export async function POST(req: Request) {
   try {
     await connectDB();
     const body = overtimeCreateSchema.parse(await req.json());
+    const headerKey = idempotencyKeyFrom(req);
+    if (headerKey) {
+      const existing = await Overtime.findOne({ idempotencyKey: headerKey }).lean();
+      if (existing) return ok(existing, { status: 200 });
+    }
 
     const [labour, site] = await Promise.all([
       Labour.findById(body.labour).select("hourlyRate").lean(),
@@ -107,11 +112,16 @@ export async function POST(req: Request) {
         rate,
         amount,
         notes: body.notes ?? null,
+        idempotencyKey: headerKey ?? undefined,
       });
     } catch (e: unknown) {
       const msg = (e as { code?: number; message?: string })?.message ?? "";
       const code = (e as { code?: number })?.code;
       if (code === 11000 || msg.includes("duplicate key") || msg.includes("E11000")) {
+        if (headerKey) {
+          const again = await Overtime.findOne({ idempotencyKey: headerKey }).lean();
+          if (again) return ok(again);
+        }
         return fail(new Error("Overtime already exists for this worker on this date. Edit the existing record instead."), 409);
       }
       throw e;
@@ -119,6 +129,7 @@ export async function POST(req: Request) {
 
     try {
       await recomputeSalariesFor([body.labour], created.date);
+      await handleAttendanceChangeForReconciliation([body.labour], created.date);
     } catch (err) {
       console.warn("[overtime] salary recompute skipped:", (err as Error).message);
     }

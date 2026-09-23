@@ -30,12 +30,14 @@ const OvertimeSchema = new Schema(
     rate: { type: Number, required: true, min: 0 },
     amount: { type: Number, required: true, min: 0 },
     notes: { type: String, default: null },
+    idempotencyKey: { type: String },
   },
   { timestamps: true },
 );
 
 OvertimeSchema.index({ labour: 1, date: 1 }, { unique: true });
 OvertimeSchema.index({ site: 1, date: 1 });
+OvertimeSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
 
 export type OvertimeDoc = InferSchemaType<typeof OvertimeSchema> & {
   _id: mongoose.Types.ObjectId;

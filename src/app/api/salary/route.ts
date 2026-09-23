@@ -1,5 +1,5 @@
 import { connectDB } from "@/lib/mongodb";
-import { fail, ok, requireAuth } from "@/lib/api";
+import { fail, ok, requireAuth, idempotencyKeyFrom } from "@/lib/api";
 import { objectIdSchema, paginationSchema } from "@/lib/validation";
 import { salaryComputeSchema } from "@/lib/schemas";
 import { toDayDate } from "@/lib/utils";
@@ -35,7 +35,6 @@ export async function GET(req: Request) {
       else if (valid.length > 1) filter.status = { $in: valid } as unknown as string;
     }
     if (from || to) {
-      // Periods overlapping the requested window.
       const overlap: Record<string, unknown>[] = [];
       if (from) overlap.push({ periodEnd: { $gte: toDayDate(from) } });
       if (to) overlap.push({ periodStart: { $lte: toDayDate(to) } });
@@ -68,6 +67,11 @@ export async function POST(req: Request) {
   try {
     await connectDB();
     const body = salaryComputeSchema.parse(await req.json());
+    const headerKey = idempotencyKeyFrom(req);
+    if (headerKey) {
+      const existingByKey = await Salary.findOne({ idempotencyKey: headerKey }).lean();
+      if (existingByKey) return ok(existingByKey);
+    }
     const saved = await computeAndSaveSalary({
       labourId: body.labour,
       periodStart: body.periodStart,
@@ -76,6 +80,7 @@ export async function POST(req: Request) {
       site: body.site ?? null,
       project: body.project ?? null,
       notes: body.notes ?? null,
+      idempotencyKey: headerKey ?? undefined,
     });
     return ok(saved);
   } catch (err) {

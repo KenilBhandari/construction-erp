@@ -1,6 +1,5 @@
 import { Types } from "mongoose";
 import { Project } from "@/models/Project";
-import { Labour } from "@/models/Labour";
 import { StockTransaction } from "@/models/StockTransaction";
 import { Attendance } from "@/models/Attendance";
 import { Overtime } from "@/models/Overtime";
@@ -12,12 +11,10 @@ import type { ProjectFinance } from "@/types/finance";
 /**
  * Single formula for project money — derived from underlying records (§28):
  *
- *   totalExpense = material purchases + attendance labour + overtime
+ *   totalExpense = material purchases + attendance labour (snapshot cost) + overtime
  *                  records + all manual expenses
  *
- * Labour cost uses each worker's CURRENT rates (an estimate when rates
- * changed mid-project). Salary and purchases count automatically — the
- * expense form warns against re-entering them.
+ * Labour cost uses historical Attendance.cost (snapshot), not current Labour rates.
  */
 export async function getProjectFinance(projectId: string): Promise<ProjectFinance> {
   const project = await Project.findById(projectId).lean();
@@ -33,39 +30,11 @@ export async function getProjectFinance(projectId: string): Promise<ProjectFinan
       Attendance.aggregate([
         { $match: { project: pid } },
         {
-          $lookup: {
-            // Model-derived: "Labour" pluralizes to "labour", not "labours".
-            from: Labour.collection.name,
-            localField: "labour",
-            foreignField: "_id",
-            as: "worker",
-          },
-        },
-        { $unwind: "$worker" },
-        {
           $group: {
             _id: null,
-            presentDays: {
-              $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] },
-            },
-            halfDays: {
-              $sum: { $cond: [{ $eq: ["$status", "half-day"] }, 1, 0] },
-            },
-            cost: {
-              $sum: {
-                $add: [
-                  { $cond: [{ $eq: ["$status", "present"] }, "$worker.dailyRate", 0] },
-                  {
-                    $cond: [
-                      { $eq: ["$status", "half-day"] },
-                      { $multiply: ["$worker.dailyRate", 0.5] },
-                      0,
-                    ],
-                  },
-                  { $multiply: ["$overtimeHours", "$worker.hourlyRate"] },
-                ],
-              },
-            },
+            presentDays: { $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] } },
+            halfDays: { $sum: { $cond: [{ $eq: ["$status", "half-day"] }, 1, 0] } },
+            cost: { $sum: { $ifNull: ["$cost", 0] } },
           },
         },
       ]),

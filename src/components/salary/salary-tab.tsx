@@ -470,16 +470,39 @@ function PaymentModal({
       setError(`Recovery ₹${rec} exceeds available ₹${available} (outstanding ₹${outstanding} + current ₹${record.advanceRecovery}).`);
       return;
     }
+    if (add > remaining) {
+      setError(`Payment ₹${add} exceeds remaining ₹${remaining}.`);
+      return;
+    }
     setPending(true);
     setError(null);
     try {
-      const res = await fetch(`/api/salary/${record._id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paidAmount: record.paidAmount + add, deductions: ded, advanceRecovery: rec }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Save failed.");
+      // Update recovery/deductions only if pending and changed
+      const needsMetaUpdate = (ded !== record.deductions || rec !== record.advanceRecovery) && record.status === "pending";
+      if (needsMetaUpdate) {
+        const res = await fetch(`/api/salary/${record._id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deductions: ded, advanceRecovery: rec }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "Save failed.");
+      } else if (ded !== record.deductions || rec !== record.advanceRecovery) {
+        // Locked settlement — cannot change recovery/deductions
+        setError("This settlement has payments and recovery/deductions are frozen. Only payment is allowed.");
+        setPending(false);
+        return;
+      }
+      if (add > 0) {
+        const idem = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+        const res = await fetch(`/api/salary/${record._id}/payments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Idempotency-Key": idem },
+          body: JSON.stringify({ amount: add, paymentMethod: "Cash" }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "Payment failed.");
+      }
       onSaved();
     } catch (err) {
       setError((err as Error).message);

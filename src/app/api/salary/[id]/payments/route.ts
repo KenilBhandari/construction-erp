@@ -1,5 +1,5 @@
 import { connectDB } from "@/lib/mongodb";
-import { fail, ok, requireAuth } from "@/lib/api";
+import { fail, ok, requireAuth, idempotencyKeyFrom } from "@/lib/api";
 import { objectIdSchema } from "@/lib/validation";
 import { salaryPaymentCreateSchema } from "@/lib/schemas";
 import { toDayDate } from "@/lib/utils";
@@ -40,6 +40,15 @@ export async function POST(
     const id = await getId(params);
     await connectDB();
     const body = salaryPaymentCreateSchema.parse(await req.json());
+    const headerKey = idempotencyKeyFrom(req);
+
+    if (headerKey) {
+      const existing = await SalaryPayment.findOne({ idempotencyKey: headerKey }).lean();
+      if (existing) {
+        const salary = await Salary.findById(id).lean();
+        return ok({ salary, payment: existing, idempotent: true }, { status: 200 });
+      }
+    }
 
     const salary = await Salary.findById(id);
     if (!salary) return fail(new Error("Salary record not found."), 404);
@@ -71,16 +80,40 @@ export async function POST(
     );
     if (!updated) return fail(new Error("Concurrent payment detected — please retry."), 409);
 
-    const payment = await SalaryPayment.create({
-      salarySettlementId: salary._id,
-      amount: body.amount,
-      date: paymentDate,
-      paymentMethod: body.paymentMethod ?? "Cash",
-      reference: body.reference ?? null,
-      notes: body.notes ?? null,
-    });
-
-    return ok({ salary: updated.toObject(), payment: payment.toObject() }, { status: 201 });
+    // Create payment — if idempotency duplicate due to race, handle 11000
+    try {
+      const payment = await SalaryPayment.create({
+        salarySettlementId: salary._id,
+        amount: body.amount,
+        date: paymentDate,
+        paymentMethod: body.paymentMethod ?? "Cash",
+        reference: body.reference ?? null,
+        notes: body.notes ?? null,
+        idempotencyKey: headerKey ?? undefined,
+      });
+      return ok({ salary: updated.toObject(), payment: payment.toObject() }, { status: 201 });
+    } catch (e: unknown) {
+      const code = (e as { code?: number })?.code;
+      const msg = (e as { message?: string })?.message ?? "";
+      if (code === 11000 || msg.includes("duplicate key")) {
+        // Compensate: rollback salary CAS (best-effort) — refund paidAmount
+        await Salary.findOneAndUpdate(
+          { _id: salary._id, paidAmount: newPaid },
+          { $set: { paidAmount: expectedPaid, remainingAmount: remaining, status: deriveSalaryStatus(salary.net, expectedPaid) } },
+        );
+        if (headerKey) {
+          const existing = await SalaryPayment.findOne({ idempotencyKey: headerKey }).lean();
+          if (existing) return ok({ payment: existing, idempotent: true });
+        }
+        return fail(new Error("Duplicate payment — already processed."), 409);
+      }
+      // Payment failed after salary updated — attempt rollback
+      await Salary.findOneAndUpdate(
+        { _id: salary._id, paidAmount: newPaid },
+        { $set: { paidAmount: expectedPaid, remainingAmount: remaining, status: deriveSalaryStatus(salary.net, expectedPaid) } },
+      );
+      throw e;
+    }
   } catch (err) {
     return fail(err, 422);
   }

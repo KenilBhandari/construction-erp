@@ -13,12 +13,15 @@ const SalaryPaymentSchema = new Schema(
     paymentMethod: { type: String, default: "Cash" },
     reference: { type: String, default: null },
     notes: { type: String, default: null },
+    idempotencyKey: { type: String },
   },
   { timestamps: true },
 );
 
 SalaryPaymentSchema.index({ salarySettlementId: 1, date: 1 });
 SalaryPaymentSchema.index({ salarySettlementId: 1, createdAt: 1 });
+SalaryPaymentSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
+SalaryPaymentSchema.index({ salarySettlementId: 1, idempotencyKey: 1 }, { unique: true, sparse: true });
 
 export type SalaryPaymentDoc = InferSchemaType<typeof SalaryPaymentSchema> & {
   _id: mongoose.Types.ObjectId;

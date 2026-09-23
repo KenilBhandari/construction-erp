@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
-import { fail, ok, requireAuth } from "@/lib/api";
+import { fail, ok, requireAuth, idempotencyKeyFrom } from "@/lib/api";
 import { objectIdSchema, paginationSchema } from "@/lib/validation";
 import { advanceCreateSchema } from "@/lib/schemas";
 import { toDayDate, dayRange } from "@/lib/utils";
@@ -73,6 +73,11 @@ export async function POST(req: Request) {
   try {
     await connectDB();
     const body = advanceCreateSchema.parse(await req.json());
+    const headerKey = idempotencyKeyFrom(req);
+    if (headerKey) {
+      const existing = await LabourAdvance.findOne({ idempotencyKey: headerKey }).lean();
+      if (existing) return ok(existing);
+    }
 
     const labourExists = await Labour.exists({ _id: body.labour });
     if (!labourExists) return fail(new Error("Worker not found."), 404);
@@ -92,21 +97,32 @@ export async function POST(req: Request) {
       projectOid = new Types.ObjectId(body.project);
     }
 
-    const created = await LabourAdvance.create({
-      labour: new Types.ObjectId(body.labour),
-      site: siteOid,
-      project: projectOid,
-      date: toDayDate(body.date),
-      amount: body.amount,
-      reason: body.reason ?? null,
-      paymentMethod: body.paymentMethod ?? null,
-      reference: body.reference ?? null,
-      notes: body.notes ?? null,
-    });
-
-    // Advances have zero automatic effect on salary (Phase 3) — no recompute.
-
-    return ok(created, { status: 201 });
+    try {
+      const created = await LabourAdvance.create({
+        labour: new Types.ObjectId(body.labour),
+        site: siteOid,
+        project: projectOid,
+        date: toDayDate(body.date),
+        amount: body.amount,
+        reason: body.reason ?? null,
+        paymentMethod: body.paymentMethod ?? null,
+        reference: body.reference ?? null,
+        notes: body.notes ?? null,
+        idempotencyKey: headerKey ?? undefined,
+      });
+      return ok(created, { status: 201 });
+    } catch (e: unknown) {
+      const code = (e as { code?: number })?.code;
+      const msg = (e as { message?: string })?.message ?? "";
+      if (code === 11000 || msg.includes("duplicate key")) {
+        if (headerKey) {
+          const again = await LabourAdvance.findOne({ idempotencyKey: headerKey }).lean();
+          if (again) return ok(again);
+        }
+        return fail(new Error("Duplicate advance — already processed."), 409);
+      }
+      throw e;
+    }
   } catch (err) {
     return fail(err, 422);
   }

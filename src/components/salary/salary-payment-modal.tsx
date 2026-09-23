@@ -54,9 +54,10 @@ export function SalaryPaymentModal({
     setPending(true);
     setError(null);
     try {
+      const idem = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
       const res = await fetch(`/api/salary/${record._id}/payments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Idempotency-Key": idem },
         body: JSON.stringify({ amount: amt, date, paymentMethod: method, reference: reference.trim() || null, notes: notes.trim() || null }),
       });
       const j = await res.json();

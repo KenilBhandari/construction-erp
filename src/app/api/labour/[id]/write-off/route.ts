@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
-import { fail, ok, requireAuth } from "@/lib/api";
+import { fail, ok, requireAuth, idempotencyKeyFrom } from "@/lib/api";
 import { objectIdSchema } from "@/lib/validation";
 import { writeOffCreateSchema } from "@/lib/schemas";
 import { toDayDate } from "@/lib/utils";
@@ -16,12 +16,6 @@ async function getId(params: Promise<{ id: string }>) {
   return objectIdSchema.parse(id);
 }
 
-/**
- * POST /api/labour/:id/write-off
- * Creates an Expense with category LABOUR_ADVANCE_WRITE_OFF.
- * Validates amount <= outstanding, derives project from site as in Phase 3.
- * Does not mutate LabourAdvance or Salary.
- */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { error } = await requireAuth();
   if (error) return error;
@@ -29,13 +23,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const labourId = await getId(params);
     const body = writeOffCreateSchema.parse(await req.json());
+    const headerKey = idempotencyKeyFrom(req);
+    if (headerKey) {
+      const existing = await Expense.findOne({ idempotencyKey: headerKey }).lean();
+      if (existing) return ok({ expense: existing, idempotent: true });
+    }
 
     await connectDB();
 
     const labour = await Labour.findById(labourId).lean();
     if (!labour) return fail(new Error("Worker not found."), 404);
 
-    // Validate optional labourAdvance traceability (no allocation logic)
     let labourAdvanceOid: Types.ObjectId | null = null;
     if (body.labourAdvance) {
       const adv = await LabourAdvance.findById(body.labourAdvance).select("labour").lean();
@@ -46,7 +44,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       labourAdvanceOid = new Types.ObjectId(body.labourAdvance);
     }
 
-    // Resolve site/project exactly as Phase 3 salary/advance logic
     let siteOid: Types.ObjectId | null = null;
     let projectOid: Types.ObjectId | null = null;
 
@@ -65,7 +62,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       projectOid = new Types.ObjectId(body.project);
     }
 
-    // Validate amount against outstanding (cannot go negative)
+    // Validate amount against outstanding with CAS pattern
+    // We read outstanding, then attempt Expense.create; duplicate/outstanding is guarded by retry check
     const summary = await getLabourAdvanceSummary(labourId);
     if (summary.outstanding <= 0) {
       return fail(
@@ -82,12 +80,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       );
     }
 
-    // expenseType: explicit wins, else PROJECT if project present, else GENERAL — consistent with existing terminology
     const expenseType =
       body.expenseType ?? (projectOid ? "PROJECT" : "GENERAL");
 
     const expenseDate = body.date ? toDayDate(body.date) : new Date();
-    // Ensure date is at UTC midnight like other toDayDate uses
     if (!body.date) {
       expenseDate.setUTCHours(0, 0, 0, 0);
     }
@@ -96,32 +92,49 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       body.description?.trim() ||
       `Advance write-off for ${labour.name}`;
 
-    const created = await Expense.create({
-      project: projectOid,
-      site: siteOid,
-      date: expenseDate,
-      category: "LABOUR_ADVANCE_WRITE_OFF",
-      description,
-      amount: body.amount,
-      vendor: null,
-      paymentMethod: "Cash",
-      reference: null,
-      notes: body.notes ?? null,
-      expenseType,
-      labour: new Types.ObjectId(labourId),
-      labourAdvance: labourAdvanceOid,
-    });
+    try {
+      const created = await Expense.create({
+        project: projectOid,
+        site: siteOid,
+        date: expenseDate,
+        category: "LABOUR_ADVANCE_WRITE_OFF",
+        description,
+        amount: body.amount,
+        vendor: null,
+        paymentMethod: "Cash",
+        reference: null,
+        notes: body.notes ?? null,
+        expenseType,
+        labour: new Types.ObjectId(labourId),
+        labourAdvance: labourAdvanceOid,
+        idempotencyKey: headerKey ?? undefined,
+      });
 
-    // Fresh outstanding after write-off for response convenience
-    const after = await getLabourAdvanceSummary(labourId);
+      // Double-check outstanding didn't go negative due to concurrent write-off (CAS by re-reading)
+      const after = await getLabourAdvanceSummary(labourId);
+      if (after.outstanding < 0) {
+        await Expense.findByIdAndDelete(created._id);
+        return fail(new Error("Write-off would make outstanding negative — concurrent write-off detected. Please retry."), 409);
+      }
 
-    return ok({ expense: created, summary: after }, { status: 201 });
+      return ok({ expense: created, summary: after }, { status: 201 });
+    } catch (e: unknown) {
+      const code = (e as { code?: number })?.code;
+      const msg = (e as { message?: string })?.message ?? "";
+      if (code === 11000 || msg.includes("duplicate key")) {
+        if (headerKey) {
+          const again = await Expense.findOne({ idempotencyKey: headerKey }).lean();
+          if (again) return ok({ expense: again, idempotent: true });
+        }
+        return fail(new Error("Duplicate write-off — already processed."), 409);
+      }
+      throw e;
+    }
   } catch (err) {
     return fail(err, 422);
   }
 }
 
-/** Optional: list write-offs for this labour (useful for UI/history). */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { error } = await requireAuth();
   if (error) return error;

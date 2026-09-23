@@ -35,6 +35,13 @@ const AttendanceSchema = new Schema(
     notes: { type: String, default: null },
     // Kept for salary compatibility (attendance OT hours). Not exposed in V1 UI.
     overtimeHours: { type: Number, min: 0, default: 0 },
+    // Historical rate snapshot — immutable after creation (except explicit correction).
+    dailyRateSnapshot: { type: Number, min: 0, default: null },
+    hourlyRateSnapshot: { type: Number, min: 0, default: null },
+    // Historical labour cost derived from status × dailyRateSnapshot (present=1, half=0.5, else 0).
+    cost: { type: Number, min: 0, default: 0 },
+    // Idempotency for retry-safe bulk writes.
+    idempotencyKey: { type: String },
   },
   { timestamps: true },
 );
@@ -44,6 +51,8 @@ AttendanceSchema.index({ labour: 1, date: 1 }, { unique: true });
 AttendanceSchema.index({ date: 1 });
 AttendanceSchema.index({ site: 1, date: 1 });
 AttendanceSchema.index({ project: 1, date: 1 });
+AttendanceSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
+AttendanceSchema.index({ cost: 1 });
 
 export type AttendanceDoc = InferSchemaType<typeof AttendanceSchema> & {
   _id: mongoose.Types.ObjectId;

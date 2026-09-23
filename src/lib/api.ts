@@ -18,3 +18,10 @@ export function ok<T>(data: T, init?: { status?: number }) {
 export function fail(error: unknown, status = 400) {
   return NextResponse.json({ error: toUserErrorMessage(error) }, { status });
 }
+
+export function idempotencyKeyFrom(req: Request): string | null {
+  const h = req.headers.get("x-idempotency-key") ?? req.headers.get("X-Idempotency-Key");
+  if (!h) return null;
+  const v = h.trim();
+  return v.length ? v.slice(0, 128) : null;
+}

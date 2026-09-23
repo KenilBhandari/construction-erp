@@ -1,9 +1,9 @@
 import { connectDB } from "@/lib/mongodb";
-import { fail, ok, requireAuth } from "@/lib/api";
+import { fail, ok, requireAuth, idempotencyKeyFrom } from "@/lib/api";
 import { objectIdSchema } from "@/lib/validation";
 import { overtimeUpdateSchema } from "@/lib/schemas";
 import { calculateOvertimeAmount } from "@/lib/calculations";
-import { recomputeSalariesFor } from "@/lib/salary";
+import { recomputeSalariesFor, handleAttendanceChangeForReconciliation } from "@/lib/salary";
 import { Overtime } from "@/models/Overtime";
 
 async function getId(params: Promise<{ id: string }>) {
@@ -44,6 +44,11 @@ export async function PATCH(
     const id = await getId(params);
     await connectDB();
     const body = overtimeUpdateSchema.parse(await req.json());
+    const headerKey = idempotencyKeyFrom(req);
+    if (headerKey) {
+      const existingByKey = await Overtime.findOne({ idempotencyKey: headerKey }).lean();
+      if (existingByKey) return ok(existingByKey);
+    }
     const existing = await Overtime.findById(id);
     if (!existing) return fail(new Error("Overtime record not found."), 404);
 
@@ -62,9 +67,11 @@ export async function PATCH(
       existing.project = siteDoc.project as unknown as typeof existing.project;
     }
     if (body.notes !== undefined) existing.notes = body.notes;
+    if (headerKey) (existing as unknown as Record<string, unknown>).idempotencyKey = headerKey;
     await existing.save();
     try {
       await recomputeSalariesFor([String(existing.labour)], existing.date);
+      await handleAttendanceChangeForReconciliation([String(existing.labour)], existing.date);
     } catch (err) {
       console.warn("[overtime] salary recompute skipped:", (err as Error).message);
     }
@@ -76,7 +83,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { error } = await requireAuth();
@@ -86,9 +93,10 @@ export async function DELETE(
     const id = await getId(params);
     await connectDB();
     const deleted = await Overtime.findByIdAndDelete(id).lean();
-    if (!deleted) return fail(new Error("Overtime record not found."), 404);
+    if (!deleted) return ok({ deleted: true, idempotent: true });
     try {
       await recomputeSalariesFor([String(deleted.labour)], deleted.date);
+      await handleAttendanceChangeForReconciliation([String(deleted.labour)], deleted.date);
     } catch (err) {
       console.warn("[overtime] salary recompute skipped:", (err as Error).message);
     }

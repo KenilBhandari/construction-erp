@@ -30,11 +30,13 @@ const LabourAdvanceSchema = new Schema(
     paymentMethod: { type: String, default: null },
     reference: { type: String, default: null },
     notes: { type: String, default: null },
+    idempotencyKey: { type: String },
   },
   { timestamps: true },
 );
 
 LabourAdvanceSchema.index({ labour: 1, date: 1 });
+LabourAdvanceSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
 
 export type LabourAdvanceDoc = InferSchemaType<typeof LabourAdvanceSchema> & {
   _id: mongoose.Types.ObjectId;
