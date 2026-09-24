@@ -1,5 +1,23 @@
 import mongoose from "mongoose";
 
+// Ensure all models are registered before any populate() call.
+// These are side-effect imports — they call mongoose.model(name, schema).
+import "@/models/Project";
+import "@/models/Site";
+import "@/models/Labour";
+import "@/models/Attendance";
+import "@/models/Overtime";
+import "@/models/LabourAdvance";
+import "@/models/Salary";
+import "@/models/SalaryPayment";
+import "@/models/SalaryAdjustment";
+import "@/models/Expense";
+import "@/models/StockTransaction";
+import "@/models/Material";
+import "@/models/ClientPayment";
+import "@/models/User";
+import "@/models/LabourAssignment";
+
 // NOTE: read inside connectDB (not at module top) so standalone scripts
 // that load .env after imports still work.
 function mongoUri(): string {

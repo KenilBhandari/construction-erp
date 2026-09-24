@@ -8,11 +8,25 @@ export function cn(...inputs: ClassValue[]): string {
 
 /** Format paise/rupees as Indian currency: 2500000 -> ₹25,00,000 */
 export function formatINR(amount: number): string {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return "—";
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
     maximumFractionDigits: 0,
-  }).format(amount);
+  }).format(n);
+}
+
+/** Safe numeric display — never NaN/undefined */
+export function safeINR(value: unknown, fallback = "—"): string {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return formatINR(n);
+}
+
+export function toSafeNumber(value: unknown, fallback = 0): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 /** Format a Date as "18 Sep 2026" */

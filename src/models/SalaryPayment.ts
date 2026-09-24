@@ -13,7 +13,7 @@ const SalaryPaymentSchema = new Schema(
     paymentMethod: { type: String, default: "Cash" },
     reference: { type: String, default: null },
     notes: { type: String, default: null },
-    idempotencyKey: { type: String },
+    idempotencyKey: { type: String, select: false },
   },
   { timestamps: true },
 );

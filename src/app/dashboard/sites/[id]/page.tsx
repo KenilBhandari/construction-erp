@@ -5,6 +5,8 @@ import { connectDB } from "@/lib/mongodb";
 import { formatDateShort, formatINR } from "@/lib/utils";
 import { Site } from "@/models/Site";
 import { Project } from "@/models/Project";
+// Ensure Project model is registered for populate("project")
+void Project;
 import { Labour } from "@/models/Labour";
 import { Attendance } from "@/models/Attendance";
 import { StockTransaction } from "@/models/StockTransaction";

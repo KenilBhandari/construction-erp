@@ -27,6 +27,8 @@ export async function GET(
       .populate("labour", "name")
       .populate({ path: "site", select: "name", strictPopulate: false })
       .populate({ path: "project", select: "name", strictPopulate: false })
+      .populate({ path: "earningsBreakdown.site", select: "name", strictPopulate: false })
+      .populate({ path: "earningsBreakdown.project", select: "name", strictPopulate: false })
       .lean();
     if (!record) return fail(new Error("Salary record not found."), 404);
     return ok(record);

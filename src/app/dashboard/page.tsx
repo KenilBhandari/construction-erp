@@ -45,6 +45,16 @@ export default async function DashboardPage() {
         <StatCard label="Est. Profit (all projects)" value={formatINR(s.profitTotal)} hint="Contract − all costs" />
       </div>
 
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <StatCard label="Labour Cost (Total)" value={formatINR(s.labourCostTotal)} hint={`Assigned ${formatINR(s.labourCostAssigned)}`} />
+        <StatCard label="Assigned Labour" value={formatINR(s.labourCostAssigned)} hint="Site-attributed" />
+        <StatCard
+          label="Unassigned Labour"
+          value={formatINR(s.labourCostUnassigned)}
+          hint={s.labourCostUnassigned > 0 ? "No site — Salary → Unassigned" : "All labour assigned"}
+        />
+      </div>
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card className="p-5">
           <h2 className="text-base font-semibold text-text">Today&apos;s Overview</h2>

@@ -8,7 +8,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
-import { formatDateShort, formatINR, toDateInputValue } from "@/lib/utils";
+import { formatDateShort, safeINR, toDateInputValue, toSafeNumber } from "@/lib/utils";
 import type { SiteDTO } from "@/types/site";
 import type { SalaryDTO } from "@/types/salary";
 import type { AdvanceDTO } from "@/types/salary";
@@ -94,16 +94,17 @@ export function LabourWriteOffSection({ labourId }: { labourId: string }) {
       return;
     }
     if (summary && amt > summary.outstanding) {
-      setError(`Write-off ₹${amt.toLocaleString("en-IN")} exceeds outstanding ${formatINR(summary.outstanding)}.`);
+      setError(`Write-off ${safeINR(amt)} exceeds outstanding ${safeINR(summary.outstanding)}.`);
       return;
     }
     setPending(true);
     setError(null);
     setOkMsg(null);
     try {
+      const idem = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
       const res = await fetch(`/api/labour/${labourId}/write-off`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Idempotency-Key": idem },
         body: JSON.stringify({
           amount: amt,
           date: date || undefined,
@@ -114,7 +115,7 @@ export function LabourWriteOffSection({ labourId }: { labourId: string }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Write-off failed.");
-      setOkMsg(`Write-off ${formatINR(amt)} recorded. Outstanding now ${formatINR(json.summary?.outstanding ?? 0)}.`);
+      setOkMsg(`Write-off ${safeINR(amt)} recorded. Outstanding now ${safeINR(json.summary?.outstanding ?? 0)}.`);
       setAmount("");
       setDescription("");
       setNotes("");
@@ -154,19 +155,19 @@ export function LabourWriteOffSection({ labourId }: { labourId: string }) {
           <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
             <div>
               <dt className="text-text-muted">Advance given</dt>
-              <dd className="mt-0.5 font-semibold tnum">{formatINR(summary.totalGiven)}</dd>
+              <dd className="mt-0.5 font-semibold tnum">{safeINR(summary.totalGiven)}</dd>
             </div>
             <div>
               <dt className="text-text-muted">Recovered (salary)</dt>
-              <dd className="mt-0.5 font-semibold tnum">{formatINR(summary.totalRecovered)}</dd>
+              <dd className="mt-0.5 font-semibold tnum">{safeINR(summary.totalRecovered)}</dd>
             </div>
             <div>
               <dt className="text-text-muted">Written off (expense)</dt>
-              <dd className="mt-0.5 font-semibold tnum">{formatINR(summary.totalWrittenOff)}</dd>
+              <dd className="mt-0.5 font-semibold tnum">{safeINR(summary.totalWrittenOff)}</dd>
             </div>
             <div>
               <dt className="text-text-muted">Outstanding</dt>
-              <dd className="mt-0.5 font-semibold tnum">{formatINR(summary.outstanding)}</dd>
+              <dd className="mt-0.5 font-semibold tnum">{safeINR(summary.outstanding)}</dd>
             </div>
           </dl>
         ) : (
@@ -255,7 +256,7 @@ export function LabourWriteOffSection({ labourId }: { labourId: string }) {
                   return (
                     <TR key={a._id}>
                       <TD className="tnum">{formatDateShort(a.date)}</TD>
-                      <TD numeric>{formatINR(a.amount)}</TD>
+                      <TD numeric>{safeINR(a.amount)}</TD>
                       <TD>{siteProject}</TD>
                       <TD>{a.paymentMethod ?? "—"}</TD>
                       <TD className="tnum">{a.reference ?? "—"}</TD>
@@ -291,7 +292,7 @@ export function LabourWriteOffSection({ labourId }: { labourId: string }) {
                 {writeOffs.slice(0, 5).map((r) => (
                   <TR key={r._id}>
                     <TD className="tnum">{formatDateShort(r.date)}</TD>
-                    <TD numeric>{formatINR(r.amount)}</TD>
+                    <TD numeric>{safeINR(r.amount)}</TD>
                     <TD>{r.description}</TD>
                     <TD>
                       {(siteNameOf(r) || "—")} · {(projectNameOf(r) || "GENERAL")}
@@ -332,10 +333,10 @@ export function LabourWriteOffSection({ labourId }: { labourId: string }) {
                     <TD className="tnum">
                       {formatDateShort(s.periodStart)} – {formatDateShort(s.periodEnd)}
                     </TD>
-                    <TD numeric>{formatINR(s.gross + s.overtimeAmount)}</TD>
-                    <TD numeric>{formatINR(s.advanceRecovery)}</TD>
-                    <TD numeric>{formatINR(s.net)}</TD>
-                    <TD numeric>{formatINR(s.paidAmount)}</TD>
+                    <TD numeric>{safeINR(toSafeNumber(s.gross) + toSafeNumber(s.overtimeAmount))}</TD>
+                    <TD numeric>{safeINR(s.advanceRecovery)}</TD>
+                    <TD numeric>{safeINR(s.net)}</TD>
+                    <TD numeric>{safeINR(s.paidAmount)}</TD>
                   </TR>
                 ))}
               </tbody>

@@ -46,6 +46,8 @@ export async function GET(req: Request) {
         .populate("labour", "name")
         .populate({ path: "site", select: "name", strictPopulate: false })
         .populate({ path: "project", select: "name", strictPopulate: false })
+        .populate({ path: "earningsBreakdown.site", select: "name", strictPopulate: false })
+        .populate({ path: "earningsBreakdown.project", select: "name", strictPopulate: false })
         .sort({ periodEnd: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
@@ -77,12 +79,21 @@ export async function POST(req: Request) {
       periodStart: body.periodStart,
       periodEnd: body.periodEnd,
       advanceRecovery: body.advanceRecovery ?? 0,
+      deductions: body.deductions ?? 0,
       site: body.site ?? null,
       project: body.project ?? null,
       notes: body.notes ?? null,
       idempotencyKey: headerKey ?? undefined,
     });
-    return ok(saved);
+    if (!saved) return fail(new Error("Failed to calculate salary."), 500);
+    const populated = await Salary.findById(saved._id)
+      .populate("labour", "name")
+      .populate({ path: "site", select: "name", strictPopulate: false })
+      .populate({ path: "project", select: "name", strictPopulate: false })
+      .populate({ path: "earningsBreakdown.site", select: "name", strictPopulate: false })
+      .populate({ path: "earningsBreakdown.project", select: "name", strictPopulate: false })
+      .lean();
+    return ok(populated ?? saved);
   } catch (err) {
     return fail(err, 422);
   }

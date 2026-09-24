@@ -131,6 +131,7 @@ export const salaryComputeSchema = z.object({
   periodStart: dayString,
   periodEnd: dayString,
   advanceRecovery: z.coerce.number().min(0).default(0),
+  deductions: z.coerce.number().min(0).default(0),
   notes: optionalText,
 });
 

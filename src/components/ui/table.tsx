@@ -47,15 +47,21 @@ export function TD({
   className,
   numeric,
   onClick,
+  colSpan,
+  title,
 }: {
   children: ReactNode;
   className?: string;
   numeric?: boolean;
   onClick?: (e: React.MouseEvent<HTMLTableCellElement>) => void;
+  colSpan?: number;
+  title?: string;
 }) {
   return (
     <td
       onClick={onClick}
+      colSpan={colSpan}
+      title={title}
       className={cn(
         "border-b border-border px-4 py-2.5 text-text last:border-b-0",
         numeric && "text-right tnum",

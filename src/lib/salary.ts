@@ -5,6 +5,7 @@ import { Overtime } from "@/models/Overtime";
 import { Salary } from "@/models/Salary";
 import { SalaryAdjustment } from "@/models/SalaryAdjustment";
 import { Site } from "@/models/Site";
+import { Project } from "@/models/Project";
 import { attendanceCostFor } from "@/lib/utils";
 import { dayRange, toDayDate } from "@/lib/utils";
 import { getLabourAdvanceSummary } from "@/lib/advances";
@@ -115,6 +116,7 @@ interface ComputeInput {
   periodStart: string;
   periodEnd: string;
   advanceRecovery?: number;
+  deductions?: number;
   site?: string | null;
   project?: string | null;
   notes?: string | null;
@@ -222,8 +224,11 @@ export async function computeAndSaveSalary(input: ComputeInput) {
   let gross = 0;
   let attendanceOT = 0;
 
-  // Breakdown map: key = siteId||"unassigned" + projectId
-  const breakdownMap = new Map<string, { site: Types.ObjectId | null; project: Types.ObjectId | null; presentDays: number; halfDays: number; gross: number; overtimeAmount: number }>();
+  // Breakdown map: key = siteId||"unassigned" + projectId — includes snapshot names
+  const breakdownMap = new Map<
+    string,
+    { site: Types.ObjectId | null; project: Types.ObjectId | null; siteName: string | null; projectName: string | null; presentDays: number; halfDays: number; gross: number; overtimeAmount: number }
+  >();
 
   function breakdownKey(site: unknown, project: unknown): string {
     const s = site ? String(site) : "__unassigned";
@@ -254,7 +259,16 @@ export async function computeAndSaveSalary(input: ComputeInput) {
     attendanceOT += otForThis;
 
     const key = breakdownKey(a.site, a.project);
-    const entry = breakdownMap.get(key) ?? { site: (a.site as Types.ObjectId) ?? null, project: (a.project as Types.ObjectId) ?? null, presentDays: 0, halfDays: 0, gross: 0, overtimeAmount: 0 };
+    const entry = breakdownMap.get(key) ?? {
+      site: (a.site as Types.ObjectId) ?? null,
+      project: (a.project as Types.ObjectId) ?? null,
+      siteName: null,
+      projectName: null,
+      presentDays: 0,
+      halfDays: 0,
+      gross: 0,
+      overtimeAmount: 0,
+    };
     if (a.status === "present") entry.presentDays++;
     else if (a.status === "half-day") entry.halfDays++;
     entry.gross += cost;
@@ -269,14 +283,38 @@ export async function computeAndSaveSalary(input: ComputeInput) {
   const overtimeDocs = await Overtime.find({ ...labourFilter, date: dateFilter }).select("site project amount").lean();
   for (const o of overtimeDocs as unknown as Array<{ site: Types.ObjectId; project: Types.ObjectId; amount: number }>) {
     const key = breakdownKey(o.site, o.project);
-    const entry = breakdownMap.get(key) ?? { site: o.site, project: o.project, presentDays: 0, halfDays: 0, gross: 0, overtimeAmount: 0 };
+    const entry = breakdownMap.get(key) ?? { site: o.site, project: o.project, siteName: null, projectName: null, presentDays: 0, halfDays: 0, gross: 0, overtimeAmount: 0 };
     entry.overtimeAmount += o.amount;
     breakdownMap.set(key, entry);
+  }
+
+  // Snapshot siteName/projectName at write time (new writes only) — prevents populate leak
+  const siteIds = [...new Set(Array.from(breakdownMap.values()).map((b) => (b.site ? String(b.site) : null)).filter(Boolean) as string[])];
+  const projectIds = [...new Set(Array.from(breakdownMap.values()).map((b) => (b.project ? String(b.project) : null)).filter(Boolean) as string[])];
+  let siteNameMap = new Map<string, string>();
+  let projectNameMap = new Map<string, string>();
+  if (siteIds.length) {
+    const sites = await Site.find({ _id: { $in: siteIds.map((id) => new Types.ObjectId(id)) } })
+      .select("name")
+      .lean();
+    siteNameMap = new Map(sites.map((s) => [String(s._id), s.name]));
+  }
+  if (projectIds.length) {
+    const projects = await Project.find({ _id: { $in: projectIds.map((id) => new Types.ObjectId(id)) } })
+      .select("name")
+      .lean();
+    projectNameMap = new Map(projects.map((p) => [String(p._id), p.name]));
+  }
+  for (const entry of breakdownMap.values()) {
+    if (entry.site) entry.siteName = siteNameMap.get(String(entry.site)) ?? null;
+    if (entry.project) entry.projectName = projectNameMap.get(String(entry.project)) ?? null;
   }
 
   const earningsBreakdown = Array.from(breakdownMap.values()).map((b) => ({
     site: b.site,
     project: b.project,
+    siteName: b.siteName,
+    projectName: b.projectName,
     presentDays: b.presentDays,
     halfDays: b.halfDays,
     gross: b.gross,
@@ -288,8 +326,10 @@ export async function computeAndSaveSalary(input: ComputeInput) {
     input.advanceRecovery !== undefined
       ? input.advanceRecovery
       : (existing?.advanceRecovery ?? 0);
+  const deductions = input.deductions !== undefined ? input.deductions : (existing?.deductions ?? 0);
 
   if (requestedRecovery < 0) throw new Error("Advance recovery cannot be negative.");
+  if (deductions < 0) throw new Error("Deductions cannot be negative.");
 
   const summary = await getLabourAdvanceSummary(input.labourId);
   const existingRecovery = existing?.advanceRecovery ?? 0;
@@ -300,7 +340,6 @@ export async function computeAndSaveSalary(input: ComputeInput) {
     );
   }
 
-  const deductions = existing?.deductions ?? 0;
   const paidAmount = existing?.paidAmount ?? 0;
   const advanceRecovery = requestedRecovery;
   const net = gross + overtimeAmount - advanceRecovery - deductions;
@@ -364,19 +403,19 @@ export async function computeAndSaveSalary(input: ComputeInput) {
 
   // If idempotencyKey present and this is an upsert, duplicate key will throw 11000 — caller handles
   try {
-    const result = await Salary.findOneAndUpdate(
+    const result = (await Salary.findOneAndUpdate(
       filter,
       { $set: updateDoc },
       { upsert: true, new: true, runValidators: true },
-    ).lean();
-    return result;
+    ).lean()) as unknown as Record<string, unknown> | null;
+    return result as never;
   } catch (e: unknown) {
     const code = (e as { code?: number })?.code;
     const msg = (e as { message?: string })?.message ?? "";
     if (code === 11000 || msg.includes("duplicate key")) {
       // Idempotent retry: return existing
-      const again = await Salary.findOne(filter).lean();
-      if (again) return again;
+      const again = (await Salary.findOne(filter).lean()) as unknown as Record<string, unknown> | null;
+      if (again) return again as never;
     }
     throw e;
   }

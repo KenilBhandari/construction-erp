@@ -18,7 +18,7 @@ const SalaryAdjustmentSchema = new Schema(
     overtimeIds: [{ type: Schema.Types.ObjectId, ref: "Overtime" }],
     createdBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     notes: { type: String, default: null },
-    idempotencyKey: { type: String },
+    idempotencyKey: { type: String, select: false },
   },
   { timestamps: true },
 );

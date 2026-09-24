@@ -56,13 +56,15 @@ const SalarySchema = new Schema(
     // Historical snapshots for audit
     snapshotDailyRate: { type: Number, min: 0, default: null },
     snapshotHourlyRate: { type: Number, min: 0, default: null },
-    // Multi-site earnings breakdown (§10-12)
+    // Multi-site earnings breakdown (§10-12) — site/project + snapshot names
     earningsBreakdown: {
       type: [
         new Schema(
           {
             site: { type: Schema.Types.ObjectId, ref: "Site", default: null },
             project: { type: Schema.Types.ObjectId, ref: "Project", default: null },
+            siteName: { type: String, default: null },
+            projectName: { type: String, default: null },
             presentDays: { type: Number, min: 0, default: 0 },
             halfDays: { type: Number, min: 0, default: 0 },
             gross: { type: Number, min: 0, default: 0 },
@@ -73,7 +75,7 @@ const SalarySchema = new Schema(
       ],
       default: [],
     },
-    idempotencyKey: { type: String },
+    idempotencyKey: { type: String, select: false },
     needsReconciliation: { type: Boolean, default: false },
   },
   { timestamps: true },

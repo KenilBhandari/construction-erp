@@ -2,6 +2,17 @@ export const SALARY_STATUSES = ["pending", "partially-paid", "paid"] as const;
 
 export type SalaryStatus = (typeof SALARY_STATUSES)[number];
 
+export interface EarningsBreakdownItem {
+  site: string | { _id: string; name: string } | null;
+  project: string | { _id: string; name: string } | null;
+  siteName?: string | null;
+  projectName?: string | null;
+  presentDays: number;
+  halfDays: number;
+  gross: number;
+  overtimeAmount: number;
+}
+
 export interface SalaryDTO {
   _id: string;
   labour: string | { _id: string; name: string };
@@ -26,8 +37,25 @@ export interface SalaryDTO {
   paymentReference: string | null;
   status: SalaryStatus;
   notes: string | null;
+  snapshotDailyRate?: number | null;
+  snapshotHourlyRate?: number | null;
+  earningsBreakdown?: EarningsBreakdownItem[];
+  needsReconciliation?: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SalaryAdjustmentDTO {
+  _id: string;
+  salary: string;
+  labour: string;
+  periodStart: string;
+  periodEnd: string;
+  deltaGross: number;
+  deltaOvertime: number;
+  deltaNet: number;
+  reason: string;
+  createdAt: string;
 }
 
 export function salaryLabourName(s: SalaryDTO): string {

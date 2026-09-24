@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
-import { formatINR } from "@/lib/utils";
+import { safeINR, toSafeNumber } from "@/lib/utils";
 import type { SalaryDTO } from "@/types/salary";
 import { PAYMENT_METHODS } from "@/types/finance";
 
@@ -19,7 +19,7 @@ export function SalaryPaymentModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const remaining = record.remainingAmount ?? record.net - record.paidAmount;
+  const remaining = toSafeNumber(record.remainingAmount ?? toSafeNumber(record.net) - toSafeNumber(record.paidAmount), 0);
   const [amount, setAmount] = useState(remaining > 0 ? String(remaining) : "");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState<string>("Cash");
@@ -27,6 +27,7 @@ export function SalaryPaymentModal({
   const [notes, setNotes] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [idemKey] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}-${Math.random()}`));
 
   // Lock check
   const isLocked = record.status === "paid";
@@ -47,24 +48,37 @@ export function SalaryPaymentModal({
       return;
     }
     if (amt > remaining) {
-      setError(`Payment ₹${amt.toLocaleString("en-IN")} exceeds remaining ₹${remaining.toLocaleString("en-IN")}.`);
+      setError(`Payment ${safeINR(amt)} exceeds remaining ${safeINR(remaining)}.`);
       return;
     }
     if (pending) return;
     setPending(true);
     setError(null);
     try {
-      const idem = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
       const res = await fetch(`/api/salary/${record._id}/payments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Idempotency-Key": idem },
+        headers: { "Content-Type": "application/json", "X-Idempotency-Key": idemKey },
         body: JSON.stringify({ amount: amt, date, paymentMethod: method, reference: reference.trim() || null, notes: notes.trim() || null }),
       });
       const j = await res.json();
-      if (!res.ok) throw new Error(j.error ?? "Payment failed.");
+      if (!res.ok) {
+        const msg = j.error ?? "Payment failed.";
+        // idempotent duplicate is success — already paid
+        if (msg.toLowerCase().includes("duplicate") || msg.toLowerCase().includes("already processed") || msg.toLowerCase().includes("concurrent")) {
+          // refetch authoritative before closing
+          onSaved();
+          return;
+        }
+        throw new Error(msg);
+      }
       onSaved();
     } catch (err) {
-      setError((err as Error).message);
+      const msg = (err as Error).message;
+      if (msg.toLowerCase().includes("duplicate") || msg.toLowerCase().includes("already processed")) {
+        onSaved();
+        return;
+      }
+      setError(msg);
     } finally {
       setPending(false);
     }
@@ -73,10 +87,11 @@ export function SalaryPaymentModal({
   return (
     <Modal open onClose={onClose} title={`Record Payment — ${typeof record.labour === "string" ? record.labour : record.labour.name}`}>
       <dl className="grid grid-cols-3 gap-3 text-sm">
-        <div><dt className="text-text-muted">Net</dt><dd className="font-semibold tnum">{formatINR(record.net)}</dd></div>
-        <div><dt className="text-text-muted">Paid</dt><dd className="font-semibold tnum">{formatINR(record.paidAmount)}</dd></div>
-        <div><dt className="text-text-muted">Remaining</dt><dd className="font-semibold tnum">{formatINR(remaining)}</dd></div>
+        <div><dt className="text-text-muted">Net payable</dt><dd className="font-semibold tnum">{safeINR(record.net)}</dd></div>
+        <div><dt className="text-text-muted">Already paid</dt><dd className="font-semibold tnum">{safeINR(record.paidAmount)}</dd></div>
+        <div><dt className="text-text-muted">Remaining</dt><dd className="font-semibold tnum text-primary">{safeINR(remaining)}</dd></div>
       </dl>
+      <p className="mt-2 text-xs text-text-muted">Payment reduces remaining salary payable only — not site labour cost. Default is remaining; you can pay partially.</p>
       {isLocked ? (
         <p className="mt-4 text-sm text-danger">This salary is locked — no further payments allowed.</p>
       ) : (

@@ -51,7 +51,7 @@ const ExpenseSchema = new Schema(
       default: null,
       index: true,
     },
-    idempotencyKey: { type: String },
+    idempotencyKey: { type: String, select: false },
   },
   { timestamps: true },
 );

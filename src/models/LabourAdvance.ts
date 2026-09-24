@@ -30,7 +30,7 @@ const LabourAdvanceSchema = new Schema(
     paymentMethod: { type: String, default: null },
     reference: { type: String, default: null },
     notes: { type: String, default: null },
-    idempotencyKey: { type: String },
+    idempotencyKey: { type: String, select: false },
   },
   { timestamps: true },
 );

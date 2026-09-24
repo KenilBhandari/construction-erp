@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
-import { formatINR } from "@/lib/utils";
+import { safeINR, toSafeNumber } from "@/lib/utils";
 import type { SalaryDTO } from "@/types/salary";
 
 export function SalaryEditModal({
@@ -35,8 +35,14 @@ export function SalaryEditModal({
 
   const available = (outstanding ?? 0) + record.advanceRecovery;
 
+  const isLocked = record.status !== "pending";
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (isLocked) {
+      setError("Only pending settlements can be edited — this record is locked.");
+      return;
+    }
     const rec = Number(recovery);
     const ded = Number(deductions);
     if (Number.isNaN(rec) || rec < 0 || Number.isNaN(ded) || ded < 0) {
@@ -44,7 +50,7 @@ export function SalaryEditModal({
       return;
     }
     if (outstanding !== null && rec > available) {
-      setError(`Recovery ₹${rec.toLocaleString("en-IN")} exceeds available ₹${available.toLocaleString("en-IN")} (outstanding ₹${outstanding.toLocaleString("en-IN")} + current ₹${record.advanceRecovery.toLocaleString("en-IN")}).`);
+      setError(`Recovery ${safeINR(rec)} exceeds available ${safeINR(available)} (outstanding ${safeINR(outstanding)} + current ${safeINR(record.advanceRecovery)}).`);
       return;
     }
     if (pending) return;
@@ -69,18 +75,22 @@ export function SalaryEditModal({
   return (
     <Modal open onClose={onClose} title={`Edit Settlement — ${typeof record.labour === "string" ? record.labour : record.labour.name}`}>
       <div className="mb-3 rounded bg-background p-3 text-sm">
-        <p className="text-text-muted">Net {formatINR(record.net)} · Gross {formatINR(record.gross + record.overtimeAmount)}</p>
-        <p className="text-xs text-text-muted">Outstanding: {outstanding !== null ? formatINR(outstanding) : "…"} · Available: {outstanding !== null ? formatINR(available) : "…"} (outstanding + current recovery)</p>
-        <p className="mt-1 text-[11px] text-text-muted">Recovery recovers previously given advance. 0 is valid. Once payments begin, snapshot freezes.</p>
+        <p className="text-text-muted">Net {safeINR(record.net)} · Gross {safeINR(toSafeNumber(record.gross) + toSafeNumber(record.overtimeAmount))} · Paid {safeINR(record.paidAmount)}</p>
+        <p className="text-xs text-text-muted">Outstanding: {outstanding !== null ? safeINR(outstanding) : "…"} · Available: {outstanding !== null ? safeINR(available) : "…"} (outstanding + current recovery)</p>
+        <p className="mt-1 text-[11px] text-text-muted">Recovery recovers previously given advance (reduces outstanding). 0 is valid. Once payments begin, snapshot freezes — use Pay instead.</p>
       </div>
       <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-        <Input label="Advance recovery (₹)" type="number" min={0} value={recovery} onChange={(e) => setRecovery(e.target.value)} required disabled={pending} />
-        <Input label="Other deductions (₹)" type="number" min={0} value={deductions} onChange={(e) => setDeductions(e.target.value)} required disabled={pending} />
-        {record.paidAmount > 0 && <p className="text-xs text-danger">This settlement has no payments yet, so recovery can be changed. Once a payment is recorded, recovery becomes locked.</p>}
+        <Input label="Advance recovery (₹)" type="number" min={0} value={recovery} onChange={(e) => setRecovery(e.target.value)} required disabled={pending || isLocked} />
+        <Input label="Other deductions (₹)" type="number" min={0} value={deductions} onChange={(e) => setDeductions(e.target.value)} required disabled={pending || isLocked} />
+        {isLocked ? (
+          <p className="text-xs text-warning">This settlement is locked — payments have been recorded. Recovery and deductions are frozen.</p>
+        ) : (
+          <p className="text-xs text-text-muted">This settlement has no payments yet, so recovery can be changed. Once a payment is recorded, recovery becomes locked.</p>
+        )}
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose} disabled={pending}>Cancel</Button>
-          <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save Changes"}</Button>
+          <Button type="submit" disabled={pending || isLocked}>{pending ? "Saving…" : "Save Changes"}</Button>
         </div>
       </form>
     </Modal>
