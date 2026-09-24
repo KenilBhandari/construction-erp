@@ -73,7 +73,7 @@ export default function EditSitePage({ params }: { params: Promise<{ id: string 
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to update site.");
-      router.push(`/dashboard/projects/${values.project}`);
+      router.push(`/dashboard/sites/${id}`);
     } catch (err) {
       setServerError((err as Error).message);
     } finally {
@@ -83,7 +83,7 @@ export default function EditSitePage({ params }: { params: Promise<{ id: string 
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title="Edit Site" description="Update site details." />
+      <PageHeader title="Edit Site" />
       {loading && <TableSkeleton rows={5} />}
       {loadError && (
         <p role="alert" className="text-sm text-danger">{loadError}</p>

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
@@ -10,7 +9,6 @@ import { Salary } from "@/models/Salary";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
-import { EmptyState } from "@/components/ui/empty-state";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { LabourActions } from "@/components/labour/labour-actions";
 import { LabourWriteOffSection } from "@/components/labour/labour-write-off";
@@ -29,14 +27,19 @@ export default async function LabourDetailPage({
     .populate("assignedSite", "name")
     .lean();
   if (!labour) notFound();
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
   const labourFilter = { labour: new Types.ObjectId(id) };
+  const monthFilter = { labour: new Types.ObjectId(id), date: { $gte: monthStart, $lte: monthEnd } };
   const [assignments, attendanceAgg, salaryAgg] = await Promise.all([
     LabourAssignment.find({ labour: id })
       .populate("site", "name")
-      .sort({ from: -1 })
+      .sort({ from: -1, _id: -1 })
+      .limit(25)
       .lean(),
     Attendance.aggregate([
-      { $match: labourFilter },
+      { $match: monthFilter },
       { $group: { _id: "$status", days: { $sum: 1 }, ot: { $sum: "$overtimeHours" } } },
     ]),
     Salary.aggregate([
@@ -71,11 +74,12 @@ export default async function LabourDetailPage({
   const siteId = assigned ? String(assigned._id) : null;
   const siteName = assigned ? String(assigned.name) : null;
 
+  const hasNotes = !!labour.notes?.trim();
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title={labour.name}
-        description={`${labour.skill} · ${labour.phone}`}
         action={
           <LabourActions
             labourId={lid}
@@ -86,8 +90,8 @@ export default async function LabourDetailPage({
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card className="p-5">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch">
+        <Card className="p-5 flex flex-col h-full">
           <h2 className="text-base font-semibold text-text">Basic Information</h2>
           <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
             <div>
@@ -108,7 +112,7 @@ export default async function LabourDetailPage({
             </div>
             <div>
               <dt className="text-text-muted">Joining Date</dt>
-              <dd className="mt-0.5 font-medium">
+              <dd className={`mt-0.5 font-medium ${labour.joiningDate ? "" : "text-text-muted italic"}`}>
                 {labour.joiningDate ? formatDateShort(labour.joiningDate) : "—"}
               </dd>
             </div>
@@ -121,117 +125,112 @@ export default async function LabourDetailPage({
               </dd>
             </div>
           </dl>
-          {labour.notes && (
-            <p className="mt-3 text-sm leading-6 text-text">{labour.notes}</p>
+          {hasNotes && (
+            <p className="mt-3 text-sm leading-6 text-text">
+              <span className="text-text-muted">Notes: </span>{labour.notes!.trim()}
+            </p>
           )}
         </Card>
 
-        <Card className="p-5">
-          <h2 className="text-base font-semibold text-text">Current Site</h2>
-          <p className="mt-3 text-sm">
+        <Card className="p-4 flex flex-col h-full">
+          <h2 className="text-sm font-semibold text-text">Current Site</h2>
+          <p className="mt-2 text-sm">
             {siteName ? (
               <span className="font-medium text-text">{siteName}</span>
             ) : (
-              <span className="text-text-muted">No site assigned yet.</span>
+              <span className="text-text-muted italic">—</span>
             )}
           </p>
-          <h2 className="mt-6 text-base font-semibold text-text">Attendance Summary</h2>
-          <dl className="mt-3 grid grid-cols-3 gap-3 text-sm">
+          <h2 className="mt-4 text-sm font-semibold text-text">Attendance this month</h2>
+          <dl className="mt-2 grid grid-cols-4 gap-2 text-xs">
             <div>
               <dt className="text-text-muted">Present</dt>
-              <dd className="mt-0.5 font-semibold tnum">{attByStatus.present ?? 0}</dd>
+              <dd className="mt-0.5 font-semibold tnum text-sm">{attByStatus.present ?? 0}</dd>
             </div>
             <div>
               <dt className="text-text-muted">Half Day</dt>
-              <dd className="mt-0.5 font-semibold tnum">{attByStatus["half-day"] ?? 0}</dd>
+              <dd className="mt-0.5 font-semibold tnum text-sm">{attByStatus["half-day"] ?? 0}</dd>
             </div>
             <div>
               <dt className="text-text-muted">Absent</dt>
-              <dd className="mt-0.5 font-semibold tnum">{attByStatus.absent ?? 0}</dd>
+              <dd className="mt-0.5 font-semibold tnum text-sm">{attByStatus.absent ?? 0}</dd>
             </div>
             <div>
               <dt className="text-text-muted">OT hours</dt>
-              <dd className="mt-0.5 font-semibold tnum">{attOT}</dd>
+              <dd className="mt-0.5 font-semibold tnum text-sm">{attOT}</dd>
             </div>
           </dl>
-          <h2 className="mt-6 text-base font-semibold text-text">Salary Summary</h2>
+          <h2 className="mt-4 text-sm font-semibold text-text">Salary Summary</h2>
           {salaryTotals ? (
-            <dl className="mt-3 grid grid-cols-3 gap-3 text-sm">
+            <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
               <div>
-                <dt className="text-text-muted">Payable</dt>
-                <dd className="mt-0.5 font-semibold tnum">{formatINR(salaryTotals.net)}</dd>
+                <dt className="text-text-muted">To Pay</dt>
+                <dd className="mt-0.5 font-semibold tnum text-sm">{formatINR(salaryTotals.net)}</dd>
               </div>
               <div>
                 <dt className="text-text-muted">Paid</dt>
-                <dd className="mt-0.5 font-semibold tnum">{formatINR(salaryTotals.paid)}</dd>
+                <dd className="mt-0.5 font-semibold tnum text-sm">{formatINR(salaryTotals.paid)}</dd>
               </div>
               <div>
-                <dt className="text-text-muted">Balance</dt>
-                <dd className="mt-0.5 font-semibold tnum">
+                <dt className="text-text-muted">Remaining balance</dt>
+                <dd className="mt-0.5 font-semibold tnum text-sm">
                   {formatINR(salaryTotals.net - salaryTotals.paid)}
                 </dd>
               </div>
             </dl>
           ) : (
-            <p className="mt-1 text-sm leading-6 text-text-muted">
+            <p className="mt-1 text-xs leading-6 text-text-muted">
               No salary calculated yet.
             </p>
           )}
-          <Link
-            href="/dashboard/salary"
-            className="mt-3 inline-block text-sm text-primary hover:underline"
-          >
-            Open salary
-          </Link>
         </Card>
       </div>
 
       <LabourWriteOffSection labourId={lid} />
 
-      <LabourAttendanceHistory labourId={lid} labourName={labour.name} />
+      <LabourAttendanceHistory labourId={lid} />
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold text-text">Assignment History</h2>
-        {assignments.length === 0 ? (
-          <EmptyState
-            title="No assignments yet"
-            description="Assign this worker to a site to start history."
-          />
-        ) : (
-          <Table>
-            <THead>
-              <TR>
-                <TH>Site</TH>
-                <TH>From</TH>
-                <TH>To</TH>
-                <TH>Status</TH>
-              </TR>
-            </THead>
-            <tbody>
-              {assignments.map((a) => {
-                const siteName =
-                  a.site && typeof a.site === "object" && "name" in a.site
-                    ? String((a.site as { name: unknown }).name)
-                    : "—";
-                return (
-                  <TR key={String(a._id)}>
-                    <TD className="font-medium">{siteName}</TD>
-                    <TD>{formatDateShort(a.from)}</TD>
-                    <TD>{a.to ? formatDateShort(a.to) : "—"}</TD>
-                    <TD>
-                      {a.to ? (
-                        <Badge tone="neutral">Closed</Badge>
-                      ) : (
-                        <Badge tone="primary">Current</Badge>
-                      )}
-                    </TD>
-                  </TR>
-                );
-              })}
-            </tbody>
-          </Table>
-        )}
-      </section>
+      {assignments.length > 0 && (
+        <Card className="p-5">
+          <h2 className="text-base font-semibold text-text">Assignment History</h2>
+          <div className="mt-3 max-h-[320px] overflow-auto rounded-md border border-border">
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Site</TH>
+                  <TH>From</TH>
+                  <TH>To</TH>
+                  <TH>Status</TH>
+                </TR>
+              </THead>
+              <tbody>
+                {assignments.map((a) => {
+                  const siteName =
+                    a.site && typeof a.site === "object" && "name" in a.site
+                      ? String((a.site as { name: unknown }).name)
+                      : "—";
+                  const isUnspecSite = siteName === "—";
+                  const isUnspecTo = !a.to;
+                  return (
+                    <TR key={String(a._id)}>
+                      <TD className={isUnspecSite ? "font-medium text-text-muted italic" : "font-medium"}>{siteName}</TD>
+                      <TD>{formatDateShort(a.from)}</TD>
+                      <TD className={isUnspecTo ? "text-text-muted italic" : ""}>{a.to ? formatDateShort(a.to) : "—"}</TD>
+                      <TD>
+                        {a.to ? (
+                          <Badge tone="neutral">Closed</Badge>
+                        ) : (
+                          <Badge tone="primary">Current</Badge>
+                        )}
+                      </TD>
+                    </TR>
+                  );
+                })}
+              </tbody>
+            </Table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

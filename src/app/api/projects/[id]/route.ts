@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import { fail, ok, requireAuth } from "@/lib/api";
 import { objectIdSchema } from "@/lib/validation";
@@ -45,6 +46,15 @@ export async function PATCH(
       runValidators: true,
     }).lean();
     if (!updated) return fail(new Error("Project not found."), 404);
+    if (body.status === "cancelled") {
+      // Use the underlying collection to bypass any stale Mongoose validator
+      // cache in `next dev` (mongoose.models.Site may still have old enum).
+      // `collection` does not cast, so convert `id` to ObjectId explicitly.
+      await Site.collection.updateMany(
+        { project: new mongoose.Types.ObjectId(id), status: { $ne: "inactive" } },
+        { $set: { status: "inactive" } },
+      );
+    }
     return ok(updated);
   } catch (err) {
     return fail(err, 422);

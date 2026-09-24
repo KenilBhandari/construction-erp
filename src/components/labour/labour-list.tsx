@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -10,13 +11,13 @@ import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
-import { ConfirmDialog } from "@/components/ui/modal";
 import { AssignSiteDialog } from "@/components/labour/assign-dialog";
 import { formatINR } from "@/lib/utils";
 import type { LabourDTO } from "@/types/labour";
 import { labourSiteId, labourSiteName, SKILL_TYPES } from "@/types/labour";
 import type { SiteDTO } from "@/types/site";
 import { siteProjectName } from "@/types/site";
+import { Pencil, UserPlus } from "lucide-react";
 
 interface ListResponse {
   data: LabourDTO[];
@@ -26,12 +27,12 @@ interface ListResponse {
 }
 
 export default function LabourList() {
+  const router = useRouter();
   const [q, setQ] = useState("");
   const [appliedQ, setAppliedQ] = useState("");
   const [skill, setSkill] = useState("");
   const [site, setSite] = useState("");
   const [status, setStatus] = useState("active");
-  const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
   const [sites, setSites] = useState<SiteDTO[]>([]);
@@ -39,9 +40,6 @@ export default function LabourList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<LabourDTO | null>(null);
-  const [toggling, setToggling] = useState<LabourDTO | null>(null);
-  const [togglePending, setTogglePending] = useState(false);
-  const [toggleError, setToggleError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/sites?limit=100")
@@ -54,7 +52,7 @@ export default function LabourList() {
 
   // Fetch when filters change; updates live in promise callbacks.
   useEffect(() => {
-    const params = new URLSearchParams({ page: String(page), limit: "20", sort });
+    const params = new URLSearchParams({ page: String(page), limit: "20" });
     if (appliedQ) params.set("q", appliedQ);
     if (skill) params.set("skill", skill);
     if (site) params.set("site", site);
@@ -68,7 +66,7 @@ export default function LabourList() {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [appliedQ, skill, site, status, sort, page, reloadKey]);
+  }, [appliedQ, skill, site, status, page, reloadKey]);
 
   function refresh() {
     setLoading(true);
@@ -88,35 +86,12 @@ export default function LabourList() {
     setPage(1);
   }
 
-  async function handleToggleStatus() {
-    if (!toggling) return;
-    const next = toggling.status === "active" ? "inactive" : "active";
-    setTogglePending(true);
-    setToggleError(null);
-    try {
-      const res = await fetch(`/api/labour/${toggling._id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: next }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Update failed.");
-      setToggling(null);
-      refresh();
-    } catch (err) {
-      setToggleError((err as Error).message);
-    } finally {
-      setTogglePending(false);
-    }
-  }
-
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Labour"
-        description="Register workers, assign them to sites, track status."
         action={
           <Link href="/dashboard/labour/new">
             <Button>Add Labour</Button>
@@ -124,7 +99,7 @@ export default function LabourList() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <div className="col-span-2">
           <Input
             aria-label="Search labour"
@@ -135,7 +110,7 @@ export default function LabourList() {
         </div>
         <Select aria-label="Filter by skill" value={skill} onChange={(e) => { setSkill(e.target.value); resetPage(); }}>
           <option value="">All skills</option>
-          {SKILL_TYPES.map((s) => (
+          {SKILL_TYPES.filter((s) => s !== "Other").map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
         </Select>
@@ -151,11 +126,6 @@ export default function LabourList() {
           <option value="">All statuses</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
-        </Select>
-        <Select aria-label="Sort" value={sort} onChange={(e) => { setSort(e.target.value); resetPage(); }}>
-          <option value="newest">Newest</option>
-          <option value="name">Name</option>
-          <option value="rate">Highest daily rate</option>
         </Select>
       </div>
 
@@ -193,15 +163,16 @@ export default function LabourList() {
             </THead>
             <tbody>
               {data.data.map((l) => (
-                <TR key={l._id}>
+                <TR
+                  key={l._id}
+                  className="cursor-pointer hover:bg-background/70"
+                  onClick={() => router.push(`/dashboard/labour/${l._id}`)}
+                >
                   <TD>
-                    <Link href={`/dashboard/labour/${l._id}`} className="font-medium text-primary hover:underline">
-                      {l.name}
-                    </Link>
-                    <p className="text-xs text-text-muted tnum">{l.phone}</p>
+                    <span className="font-medium text-primary">{l.name}</span>
                   </TD>
                   <TD>{l.skill}</TD>
-                  <TD>{labourSiteName(l) ?? "—"}</TD>
+                  <TD className={labourSiteName(l) ? "" : "text-text-muted italic"}>{labourSiteName(l) ?? "—"}</TD>
                   <TD numeric>{formatINR(l.dailyRate)}</TD>
                   <TD>
                     <Badge tone={l.status === "active" ? "success" : "neutral"}>
@@ -209,26 +180,21 @@ export default function LabourList() {
                     </Badge>
                   </TD>
                   <TD>
-                    <div className="flex flex-wrap gap-2">
-                      <Link href={`/dashboard/labour/${l._id}`} className="text-sm text-primary hover:underline">
-                        View
-                      </Link>
-                      <Link href={`/dashboard/labour/${l._id}/edit`} className="text-sm text-text-muted hover:underline">
-                        Edit
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Link
+                        href={`/dashboard/labour/${l._id}/edit`}
+                        aria-label={`Edit ${l.name}`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
+                      >
+                        <Pencil className="h-4 w-4" />
                       </Link>
                       <button
                         type="button"
+                        aria-label={`Assign ${l.name}`}
                         onClick={() => setAssigning(l)}
-                        className="text-sm text-text-muted hover:underline"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
                       >
-                        Assign
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setToggling(l); setToggleError(null); }}
-                        className="text-sm text-danger hover:underline"
-                      >
-                        {l.status === "active" ? "Deactivate" : "Activate"}
+                        <UserPlus className="h-4 w-4" />
                       </button>
                     </div>
                   </TD>
@@ -261,16 +227,6 @@ export default function LabourList() {
           onAssigned={refresh}
         />
       )}
-
-      <ConfirmDialog
-        open={toggling !== null}
-        onClose={() => setToggling(null)}
-        onConfirm={handleToggleStatus}
-        title={toggling?.status === "active" ? `Deactivate ${toggling?.name}?` : `Activate ${toggling?.name}?`}
-        description={toggleError ?? (toggling?.status === "active" ? "They will be hidden from attendance lists but history is kept." : "They will appear in attendance lists again.")}
-        confirmLabel={toggling?.status === "active" ? "Deactivate" : "Activate"}
-        pending={togglePending}
-      />
     </div>
   );
 }

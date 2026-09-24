@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -10,10 +11,11 @@ import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
-import { ConfirmDialog } from "@/components/ui/modal";
+import { Modal } from "@/components/ui/modal";
 import { formatINR } from "@/lib/utils";
 import type { ProjectDTO } from "@/types/project";
 import { statusLabel, statusTone } from "./project-status";
+import { Pencil, Trash2 } from "lucide-react";
 
 interface ListResponse {
   data: ProjectDTO[];
@@ -23,6 +25,7 @@ interface ListResponse {
 }
 
 export default function ProjectsList() {
+  const router = useRouter();
   const [q, setQ] = useState("");
   const [appliedQ, setAppliedQ] = useState("");
   const [status, setStatus] = useState("");
@@ -32,6 +35,7 @@ export default function ProjectsList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<ProjectDTO | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -70,15 +74,22 @@ export default function ProjectsList() {
     return () => clearTimeout(t);
   }, [q]);
 
+  function closeDelete() {
+    setDeleting(null);
+    setDeleteConfirmText("");
+    setDeleteError(null);
+  }
+
   async function handleDelete() {
     if (!deleting) return;
+    if (deleteConfirmText !== "DELETE") return;
     setDeletePending(true);
     setDeleteError(null);
     try {
       const res = await fetch(`/api/projects/${deleting._id}`, { method: "DELETE" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Delete failed.");
-      setDeleting(null);
+      closeDelete();
       refresh();
     } catch (err) {
       setDeleteError((err as Error).message);
@@ -88,12 +99,12 @@ export default function ProjectsList() {
   }
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
+  const canDelete = deleteConfirmText === "DELETE" && !deletePending;
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Projects"
-        description="Create projects, track budget and progress. Each project holds its own sites."
         action={
           <Link href="/dashboard/projects/new">
             <Button>Create Project</Button>
@@ -161,11 +172,13 @@ export default function ProjectsList() {
             </THead>
             <tbody>
               {data.data.map((p) => (
-                <TR key={p._id}>
+                <TR
+                  key={p._id}
+                  className="cursor-pointer hover:bg-background/70"
+                  onClick={() => router.push(`/dashboard/projects/${p._id}`)}
+                >
                   <TD>
-                    <Link href={`/dashboard/projects/${p._id}`} className="font-medium text-primary hover:underline">
-                      {p.name}
-                    </Link>
+                    <span className="font-medium text-primary">{p.name}</span>
                     <p className="text-xs text-text-muted">{p.location}</p>
                   </TD>
                   <TD>{p.clientName}</TD>
@@ -175,22 +188,26 @@ export default function ProjectsList() {
                     <Badge tone={statusTone(p.status)}>{statusLabel(p.status)}</Badge>
                   </TD>
                   <TD>
-                    <div className="flex gap-2">
-                      <Link href={`/dashboard/projects/${p._id}`} className="text-sm text-primary hover:underline">
-                        View
-                      </Link>
-                      <Link href={`/dashboard/projects/${p._id}/edit`} className="text-sm text-text-muted hover:underline">
-                        Edit
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Link
+                        href={`/dashboard/projects/${p._id}/edit`}
+                        aria-label={`Edit ${p.name}`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Pencil className="h-4 w-4" />
                       </Link>
                       <button
                         type="button"
+                        aria-label={`Delete ${p.name}`}
                         onClick={() => {
                           setDeleting(p);
+                          setDeleteConfirmText("");
                           setDeleteError(null);
                         }}
-                        className="text-sm text-danger hover:underline"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger"
                       >
-                        Delete
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </TD>
@@ -215,14 +232,45 @@ export default function ProjectsList() {
         </>
       )}
 
-      <ConfirmDialog
-        open={deleting !== null}
-        onClose={() => setDeleting(null)}
-        onConfirm={handleDelete}
-        title={`Delete ${deleting?.name ?? "project"}?`}
-        description={deleteError ?? "This cannot be undone. Projects with sites cannot be deleted."}
-        pending={deletePending}
-      />
+      <Modal open={deleting !== null} onClose={closeDelete} title={`Delete ${deleting?.name ?? "project"}?`}>
+        <div className="flex flex-col gap-4">
+          <p className="text-sm leading-6 text-text-muted">
+            This cannot be undone. Projects with sites cannot be deleted.
+          </p>
+          {deleteError && (
+            <p role="alert" className="text-sm text-danger">
+              {deleteError}
+            </p>
+          )}
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+            <p className="text-sm text-amber-900">
+              Type <span className="font-mono font-semibold">DELETE</span> to confirm.
+            </p>
+            <p className="mt-1 text-xs text-amber-800">
+              Deleting <span className="font-medium">{deleting?.name}</span> is permanent.
+            </p>
+          </div>
+          <Input
+            aria-label="Type DELETE to confirm"
+            placeholder="DELETE"
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
+            autoComplete="off"
+            autoFocus
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={closeDelete} disabled={deletePending}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={handleDelete} disabled={!canDelete}>
+              {deletePending ? "Please wait…" : "Delete"}
+            </Button>
+          </div>
+          {!canDelete && deleteConfirmText.length > 0 && deleteConfirmText !== "DELETE" && (
+            <p className="text-xs text-text-muted">Type exactly DELETE (case-sensitive) to enable delete.</p>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

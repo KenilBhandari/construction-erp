@@ -71,7 +71,7 @@ export default function EditLabourPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title="Edit Labour" description="Update worker details." />
+      <PageHeader title="Edit Labour" />
       {loading && <TableSkeleton rows={5} />}
       {loadError && (
         <p role="alert" className="text-sm text-danger">{loadError}</p>

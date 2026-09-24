@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -10,10 +11,11 @@ import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
-import { ConfirmDialog } from "@/components/ui/modal";
+import { Modal } from "@/components/ui/modal";
 import type { SiteDTO } from "@/types/site";
 import { siteProjectName } from "@/types/site";
 import type { ProjectDTO } from "@/types/project";
+import { Pencil, Trash2 } from "lucide-react";
 
 interface ListResponse {
   data: SiteDTO[];
@@ -23,6 +25,7 @@ interface ListResponse {
 }
 
 export default function SitesList() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [appliedQuery, setAppliedQuery] = useState("");
   const [status, setStatus] = useState("");
@@ -34,10 +37,9 @@ export default function SitesList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<SiteDTO | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/projects?limit=100")
@@ -80,28 +82,27 @@ export default function SitesList() {
     return () => clearTimeout(t);
   }, [query]);
 
+  function closeDelete() {
+    setDeleting(null);
+    setDeleteConfirmText("");
+    setDeleteError(null);
+  }
+
   async function handleDelete(): Promise<boolean> {
-    const ids = deleting ? [deleting._id] : selectedIds;
-
+    const ids = deleting ? [deleting._id] : [];
     if (ids.length === 0) return false;
-
+    if (deleteConfirmText !== "DELETE") return false;
     setDeletePending(true);
     setDeleteError(null);
     try {
       const res = await fetch("/api/sites", {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),
       });
       const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error ?? "Delete failed.");
-      }
-
-      setDeleting(null);
-      setSelectedIds([]);
+      if (!res.ok) throw new Error(json.error ?? "Delete failed.");
+      closeDelete();
       refresh();
       return true;
     } catch (err) {
@@ -113,12 +114,12 @@ export default function SitesList() {
   }
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
+  const canDelete = deleteConfirmText === "DELETE" && !deletePending;
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Sites"
-        description="Sites belong to projects. Assign labour and track progress site-wise."
         action={
           <Link href="/dashboard/sites/new">
             <Button>Add Site</Button>
@@ -196,25 +197,6 @@ export default function SitesList() {
     }
   />
 )}
-      {/* {selectedIds.length > 0 && (
-        <div className="flex items-center justify-between border border-border px-4 py-3">
-          <span className="text-sm text-text-muted">
-            {selectedIds.length} site{selectedIds.length > 1 ? "s" : ""}{" "}
-            selected
-          </span>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setDeleteError(null);
-              setBulkDeleteOpen(true);
-            }}
-          >
-            Delete Selected
-          </Button>
-        </div>
-      )} */}
       {!loading && !error && data && data.data.length > 0 && (
         <>
           <Table>
@@ -230,25 +212,13 @@ export default function SitesList() {
             </THead>
             <tbody>
               {data.data.map((s) => (
-                <TR key={s._id}>
+                <TR
+                  key={s._id}
+                  className="cursor-pointer hover:bg-background/70"
+                  onClick={() => router.push(`/dashboard/sites/${s._id}`)}
+                >
                   <TD>
-                    <div className="flex items-center gap-3">
-                      {/* LATER WILL ADD FOR BULK DELETE */}
-                      {/* <input
-                        type="checkbox"
-                        checked={selectedIds.includes(s._id)}
-                        onChange={(e) => {
-                          setSelectedIds((prev) =>
-                            e.target.checked
-                              ? [...prev, s._id]
-                              : prev.filter((id) => id !== s._id),
-                          );
-                        }}
-                        className="h-4 w-4 accent-[#FF6321]"
-                      /> */}
-
-                      <Link href={`/dashboard/sites/${s._id}`} className="font-medium hover:underline">{s.name}</Link>
-                    </div>
+                    <span className="font-medium text-primary">{s.name}</span>
                     {s.location && (
                       <p className="text-xs text-text-muted">{s.location}</p>
                     )}
@@ -270,22 +240,26 @@ export default function SitesList() {
                     </Badge>
                   </TD>
                   <TD>
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <Link
                         href={`/dashboard/sites/${s._id}/edit`}
-                        className="text-sm text-text-muted hover:underline"
+                        aria-label={`Edit ${s.name}`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        Edit
+                        <Pencil className="h-4 w-4" />
                       </Link>
                       <button
                         type="button"
+                        aria-label={`Delete ${s.name}`}
                         onClick={() => {
                           setDeleting(s);
+                          setDeleteConfirmText("");
                           setDeleteError(null);
                         }}
-                        className="text-sm text-danger hover:underline"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger"
                       >
-                        Delete
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </TD>
@@ -320,36 +294,43 @@ export default function SitesList() {
         </>
       )}
 
-      <ConfirmDialog
-        open={deleting !== null || bulkDeleteOpen}
-        onClose={() => {
-          setDeleting(null);
-          setBulkDeleteOpen(false);
-          setDeleteError(null);
-        }}
-        onConfirm={async () => {
-          const success = await handleDelete();
-
-          if (success) {
-            setDeleting(null);
-            setBulkDeleteOpen(false);
-          }
-        }}
-        title={
-          deleting
-            ? `Delete ${deleting.name}?`
-            : `Delete ${selectedIds.length} selected sites?`
-        }
-        description={
-          deleteError ??
-          (deleting
-            ? "This cannot be undone. Historical attendance linked to this site should be reassigned first."
-            : `This will permanently delete ${selectedIds.length} selected site${
-                selectedIds.length > 1 ? "s" : ""
-              }. This action cannot be undone.`)
-        }
-        pending={deletePending}
-      />
+      <Modal open={deleting !== null} onClose={closeDelete} title={`Delete ${deleting?.name ?? "site"}?`}>
+        <div className="flex flex-col gap-4">
+          <p className="text-sm leading-6 text-text-muted">This cannot be undone.</p>
+          {deleteError && (
+            <p role="alert" className="text-sm text-danger">
+              {deleteError}
+            </p>
+          )}
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+            <p className="text-sm text-amber-900">
+              Type <span className="font-mono font-semibold">DELETE</span> to confirm.
+            </p>
+            <p className="mt-1 text-xs text-amber-800">
+              Deleting <span className="font-medium">{deleting?.name}</span> is permanent.
+            </p>
+          </div>
+          <Input
+            aria-label="Type DELETE to confirm"
+            placeholder="DELETE"
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
+            autoComplete="off"
+            autoFocus
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={closeDelete} disabled={deletePending}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={handleDelete} disabled={!canDelete}>
+              {deletePending ? "Please wait…" : "Delete"}
+            </Button>
+          </div>
+          {!canDelete && deleteConfirmText.length > 0 && deleteConfirmText !== "DELETE" && (
+            <p className="text-xs text-text-muted">Type exactly DELETE (case-sensitive) to enable delete.</p>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
-import { formatDateShort, formatINR } from "@/lib/utils";
+import { formatINR } from "@/lib/utils";
 import { getProjectFinance } from "@/lib/finance";
 import { Project } from "@/models/Project";
 import { Site } from "@/models/Site";
@@ -12,7 +12,6 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ProjectActions } from "@/components/projects/project-actions";
 import { statusLabel, statusTone } from "@/components/projects/project-status";
 
 export default async function ProjectDetailPage({
@@ -32,26 +31,41 @@ export default async function ProjectDetailPage({
   ]);
 
   const pid = String(project._id);
+  const hasStart = Boolean(project.startDate);
+  const hasEnd = Boolean(project.expectedEndDate);
+  const hasDescription = Boolean(project.description && String(project.description).trim().length > 0);
+
+  function formatDMY(date: string | Date): string {
+    const d = typeof date === "string" ? new Date(date) : date;
+    const dd = String(d.getUTCDate()).padStart(2, "0");
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const yyyy = d.getUTCFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title={project.name}
-        description={`${project.location} · ${project.clientName}`}
-        action={<ProjectActions projectId={pid} projectName={project.name} />}
+        action={
+          <Link href={`/dashboard/projects/${pid}/edit`} aria-label="Edit project">
+            <Button variant="outline" size="sm">Edit</Button>
+          </Link>
+        }
       />
 
       <Card className="p-5">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <Badge tone={statusTone(project.status)}>
             {statusLabel(project.status)}
           </Badge>
-          <span className="text-sm text-text-muted tnum">
-            {project.progress}% complete
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-text-muted tnum">{project.progress}%</span>
+            <ProgressBar value={project.progress} className="w-[160px] sm:w-[220px]" />
+          </div>
         </div>
-        <ProgressBar value={project.progress} className="mt-3" />
-        <dl className="mt-5 grid grid-cols-2 gap-4 text-sm sm:grid-cols-5">
+        <div className="mt-4 border-t border-border" />
+        <dl className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-5">
           <div>
             <dt className="text-text-muted">Project Value</dt>
             <dd className="mt-1 font-semibold tnum">
@@ -84,22 +98,60 @@ export default async function ProjectDetailPage({
             </dd>
           </div>
         </dl>
-        {(project.startDate || project.expectedEndDate) && (
-          <p className="mt-4 text-sm text-text-muted">
-            {project.startDate ? formatDateShort(project.startDate) : "—"}
-            {" - "}
-            {project.expectedEndDate
-              ? formatDateShort(project.expectedEndDate)
-              : "—"}
+       <div className="mt-6 border-t border-border pt-5">
+  <div
+    className={`grid grid-cols-1 gap-6 ${
+      hasStart || hasEnd ? "sm:grid-cols-3" : "sm:grid-cols-2"
+    }`}
+  >
+    <div>
+      <p className="text-xs text-text-muted">Location</p>
+      <p className="mt-1.5 text-sm font-medium text-text">
+        {project.location || "—"}
+      </p>
+    </div>
+
+    <div>
+      <p className="text-xs text-text-muted">Client</p>
+      <p className="mt-1.5 text-sm font-medium text-text">
+        {project.clientName || "—"}
+      </p>
+    </div>
+
+    {(hasStart || hasEnd) ? (
+      <div>
+        <p className="text-xs text-text-muted">Project Period</p>
+
+        {hasStart && hasEnd ? (
+          <p className="mt-1.5 text-sm font-medium text-text">
+            {formatDMY(project.startDate as string | Date)}
+            <span className="mx-2 text-text-muted">→</span>
+            {formatDMY(project.expectedEndDate as string | Date)}
+          </p>
+        ) : hasStart ? (
+          <p className="mt-1.5 text-sm font-medium text-text">
+            From {formatDMY(project.startDate as string | Date)}
+          </p>
+        ) : (
+          <p className="mt-1.5 text-sm font-medium text-text">
+            Until {formatDMY(project.expectedEndDate as string | Date)}
           </p>
         )}
-        {project.description && (
-          <p className="mt-3 text-sm leading-6 text-text">
-            <span className="text-text-muted">Description - </span>
-            {project.description}
-          </p>
-        )}
+      </div>
+    ) : null}
+  </div>
+
+  {hasDescription ? (
+    <div className="mt-6 border-t border-border pt-5">
+      <p className="text-xs text-text-muted">Description</p>
+      <p className="mt-1.5 max-w-3xl text-sm leading-6 text-text">
+        {project.description}
+      </p>
+    </div>
+  ) : null}
+</div>
       </Card>
+
 
       <Card className="p-5">
         <div className="flex items-center justify-between">
@@ -156,54 +208,34 @@ export default async function ProjectDetailPage({
             </dd>
           </div>
         </dl>
-
-        <div className="mt-3 flex gap-4 text-sm">
-          <Link
-            href="/dashboard/expenses"
-            className="text-primary hover:underline"
-          >
-            Expenses
-          </Link>
-          <Link
-            href="/dashboard/payments"
-            className="text-primary hover:underline"
-          >
-            Client payments
-          </Link>
-        </div>
       </Card>
 
-      <section className="flex flex-col gap-4">
+      <Card className="p-5">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-text">Sites</h2>
-          <Link href={`/dashboard/sites/new?project=${pid}`}>
-            <Button size="sm">Add Site</Button>
-          </Link>
+          <h2 className="text-base font-semibold text-text">Sites</h2>
+          <span className="text-xs text-text-muted tnum">
+            {sites.length} site{sites.length === 1 ? "" : "s"}
+          </span>
         </div>
         {sites.length === 0 ? (
-          <EmptyState
-            title="No sites yet"
-            description="Add the first site (e.g. Main Building) to start assigning labour and marking attendance."
-            action={
-              <Link href={`/dashboard/sites/new?project=${pid}`}>
-                <Button>Add Site</Button>
-              </Link>
-            }
-          />
+          <div className="mt-3">
+            <EmptyState
+              title="No sites yet"
+              description="Add the first site (e.g. Main Building) to start assigning labour and marking attendance."
+            />
+          </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             {sites.map((s) => (
-              <Card key={String(s._id)} className="p-4">
+              <Card key={String(s._id)} className="p-3">
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-text">{s.name}</p>
-                    {s.supervisor && (
-                      <p className="mt-0.5 text-sm text-text-muted">
-            <span className="text-text-muted">Supervisor: </span>
-
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-text">{s.name}</p>
+                    {s.supervisor ? (
+                      <p className="mt-0.5 truncate text-xs text-text-muted">
                         {s.supervisor}
                       </p>
-                    )}
+                    ) : null}
                   </div>
                   <Badge
                     tone={
@@ -217,50 +249,14 @@ export default async function ProjectDetailPage({
                     {s.status}
                   </Badge>
                 </div>
-                <ProgressBar value={s.progress} className="mt-3" />
-                <div className="mt-3 flex items-center justify-between text-sm">
-                  <span className="text-text-muted tnum">{s.progress}% Completed</span>
-                  <Link
-                    href={`/dashboard/sites/${String(s._id)}/edit`}
-                    className="text-primary hover:underline"
-                  >
-                    Edit
-                  </Link>
+                <ProgressBar value={s.progress} className="mt-2.5" />
+                <div className="mt-2.5">
+                  <span className="text-xs text-text-muted tnum">{s.progress}% Completed</span>
                 </div>
               </Card>
             ))}
           </div>
         )}
-      </section>
-
-      <Card className="p-5">
-        <h2 className="text-base font-semibold text-text">Manage</h2>
-        <div className="mt-2 flex flex-wrap gap-4 text-sm">
-          <Link
-            href="/dashboard/labour"
-            className="text-primary hover:underline"
-          >
-            Labour
-          </Link>
-          <Link
-            href="/dashboard/attendance"
-            className="text-primary hover:underline"
-          >
-            Attendance
-          </Link>
-          <Link
-            href="/dashboard/purchases"
-            className="text-primary hover:underline"
-          >
-            Purchases
-          </Link>
-          <Link
-            href="/dashboard/reports"
-            className="text-primary hover:underline"
-          >
-            Reports
-          </Link>
-        </div>
       </Card>
     </div>
   );

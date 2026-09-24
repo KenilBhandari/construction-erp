@@ -6,6 +6,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { PROJECT_STATUSES, type ProjectStatus } from "@/types/project";
+import { toDateInputValue } from "@/lib/utils";
 
 export interface ProjectFormValues {
   name: string;
@@ -27,7 +28,7 @@ export function emptyProjectForm(): ProjectFormValues {
     clientName: "",
     clientPhone: "",
     location: "",
-    startDate: "",
+    startDate: toDateInputValue(new Date()),
     expectedEndDate: "",
     budget: "",
     contractValue: "",
@@ -91,7 +92,7 @@ export function ProjectForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       <section className="border border-border bg-surface rounded-lg p-5">
         <h2 className="text-base font-semibold text-text">Project Information</h2>
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -105,16 +106,10 @@ export function ProjectForm({
       </section>
 
       <section className="border border-border bg-surface rounded-lg p-5">
-        <h2 className="text-base font-semibold text-text">Financial</h2>
+        <h2 className="text-base font-semibold text-text">Financials &amp; Status</h2>
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input label="Contract Value (₹)" name="contractValue" required type="number" min={0} value={values.contractValue} error={errors.contractValue} onChange={(e) => set("contractValue", e.target.value)} placeholder="2500000" />
           <Input label="Budget (₹)" name="budget" required type="number" min={0} value={values.budget} error={errors.budget} onChange={(e) => set("budget", e.target.value)} placeholder="2200000" />
-        </div>
-      </section>
-
-      <section className="border border-border bg-surface rounded-lg p-5">
-        <h2 className="text-base font-semibold text-text">Status</h2>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Select label="Status" name="status" value={values.status} onChange={(e) => set("status", e.target.value as ProjectStatus)}>
             {(PROJECT_STATUSES as readonly ProjectStatus[]).map((s) => (
               <option key={s} value={s}>{STATUS_LABELS[s]}</option>

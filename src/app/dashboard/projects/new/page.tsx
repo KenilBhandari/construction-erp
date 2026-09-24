@@ -36,10 +36,7 @@ export default function NewProjectPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader
-        title="New Project"
-        description="Create a project, then add its sites."
-      />
+      <PageHeader title="New Project" />
       <ProjectForm
         initial={emptyProjectForm()}
         pending={pending}

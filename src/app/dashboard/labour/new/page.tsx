@@ -50,10 +50,7 @@ export default function NewLabourPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Add Labour"
-        description="Register a worker, set rates, optionally assign a site."
-      />
+      <PageHeader title="Add Labour" />
       {loadingSites ? (
         <TableSkeleton rows={4} />
       ) : (

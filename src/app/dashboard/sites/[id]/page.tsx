@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
-import { formatDateShort, formatINR } from "@/lib/utils";
+import { formatINR } from "@/lib/utils";
 import { Site } from "@/models/Site";
 import { Project } from "@/models/Project";
 // Ensure Project model is registered for populate("project")
@@ -33,7 +33,7 @@ export default async function SiteDetailPage({
   const sid = new Types.ObjectId(id);
   const project = site.project as unknown as { _id: Types.ObjectId; name: string; location?: string; clientName?: string } | null;
 
-  const [currentLabour, attendanceAgg, purchaseAgg, expenseAgg, overtimeAgg, recentStock, recentAttendance] = await Promise.all([
+  const [currentLabour, attendanceAgg, purchaseAgg, expenseAgg, overtimeAgg, recentStock] = await Promise.all([
     Labour.find({ assignedSite: sid }).sort({ name: 1 }).lean(),
     Attendance.aggregate([
       { $match: { site: sid } },
@@ -60,8 +60,7 @@ export default async function SiteDetailPage({
       { $match: { site: sid } },
       { $group: { _id: null, amount: { $sum: "$amount" }, count: { $sum: 1 } } },
     ]),
-    StockTransaction.find({ site: sid }).sort({ date: -1 }).limit(5).populate("material", "name unit").lean(),
-    Attendance.find({ site: sid }).sort({ date: -1 }).limit(5).populate("labour", "name").lean(),
+    StockTransaction.find({ site: sid }).sort({ date: -1 }).limit(8).populate("material", "name unit").lean(),
   ]);
 
   const attendanceCost = Math.round(attendanceAgg[0]?.cost ?? 0);
@@ -72,37 +71,62 @@ export default async function SiteDetailPage({
   const totalExpense = materialExpense + labourExpense + manualExpenses;
 
   const sidStr = String(site._id);
-  const projectId = project ? String(project._id) : "";
+
+  const hasStart = Boolean(site.startDate);
+  const hasEnd = Boolean(site.expectedEndDate);
+  const hasNotes = Boolean(site.notes && String(site.notes).trim().length > 0);
+
+  function formatDMY(date: string | Date): string {
+    const d = typeof date === "string" ? new Date(date) : date;
+    const dd = String(d.getUTCDate()).padStart(2, "0");
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const yyyy = d.getUTCFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title={site.name}
-        description={`${project ? project.name : "No project"}${site.location ? ` · ${site.location}` : ""}${site.supervisor ? ` · ${site.supervisor}` : ""}`}
         action={
-          <div className="flex gap-2">
-            <Link href={`/dashboard/sites/${sidStr}/edit`}>
-              <Button variant="outline" size="sm">Edit</Button>
-            </Link>
-            {projectId && (
-              <Link href={`/dashboard/projects/${projectId}`}>
-                <Button variant="outline" size="sm">View Project</Button>
-              </Link>
-            )}
-          </div>
+          <Link href={`/dashboard/sites/${sidStr}/edit`}>
+            <Button variant="outline" size="sm">
+              Edit
+            </Button>
+          </Link>
         }
       />
 
       <Card className="p-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <Badge tone={site.status === "active" ? "primary" : site.status === "completed" ? "success" : "warning"}>{site.status}</Badge>
-          <span className="text-sm text-text-muted tnum">{site.progress}% complete</span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Badge
+            tone={
+              site.status === "active"
+                ? "primary"
+                : site.status === "completed"
+                  ? "success"
+                  : "warning"
+            }
+          >
+            {site.status}
+          </Badge>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-text-muted tnum">
+              {site.progress}%
+            </span>
+            <ProgressBar
+              value={site.progress}
+              className="w-[160px] sm:w-[220px]"
+            />
+          </div>
         </div>
-        <ProgressBar value={site.progress} className="mt-3" />
-        <dl className="mt-5 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+        <div className="mt-4 border-t border-border" />
+        <dl className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
           <div>
             <dt className="text-text-muted">Project</dt>
-            <dd className="mt-1 font-medium tnum">{project ? project.name : "—"}</dd>
+            <dd className="mt-1 font-medium tnum">
+              {project ? project.name : "—"}
+            </dd>
           </div>
           <div>
             <dt className="text-text-muted">Supervisor</dt>
@@ -117,17 +141,26 @@ export default async function SiteDetailPage({
             <dd className="mt-1 font-semibold tnum">{currentLabour.length}</dd>
           </div>
         </dl>
-        {(site.startDate || site.expectedEndDate) && (
+        {hasStart && hasEnd ? (
           <p className="mt-4 text-sm text-text-muted">
-            {site.startDate ? formatDateShort(site.startDate) : "—"} {" - "} {site.expectedEndDate ? formatDateShort(site.expectedEndDate) : "—"}
+            Period: {formatDMY(site.startDate as string | Date)} -{" "}
+            {formatDMY(site.expectedEndDate as string | Date)}
           </p>
-        )}
-        {site.notes && (
+        ) : hasStart ? (
+          <p className="mt-4 text-sm text-text-muted">
+            Start - {formatDMY(site.startDate as string | Date)}
+          </p>
+        ) : hasEnd ? (
+          <p className="mt-4 text-sm text-text-muted">
+            End - {formatDMY(site.expectedEndDate as string | Date)}
+          </p>
+        ) : null}
+        {hasNotes ? (
           <p className="mt-3 text-sm leading-6 text-text">
             <span className="text-text-muted">Notes - </span>
             {site.notes}
           </p>
-        )}
+        ) : null}
       </Card>
 
       <Card className="p-5">
@@ -135,115 +168,106 @@ export default async function SiteDetailPage({
         <dl className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
           <div>
             <dt className="text-text-muted">Material Purchases</dt>
-            <dd className="mt-1 font-medium tnum">{formatINR(materialExpense)}</dd>
-            <p className="text-xs text-text-muted">{purchaseAgg[0]?.count ?? 0} purchases</p>
+            <dd className="mt-1 font-medium tnum">
+              {formatINR(materialExpense)}
+            </dd>
           </div>
           <div>
             <dt className="text-text-muted">Labour Cost</dt>
-            <dd className="mt-1 font-medium tnum">{formatINR(labourExpense)}</dd>
-            <p className="text-xs text-text-muted">{attendanceAgg[0]?.presentDays ?? 0} present + {attendanceAgg[0]?.halfDays ?? 0} half</p>
+            <dd className="mt-1 font-medium tnum">
+              {formatINR(labourExpense)}
+            </dd>
           </div>
           <div>
             <dt className="text-text-muted">Overtime</dt>
-            <dd className="mt-1 font-medium tnum">{formatINR(overtimeAmount)}</dd>
-            <p className="text-xs text-text-muted">{overtimeAgg[0]?.count ?? 0} records</p>
+            <dd className="mt-1 font-medium tnum">
+              {formatINR(overtimeAmount)}
+            </dd>
           </div>
           <div>
             <dt className="text-text-muted">Other Expenses</dt>
-            <dd className="mt-1 font-medium tnum">{formatINR(manualExpenses)}</dd>
-            <p className="text-xs text-text-muted">{expenseAgg[0]?.count ?? 0} entries</p>
+            <dd className="mt-1 font-medium tnum">
+              {formatINR(manualExpenses)}
+            </dd>
           </div>
           <div className="col-span-2 sm:col-span-4 border-t border-border pt-3">
             <dt className="text-text-muted">Total Site Cost</dt>
-            <dd className="mt-1 font-semibold tnum text-base">{formatINR(totalExpense)}</dd>
+            <dd className="mt-1 font-semibold tnum text-base">
+              {formatINR(totalExpense)}
+            </dd>
           </div>
         </dl>
-        <div className="mt-3 flex gap-4 text-sm">
-          <Link href={`/dashboard/purchases?site=${sidStr}`} className="text-primary hover:underline">Purchases</Link>
-          <Link href={`/dashboard/expenses?site=${sidStr}`} className="text-primary hover:underline">Expenses</Link>
-          <Link href={`/dashboard/attendance?site=${sidStr}`} className="text-primary hover:underline">Attendance</Link>
-        </div>
       </Card>
-
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-text">Current Labour ({currentLabour.length})</h2>
-          <Link href={`/dashboard/labour?site=${sidStr}`}>
-            <Button size="sm" variant="outline">View All</Button>
-          </Link>
-        </div>
-        {currentLabour.length === 0 ? (
-          <EmptyState
-            title="No labour assigned"
-            description="Assign labour to this site to track attendance and costs. History is preserved per labour."
-            action={
-              <Link href={`/dashboard/labour`}>
-                <Button>Assign Labour</Button>
-              </Link>
-            }
-          />
-        ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {currentLabour.map((l) => (
-              <Card key={String(l._id)} className="p-3">
-                <p className="truncate text-sm font-medium leading-tight text-text">{l.name}</p>
-                <p className="truncate text-xs text-text-muted">{l.skill} · {formatINR(l.dailyRate)}/d</p>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="truncate text-xs text-text-muted">{l.phone}</span>
-                  <Link href={`/dashboard/labour/${String(l._id)}`} className="shrink-0 text-xs text-primary hover:underline">View</Link>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-        <p className="text-xs text-text-muted">Only current assignments shown. Full assignment history is preserved per labour and viewable on the labour detail page.</p>
-      </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="p-5">
-          <h3 className="text-base font-semibold text-text">Recent Purchases</h3>
-          {recentStock.length === 0 ? (
-            <p className="mt-3 text-sm text-text-muted">No purchases for this site yet.</p>
+          <h2 className="text-base font-semibold text-text">
+            Current Labour ({currentLabour.length})
+          </h2>
+
+          {currentLabour.length === 0 ? (
+            <div className="mt-3">
+              <EmptyState
+                title="No labour assigned"
+                description="Assign labour to this site to track attendance and costs."
+              />
+            </div>
           ) : (
-            <ul className="mt-3 flex flex-col gap-2 text-sm">
-              {recentStock.map((t) => (
-                <li key={String(t._id)} className="flex justify-between">
-                  <span>{(t.material as unknown as { name: string })?.name ?? "Material"} · {t.quantity} {t.unit}</span>
-                  <span className="tnum">{formatINR(t.total)}</span>
-                </li>
+            <div className="mt-4 max-h-[320px] overflow-y-auto rounded-md border border-border divide-y divide-border scrollbar-none">
+              {currentLabour.map((l) => (
+                <Link
+                  key={String(l._id)}
+                  href={`/dashboard/labour/${String(l._id)}`}
+                  className="flex items-center justify-between gap-4 px-3.5 py-2.5 text-sm  hover:bg-background/70"
+                >
+                  <span className="min-w-0 truncate">
+                    <span className="font-medium text-text">{l.name}</span>
+                    <span className="text-text-muted"> · {l.skill}</span>
+                  </span>
+
+                  <span className="shrink-0 text-sm font-medium tnum text-text">
+                    {formatINR(l.dailyRate)}/day
+                  </span>
+                </Link>
               ))}
-            </ul>
+            </div>
           )}
-          <Link href={`/dashboard/purchases?site=${sidStr}`} className="mt-3 inline-block text-sm text-primary hover:underline">View all purchases</Link>
         </Card>
+
         <Card className="p-5">
-          <h3 className="text-base font-semibold text-text">Recent Attendance</h3>
-          {recentAttendance.length === 0 ? (
-            <p className="mt-3 text-sm text-text-muted">No attendance recorded yet.</p>
+          <h2 className="text-base font-semibold text-text">
+            Recent Purchases
+          </h2>
+
+          {recentStock.length === 0 ? (
+            <p className="mt-4 text-sm text-text-muted">
+              No purchases for this site yet.
+            </p>
           ) : (
-            <ul className="mt-3 flex flex-col gap-2 text-sm">
-              {recentAttendance.map((a) => (
-                <li key={String(a._id)} className="flex justify-between">
-                  <span>{(a.labour as unknown as { name: string })?.name ?? "Labour"} · {a.status}</span>
-                  <span className="text-text-muted tnum">{formatDateShort(a.date)}</span>
-                </li>
+            <div className="mt-4 max-h-[320px] overflow-y-auto rounded-md border border-border divide-y divide-border scrollbar-none">
+              {recentStock.map((t) => (
+                <div
+                  key={String(t._id)}
+                  className="flex items-center justify-between gap-4 px-3.5 py-2.5 text-sm"
+                >
+                  <span className="min-w-0 truncate text-text">
+                    {(t.material as unknown as { name: string })?.name ??
+                      "Material"}
+                    <span className="text-text-muted">
+                      {" "}
+                      · {t.quantity} {t.unit}
+                    </span>
+                  </span>
+
+                  <span className="shrink-0 text-sm font-medium tnum text-text">
+                    {formatINR(t.total)}
+                  </span>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
-          <Link href={`/dashboard/attendance?site=${sidStr}`} className="mt-3 inline-block text-sm text-primary hover:underline">View attendance</Link>
         </Card>
       </div>
-
-      <Card className="p-5">
-        <h2 className="text-base font-semibold text-text">Manage</h2>
-        <div className="mt-2 flex flex-wrap gap-4 text-sm">
-          <Link href={`/dashboard/labour?site=${sidStr}`} className="text-primary hover:underline">Labour</Link>
-          <Link href={`/dashboard/attendance?site=${sidStr}`} className="text-primary hover:underline">Attendance</Link>
-          <Link href={`/dashboard/purchases?site=${sidStr}`} className="text-primary hover:underline">Purchases</Link>
-          <Link href={`/dashboard/stock?site=${sidStr}`} className="text-primary hover:underline">Stock</Link>
-          <Link href={`/dashboard/expenses?site=${sidStr}`} className="text-primary hover:underline">Expenses</Link>
-        </div>
-      </Card>
     </div>
   );
 }

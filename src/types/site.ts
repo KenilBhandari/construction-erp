@@ -1,4 +1,4 @@
-export const SITE_STATUSES = ["active", "on-hold", "completed"] as const;
+export const SITE_STATUSES = ["active", "on-hold", "completed", "inactive"] as const;
 
 export type SiteStatus = (typeof SITE_STATUSES)[number];
 

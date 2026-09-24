@@ -63,7 +63,7 @@ export function TD({
       colSpan={colSpan}
       title={title}
       className={cn(
-        "border-b border-border px-4 py-2.5 text-text last:border-b-0",
+        "border-b border-border px-4 py-2.5 text-text",
         numeric && "text-right tnum",
         className,
       )}

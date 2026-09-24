@@ -77,7 +77,7 @@ export default function EditProjectPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title="Edit Project" description="Update project details." />
+      <PageHeader title="Edit Project" />
       {loading && <TableSkeleton rows={6} />}
       {loadError && (
         <p role="alert" className="text-sm text-danger">{loadError}</p>

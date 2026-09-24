@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,7 +32,7 @@ export function emptyLabourForm(): LabourFormValues {
     skill: "",
     dailyRate: "",
     hourlyRate: "",
-    joiningDate: "",
+    joiningDate: new Date().toISOString().slice(0, 10),
     status: "active",
     assignedSite: "",
     notes: "",
@@ -65,6 +65,25 @@ export function LabourForm({
   const [errors, setErrors] = useState<
     Partial<Record<"name" | "phone" | "skill" | "dailyRate" | "hourlyRate", string>>
   >({});
+  const [skillOpen, setSkillOpen] = useState(false);
+  const [skillHighlight, setSkillHighlight] = useState(-1);
+  const skillWrapRef = useRef<HTMLDivElement>(null);
+
+  const skillOptions = SKILL_TYPES.filter((s) => s !== "Other");
+  const filteredSkills = values.skill.trim() === ""
+    ? skillOptions
+    : skillOptions.filter((s) => s.toLowerCase().includes(values.skill.trim().toLowerCase()));
+
+  useEffect(() => {
+    function onOutside(e: MouseEvent) {
+      if (skillWrapRef.current && !skillWrapRef.current.contains(e.target as Node)) {
+        setSkillOpen(false);
+        setSkillHighlight(-1);
+      }
+    }
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, []);
 
   function set<K extends keyof LabourFormValues>(key: K, value: LabourFormValues[K]) {
     setValues((v) => ({ ...v, [key]: value }));
@@ -92,33 +111,92 @@ export function LabourForm({
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input label="Name" name="name" required value={values.name} error={errors.name} onChange={(e) => set("name", e.target.value)} placeholder="Ramesh Kumar" />
           <Input label="Phone" name="phone" required value={values.phone} error={errors.phone} onChange={(e) => set("phone", e.target.value)} placeholder="98765 43210" />
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1" ref={skillWrapRef}>
             <label htmlFor="skill" className="text-sm font-medium text-text">
               Skill <span className="text-danger">*</span>
             </label>
-            <input
-              id="skill"
-              name="skill"
-              list="skill-suggestions"
-              value={values.skill}
-              onChange={(e) => set("skill", e.target.value)}
-              placeholder="Mason — or type a custom skill"
-              className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-primary focus:outline-none"
-            />
-            <datalist id="skill-suggestions">
-              {SKILL_TYPES.map((s) => (
-                <option key={s} value={s} />
-              ))}
-            </datalist>
+            <div className="relative">
+              <input
+                id="skill"
+                name="skill"
+                value={values.skill}
+                onChange={(e) => {
+                  set("skill", e.target.value);
+                  setSkillOpen(true);
+                  setSkillHighlight(-1);
+                }}
+                onFocus={() => {
+                  setSkillOpen(true);
+                  setSkillHighlight(-1);
+                }}
+                onClick={() => {
+                  setSkillOpen(true);
+                  setSkillHighlight(-1);
+                }}
+                onKeyDown={(e) => {
+                  if (!skillOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+                    setSkillOpen(true);
+                    setSkillHighlight(0);
+                    e.preventDefault();
+                    return;
+                  }
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setSkillHighlight((h) => Math.min(h + 1, filteredSkills.length - 1));
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setSkillHighlight((h) => Math.max(h - 1, 0));
+                  } else if (e.key === "Enter") {
+                    if (skillHighlight >= 0 && skillHighlight < filteredSkills.length) {
+                      e.preventDefault();
+                      set("skill", filteredSkills[skillHighlight]);
+                      setSkillOpen(false);
+                      setSkillHighlight(-1);
+                    }
+                  } else if (e.key === "Escape") {
+                    setSkillOpen(false);
+                    setSkillHighlight(-1);
+                  }
+                }}
+                placeholder="Select or type a skill"
+                autoComplete="off"
+                aria-autocomplete="list"
+                aria-expanded={skillOpen}
+                aria-controls="skill-suggestions-list"
+                className={`w-full rounded-md border bg-surface px-3 py-2 pr-8 text-sm text-text placeholder:text-text-muted focus:border-primary focus:outline-none ${errors.skill ? "border-danger" : "border-border"}`}
+              />
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-text-muted opacity-60">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4 L6 8 L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </span>
+              {skillOpen && filteredSkills.length > 0 && (
+                <ul
+                  id="skill-suggestions-list"
+                  role="listbox"
+                  className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-auto rounded-md border border-border bg-surface shadow-md"
+                >
+                  {filteredSkills.map((s, idx) => (
+                    <li
+                      key={s}
+                      role="option"
+                      aria-selected={idx === skillHighlight}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        set("skill", s);
+                        setSkillOpen(false);
+                        setSkillHighlight(-1);
+                      }}
+                      onMouseEnter={() => setSkillHighlight(idx)}
+                      className={`cursor-pointer px-3 py-2 text-sm ${idx === skillHighlight ? "bg-primary/10 text-primary" : "text-text hover:bg-background"}`}
+                    >
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             {errors.skill && <p className="text-xs text-danger">{errors.skill}</p>}
           </div>
           <Input label="Joining Date" name="joiningDate" type="date" value={values.joiningDate} onChange={(e) => set("joiningDate", e.target.value)} />
-          <Input label="Photo URL (optional)" name="photo" value={values.photo} onChange={(e) => set("photo", e.target.value)} placeholder="https://" />
-          <Select label="Status" name="status" value={values.status} onChange={(e) => set("status", e.target.value as LabourStatus)}>
-            {(LABOUR_STATUSES as readonly LabourStatus[]).map((s) => (
-              <option key={s} value={s}>{s === "active" ? "Active" : "Inactive"}</option>
-            ))}
-          </Select>
         </div>
       </section>
 
@@ -127,19 +205,31 @@ export function LabourForm({
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input label="Daily Rate (₹)" name="dailyRate" required type="number" min={0} value={values.dailyRate} error={errors.dailyRate} onChange={(e) => set("dailyRate", e.target.value)} placeholder="900" />
           <Input label="OT Hourly Rate (₹)" name="hourlyRate" required type="number" min={0} value={values.hourlyRate} error={errors.hourlyRate} onChange={(e) => set("hourlyRate", e.target.value)} placeholder="120" />
-          {mode === "create" ? (
-            <Select label="Assigned Site" name="assignedSite" value={values.assignedSite} onChange={(e) => set("assignedSite", e.target.value)}>
-              <option value="">No site yet</option>
-              {sites.map((s) => (
-                <option key={s._id} value={s._id}>{s.name}</option>
-              ))}
-            </Select>
-          ) : (
-            <p className="text-sm leading-6 text-text-muted sm:pt-7">
-              Site changes use Assign Site — it keeps history intact.
-            </p>
+          {mode === "create" && (
+            <>
+              <Select label="Assigned Site" name="assignedSite" value={values.assignedSite} onChange={(e) => set("assignedSite", e.target.value)}>
+                <option value="">No site yet</option>
+                {sites.map((s) => (
+                  <option key={s._id} value={s._id}>{s.name}</option>
+                ))}
+              </Select>
+              <Select label="Status" name="status" value={values.status} onChange={(e) => set("status", e.target.value as LabourStatus)}>
+                {(LABOUR_STATUSES as readonly LabourStatus[]).map((s) => (
+                  <option key={s} value={s}>{s === "active" ? "Active" : "Inactive"}</option>
+                ))}
+              </Select>
+            </>
           )}
         </div>
+        {mode === "edit" && (
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Select label="Status" name="status" value={values.status} onChange={(e) => set("status", e.target.value as LabourStatus)}>
+              {(LABOUR_STATUSES as readonly LabourStatus[]).map((s) => (
+                <option key={s} value={s}>{s === "active" ? "Active" : "Inactive"}</option>
+              ))}
+            </Select>
+          </div>
+        )}
         <div className="mt-4">
           <Textarea label="Notes" name="notes" value={values.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Notes…" />
         </div>

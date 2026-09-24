@@ -10,6 +10,7 @@ import {
   type ProjectOption,
   type SiteFormValues,
 } from "@/components/sites/site-form";
+import { toDateInputValue } from "@/lib/utils";
 
 function NewSiteContent() {
   const router = useRouter();
@@ -47,7 +48,8 @@ function NewSiteContent() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to create site.");
-      router.push(`/dashboard/projects/${values.project}`);
+      const newId = json._id ?? json.data?._id ?? json.data?.insertedId;
+      router.push(newId ? `/dashboard/sites/${newId}` : "/dashboard/sites");
     } catch (err) {
       setServerError((err as Error).message);
     } finally {
@@ -57,7 +59,7 @@ function NewSiteContent() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title="New Site" description="Add a site under a project." />
+      <PageHeader title="New Site" />
       {loadingProjects ? (
         <TableSkeleton rows={4} />
       ) : projects.length === 0 ? (
@@ -71,7 +73,7 @@ function NewSiteContent() {
             project: preselectedProject,
             location: "",
             supervisor: "",
-            startDate: "",
+            startDate: toDateInputValue(new Date()),
             expectedEndDate: "",
             status: "active",
             progress: "0",

@@ -1,15 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
-import { formatDateShort, safeINR, toDateInputValue, toSafeNumber } from "@/lib/utils";
-import type { SiteDTO } from "@/types/site";
+import { formatDateShort, safeINR, toSafeNumber } from "@/lib/utils";
 import type { SalaryDTO } from "@/types/salary";
 import type { AdvanceDTO } from "@/types/salary";
 
@@ -37,16 +31,6 @@ export function LabourWriteOffSection({ labourId }: { labourId: string }) {
   const [advances, setAdvances] = useState<AdvanceDTO[]>([]);
   const [salaries, setSalaries] = useState<SalaryDTO[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sites, setSites] = useState<SiteDTO[]>([]);
-
-  const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(() => toDateInputValue());
-  const [site, setSite] = useState("");
-  const [description, setDescription] = useState("");
-  const [notes, setNotes] = useState("");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [okMsg, setOkMsg] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -66,7 +50,6 @@ export function LabourWriteOffSection({ labourId }: { labourId: string }) {
       if (salRes.ok && Array.isArray(salJson.data)) setSalaries(salJson.data);
       else setSalaries([]);
     } catch {
-      // keep existing state, avoid variable error on partial failure
       setAdvances((prev) => prev ?? []);
       setSalaries((prev) => prev ?? []);
     } finally {
@@ -77,77 +60,34 @@ export function LabourWriteOffSection({ labourId }: { labourId: string }) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
-    fetch("/api/sites?limit=100")
-      .then(async (r) => r.json())
-      .then((j) => {
-        if (Array.isArray(j.data)) setSites(j.data);
-      })
-      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [labourId]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const amt = amount === "" ? 0 : Number(amount);
-    if (Number.isNaN(amt) || amt < 1) {
-      setError("Amount must be at least ₹1.");
-      return;
-    }
-    if (summary && amt > summary.outstanding) {
-      setError(`Write-off ${safeINR(amt)} exceeds outstanding ${safeINR(summary.outstanding)}.`);
-      return;
-    }
-    setPending(true);
-    setError(null);
-    setOkMsg(null);
-    try {
-      const idem = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-      const res = await fetch(`/api/labour/${labourId}/write-off`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Idempotency-Key": idem },
-        body: JSON.stringify({
-          amount: amt,
-          date: date || undefined,
-          site: site || null,
-          description: description.trim() || undefined,
-          notes: notes.trim() || null,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Write-off failed.");
-      setOkMsg(`Write-off ${safeINR(amt)} recorded. Outstanding now ${safeINR(json.summary?.outstanding ?? 0)}.`);
-      setAmount("");
-      setDescription("");
-      setNotes("");
-      if (json.summary) setSummary(json.summary);
-      await load();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setPending(false);
-    }
-  }
-
   function projectNameOf(r: WriteOffRow | AdvanceDTO | SalaryDTO): string {
     const raw = (r as unknown as { project?: string | { _id: string; name: string } | null }).project;
-    if (!raw) return "";
-    return typeof raw === "string" ? raw : raw.name ?? "";
+    if (!raw) return "—";
+    const name = typeof raw === "string" ? raw : raw.name ?? "";
+    return name.trim() ? name : "—";
   }
   function siteNameOf(r: WriteOffRow | AdvanceDTO | SalaryDTO): string {
     const raw = (r as unknown as { site?: string | { _id: string; name: string } | null }).site;
-    if (!raw) return "";
-    return typeof raw === "string" ? raw : raw.name ?? "";
+    if (!raw) return "—";
+    const name = typeof raw === "string" ? raw : raw.name ?? "";
+    return name.trim() ? name : "—";
+  }
+  function formatSiteProject(siteLabel: string, projLabel: string): string {
+    const hasSite = siteLabel !== "—";
+    const hasProj = projLabel !== "—";
+    if (hasSite && hasProj) return `${siteLabel} / ${projLabel}`;
+    if (hasSite) return siteLabel;
+    if (hasProj) return projLabel;
+    return "—";
   }
 
   return (
     <div className="flex flex-col gap-5">
       <Card className="p-5">
         <h2 className="text-base font-semibold text-text">Advance Balance</h2>
-        <p className="mt-1 text-sm text-text-muted">
-          Advance given = recoverable outstanding (not an expense). Outstanding = given −
-          recovered (salary) − written off. Uses the single source of truth — no duplicate
-          calculation in the UI.
-        </p>
 
         {loading ? (
           <p className="mt-3 text-sm text-text-muted">Loading…</p>
@@ -158,11 +98,11 @@ export function LabourWriteOffSection({ labourId }: { labourId: string }) {
               <dd className="mt-0.5 font-semibold tnum">{safeINR(summary.totalGiven)}</dd>
             </div>
             <div>
-              <dt className="text-text-muted">Recovered (salary)</dt>
+              <dt className="text-text-muted">Recovered</dt>
               <dd className="mt-0.5 font-semibold tnum">{safeINR(summary.totalRecovered)}</dd>
             </div>
             <div>
-              <dt className="text-text-muted">Written off (expense)</dt>
+              <dt className="text-text-muted">Written off</dt>
               <dd className="mt-0.5 font-semibold tnum">{safeINR(summary.totalWrittenOff)}</dd>
             </div>
             <div>
@@ -173,68 +113,11 @@ export function LabourWriteOffSection({ labourId }: { labourId: string }) {
         ) : (
           <p className="mt-3 text-sm text-text-muted">No advance data.</p>
         )}
-        <p className="mt-2 text-xs text-text-muted">
-          Outstanding belongs to the labour, not a site — site/project on transactions is attribution only.
-        </p>
-
-        <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-4">
-          <h3 className="text-sm font-medium text-text">Write off outstanding</h3>
-          <p className="text-xs text-text-muted">
-            Converts unrecoverable outstanding into a single Expense (category
-            LABOUR_ADVANCE_WRITE_OFF). Does not change original advances or salary recoveries.
-          </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Input
-              label="Amount (₹)"
-              type="number"
-              min={1}
-              required
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder={summary ? `max ${summary.outstanding}` : "1000"}
-            />
-            <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            <Select label="Site (attribution)" value={site} onChange={(e) => setSite(e.target.value)}>
-              <option value="">No site — GENERAL</option>
-              {sites.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <Input
-            label="Description (optional)"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Advance unrecoverable — worker left"
-            maxLength={300}
-          />
-          <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional reason…" />
-          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-          {okMsg && <p role="status" className="text-sm text-success">{okMsg}</p>}
-          <div className="flex justify-end">
-            <Button type="submit" disabled={pending || (summary ? summary.outstanding <= 0 : false)}>
-              {pending ? "Saving…" : "Write off"}
-            </Button>
-          </div>
-          {summary && summary.outstanding <= 0 && (
-            <p className="text-xs text-text-muted">No outstanding to write off.</p>
-          )}
-        </form>
       </Card>
 
-      {/* Advance transaction history */}
-      <Card className="p-5">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-text">Advance history</h3>
-          <Link href={`/dashboard/salary?tab=advances&labour=${labourId}`} className="text-xs text-primary hover:underline">
-            View all advances
-          </Link>
-        </div>
-        {advances.length === 0 ? (
-          <p className="mt-2 text-sm text-text-muted">No advances recorded.</p>
-        ) : (
+      {advances.length > 0 && (
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold text-text">Recent advances</h3>
           <div className="mt-2 overflow-x-auto">
             <Table>
               <THead>
@@ -249,18 +132,20 @@ export function LabourWriteOffSection({ labourId }: { labourId: string }) {
               </THead>
               <tbody>
                 {advances.map((a) => {
-                  const siteLabel = siteNameOf(a) || "—";
+                  const siteLabel = siteNameOf(a);
                   const projLabel = projectNameOf(a);
-                  const siteProject = projLabel ? `${siteLabel} · ${projLabel}` : siteLabel;
+                  const siteProject = formatSiteProject(siteLabel, projLabel);
+                  const isUnspecifiedSiteProject = siteProject === "—";
                   const reasonNotes = [a.reason, a.notes].filter(Boolean).join(" — ") || "—";
+                  const isUnspecifiedReason = reasonNotes === "—";
                   return (
                     <TR key={a._id}>
                       <TD className="tnum">{formatDateShort(a.date)}</TD>
                       <TD numeric>{safeINR(a.amount)}</TD>
-                      <TD>{siteProject}</TD>
-                      <TD>{a.paymentMethod ?? "—"}</TD>
-                      <TD className="tnum">{a.reference ?? "—"}</TD>
-                      <TD className="max-w-[200px] truncate">
+                      <TD className={isUnspecifiedSiteProject ? "text-text-muted italic" : ""}>{siteProject}</TD>
+                      <TD className={a.paymentMethod ? "" : "text-text-muted italic"}>{a.paymentMethod ?? "—"}</TD>
+                      <TD className={a.reference ? "tnum" : "tnum text-text-muted italic"}>{a.reference ?? "—"}</TD>
+                      <TD className={`max-w-[200px] truncate ${isUnspecifiedReason ? "text-text-muted italic" : ""}`}>
                         <span title={reasonNotes}>{reasonNotes}</span>
                       </TD>
                     </TR>
@@ -269,15 +154,12 @@ export function LabourWriteOffSection({ labourId }: { labourId: string }) {
               </tbody>
             </Table>
           </div>
-        )}
-      </Card>
+        </Card>
+      )}
 
-      {/* Write-off history */}
-      <Card className="p-5">
-        <h3 className="text-sm font-semibold text-text">Write-off history</h3>
-        {writeOffs.length === 0 ? (
-          <p className="mt-2 text-sm text-text-muted">No write-offs yet — write-offs appear as a single Expense.</p>
-        ) : (
+      {writeOffs.length > 0 && (
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold text-text">Recent write-offs</h3>
           <div className="mt-2 overflow-x-auto">
             <Table>
               <THead>
@@ -289,33 +171,27 @@ export function LabourWriteOffSection({ labourId }: { labourId: string }) {
                 </TR>
               </THead>
               <tbody>
-                {writeOffs.slice(0, 5).map((r) => (
-                  <TR key={r._id}>
-                    <TD className="tnum">{formatDateShort(r.date)}</TD>
-                    <TD numeric>{safeINR(r.amount)}</TD>
-                    <TD>{r.description}</TD>
-                    <TD>
-                      {(siteNameOf(r) || "—")} · {(projectNameOf(r) || "GENERAL")}
-                    </TD>
-                  </TR>
-                ))}
+                {writeOffs.slice(0, 5).map((r) => {
+                  const sp = formatSiteProject(siteNameOf(r), projectNameOf(r));
+                  const isUnspec = sp === "—";
+                  return (
+                    <TR key={r._id}>
+                      <TD className="tnum">{formatDateShort(r.date)}</TD>
+                      <TD numeric>{safeINR(r.amount)}</TD>
+                      <TD>{r.description}</TD>
+                      <TD className={isUnspec ? "text-text-muted italic" : ""}>{sp}</TD>
+                    </TR>
+                  );
+                })}
               </tbody>
             </Table>
           </div>
-        )}
-      </Card>
+        </Card>
+      )}
 
-      {/* Salary recovery history */}
-      <Card className="p-5">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-text">Salary recovery history</h3>
-          <Link href={`/dashboard/salary?labour=${labourId}`} className="text-xs text-primary hover:underline">
-            View all salary
-          </Link>
-        </div>
-        {salaries.length === 0 ? (
-          <p className="mt-2 text-sm text-text-muted">No salary settlements yet.</p>
-        ) : (
+      {salaries.length > 0 && (
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold text-text">Recent Salary records</h3>
           <div className="mt-2 overflow-x-auto">
             <Table>
               <THead>
@@ -342,11 +218,8 @@ export function LabourWriteOffSection({ labourId }: { labourId: string }) {
               </tbody>
             </Table>
           </div>
-        )}
-        <p className="mt-2 text-xs text-text-muted">
-          Recovery = amount intentionally recovered from this salary (0 allowed). Advance itself is money previously given.
-        </p>
-      </Card>
+        </Card>
+      )}
     </div>
   );
 }
