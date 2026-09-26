@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -13,8 +13,8 @@ import { formatDateShort, toDateInputValue } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { AttendanceStatus } from "@/types/attendance";
 import type { SiteDTO } from "@/types/site";
-import { AttendanceDayDetail } from "./attendance-day-detail";
 import { AttendanceOtModal } from "./attendance-ot-modal";
+import { Building2, Pencil, X, Check, UserCheck, UserRoundX, UserRoundMinus, ClockPlus } from "lucide-react";
 
 interface RosterItem {
   labour: {
@@ -91,6 +91,7 @@ function siteIdOf(site: string | { _id: string; name: string } | null | undefine
 }
 
 export function AttendanceMuster({ onOtChange }: { onOtChange?: () => void } = {}) {
+  const router = useRouter();
   const [date, setDate] = useState(() => toDateInputValue());
   const [search, setSearch] = useState("");
   const [siteFilter, setSiteFilter] = useState<string>("all"); // all | siteId | "none"
@@ -105,15 +106,16 @@ export function AttendanceMuster({ onOtChange }: { onOtChange?: () => void } = {
   const [saving, setSaving] = useState(false);
   const [bulkSite, setBulkSite] = useState<string>("__none"); // for bulk site choice
   const [confirmBulk, setConfirmBulk] = useState<{ status: AttendanceStatus; mode: "remaining" | "allBelow" | "selected"; count: number; overwriteCount?: number } | null>(null);
+  const [page, setPage] = useState(1);
+  const limit = 40;
 
   // New UX states
   const [pendingSite, setPendingSite] = useState<Record<string, string | null>>({});
   const [editingSiteId, setEditingSiteId] = useState<string | null>(null);
   const [siteSavingId, setSiteSavingId] = useState<string | null>(null);
   const [siteSavedId, setSiteSavedId] = useState<string | null>(null);
-  const [detailItem, setDetailItem] = useState<RosterItem | null>(null);
   const [otItem, setOtItem] = useState<RosterItem | null>(null);
-  const [otEditing, setOtEditing] = useState<{ _id: string; hours: number; rate: number; notes: string | null } | null>(null);
+  const [otEditing, setOtEditing] = useState<{ _id: string; hours: number; rate: number; notes: string | null; site?: string | { _id: string; name: string } | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RosterItem | null>(null);
   const [deletePending, setDeletePending] = useState(false);
 
@@ -155,6 +157,8 @@ export function AttendanceMuster({ onOtChange }: { onOtChange?: () => void } = {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelected(new Set());
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPage(1);
   }, [date, search, siteFilter, statusFilter, completion]);
 
   // Clear pending sites when date changes
@@ -163,17 +167,9 @@ export function AttendanceMuster({ onOtChange }: { onOtChange?: () => void } = {
     setPendingSite({});
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setEditingSiteId(null);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPage(1);
   }, [date]);
-
-  // Keep detailItem in sync with latest roster (so OT/site changes reflect immediately)
-  useEffect(() => {
-    if (!detailItem || !roster) return;
-    const fresh = roster.find((r) => r.labour._id === detailItem.labour._id);
-    if (fresh && fresh !== detailItem) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setDetailItem(fresh);
-    }
-  }, [roster, detailItem]);
 
   const filtered = useMemo(() => {
     if (!roster) return [];
@@ -204,8 +200,25 @@ export function AttendanceMuster({ onOtChange }: { onOtChange?: () => void } = {
     return out;
   }, [roster, search, siteFilter, statusFilter, completion]);
 
-  const allVisibleSelected = filtered.length > 0 && filtered.every((r) => selected.has(r.labour._id));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / limit));
+  const paginated = useMemo(() => filtered.slice((page - 1) * limit, page * limit), [filtered, page, limit]);
   const selectedCount = selected.size;
+  const allPageSelected = paginated.length > 0 && paginated.every((r) => selected.has(r.labour._id));
+  const toggleSelectAllPage = () => {
+    if (allPageSelected) {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        paginated.forEach((r) => next.delete(r.labour._id));
+        return next;
+      });
+    } else {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        paginated.forEach((r) => next.add(r.labour._id));
+        return next;
+      });
+    }
+  };
 
   const toggleSelect = (labourId: string) => {
     setSelected((prev) => {
@@ -216,16 +229,12 @@ export function AttendanceMuster({ onOtChange }: { onOtChange?: () => void } = {
     });
   };
 
-  const selectAllVisible = () => {
-    if (allVisibleSelected) setSelected(new Set());
-    else setSelected(new Set(filtered.map((r) => r.labour._id)));
-  };
-
   const clearFilters = () => {
     setSearch("");
     setSiteFilter("all");
     setStatusFilter("all");
     setCompletion("all");
+    setPage(1);
   };
 
   const hasActiveFilters = search.trim() !== "" || siteFilter !== "all" || statusFilter !== "all" || completion !== "all";
@@ -254,6 +263,7 @@ export function AttendanceMuster({ onOtChange }: { onOtChange?: () => void } = {
   };
 
   const markOne = async (item: RosterItem, status: AttendanceStatus) => {
+    if (item.attendance?.status === status) return;
     setSaving(true);
     try {
       let site: string | null = null;
@@ -399,7 +409,6 @@ export function AttendanceMuster({ onOtChange }: { onOtChange?: () => void } = {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Delete failed");
       setDeleteTarget(null);
-      setDetailItem(null);
       await fetchRoster();
       onOtChange?.();
     } catch (e) {
@@ -412,19 +421,16 @@ export function AttendanceMuster({ onOtChange }: { onOtChange?: () => void } = {
   return (
     <div className="flex flex-col gap-5">
       <Card className="p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-text">Attendance — {formatDateShort(date)}</h2>
-            <p className="text-sm text-text-muted">Muster for the selected date. Not Marked = no record yet.</p>
-          </div>
-          <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="sm:w-48" />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-base font-semibold text-text">Attendance — {formatDateShort(date)}</h2>
+          <Input aria-label="Select date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="sm:w-48" />
         </div>
 
         {counters && (
           <div className="mt-4 grid grid-cols-3 gap-3 text-sm sm:grid-cols-6">
             <div><dt className="text-text-muted">Total Labour</dt><dd className="font-semibold tnum">{counters.total}</dd></div>
             <div><dt className="text-text-muted">Marked</dt><dd className="font-semibold tnum">{counters.marked}</dd></div>
-            <div><dt className="text-text-muted">Remaining</dt><dd className="font-semibold tnum">{counters.remaining}</dd></div>
+            <div><dt className="text-text-muted">Not Marked</dt><dd className="font-semibold tnum">{counters.remaining}</dd></div>
             <div><dt className="text-text-muted">Present</dt><dd className="font-semibold tnum text-success">{counters.present}</dd></div>
             <div><dt className="text-text-muted">Half Day</dt><dd className="font-semibold tnum text-amber-600">{counters.halfDay}</dd></div>
             <div><dt className="text-text-muted">Absent</dt><dd className="font-semibold tnum text-danger">{counters.absent}</dd></div>
@@ -437,7 +443,7 @@ export function AttendanceMuster({ onOtChange }: { onOtChange?: () => void } = {
           <Input placeholder="Search name, phone, skill..." value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search labour" />
           <Select value={completion} onChange={(e) => setCompletion(e.target.value as never)} aria-label="Completion filter">
             <option value="all">All</option>
-            <option value="remaining">Remaining</option>
+            <option value="remaining">Not Marked</option>
             <option value="marked">Marked</option>
           </Select>
           <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Status filter">
@@ -451,32 +457,16 @@ export function AttendanceMuster({ onOtChange }: { onOtChange?: () => void } = {
             <option value="none">No Site</option>
             {sites.map((s) => (<option key={s._id} value={s._id}>{s.name}</option>))}
           </Select>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-text-muted tnum">Showing {filtered.length} of {counters?.total ?? 0}</span>
+          <div className="flex items-center justify-end">
             {hasActiveFilters && <Button variant="outline" size="sm" onClick={clearFilters}>Clear</Button>}
           </div>
         </div>
-        {hasActiveFilters && (
-          <p className="mt-2 text-xs text-text-muted">
-            Filters: {[
-              completion !== "all" && completion,
-              statusFilter !== "all" && STATUS_LABEL[statusFilter as AttendanceStatus],
-              siteFilter !== "all" && (siteFilter === "none" ? "No Site" : sites.find((s) => s._id === siteFilter)?.name ?? siteFilter),
-              search.trim() && `"${search.trim()}"`,
-            ].filter(Boolean).join(" · ")}
-          </p>
-        )}
       </Card>
 
       <Card className="p-4">
-        <div className="flex flex-col gap-3">
-    
-      
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium">Selected: {selectedCount}</span>
-            <Button size="sm" variant="outline" onClick={selectAllVisible} disabled={filtered.length === 0}>
-              {allVisibleSelected ? "Clear selection" : `Select all ${filtered.length}`}
-            </Button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm font-medium">Selected: {selectedCount}</span>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             <Button size="sm" disabled={selectedCount === 0 || saving} onClick={() => handleSelectedBulk("present")}>Present</Button>
             <Button size="sm" disabled={selectedCount === 0 || saving} onClick={() => handleSelectedBulk("half-day")}>Half Day</Button>
             <Button size="sm" disabled={selectedCount === 0 || saving} onClick={() => handleSelectedBulk("absent")}>Absent</Button>
@@ -495,126 +485,227 @@ export function AttendanceMuster({ onOtChange }: { onOtChange?: () => void } = {
       )}
 
       {!loading && !error && filtered.length > 0 && (
-        <Card className="overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <THead>
-                <TR>
-                  <TH><input type="checkbox" checked={allVisibleSelected} onChange={selectAllVisible} aria-label="Select all" /></TH>
-                  <TH>Labour</TH>
-                  <TH>Site</TH>
-                  <TH>Status</TH>
-                  <TH>Action</TH>
-                </TR>
-              </THead>
-              <tbody>
-                {filtered.map((item) => {
-                  const isSelected = selected.has(item.labour._id);
-                  const att = item.attendance;
-                  const siteName = att ? attendanceSiteName(att) : null;
-                  const pendingVal = pendingSite[item.labour._id];
-                  const hasPending = pendingVal !== undefined;
-                  const isSiteSaving = att ? siteSavingId === att._id : false;
-                  const isSiteSaved = att ? siteSavedId === att._id : false;
-                  return (
-                    <TR key={item.labour._id} className={cn(isSelected && "bg-primary/5", "cursor-pointer hover:bg-background")} onClick={() => setDetailItem(item)}>
-                      <TD onClick={(e) => e.stopPropagation()}>
-                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(item.labour._id)} aria-label={`Select ${item.labour.name}`} />
-                      </TD>
-                      <TD onClick={(e) => e.stopPropagation()}>
-                        <Link href={`/dashboard/labour/${item.labour._id}`} className="font-medium text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
-                          {item.labour.name}
-                        </Link>
-                        <div className="text-xs text-text-muted tnum">{item.labour.skill} · {item.labour.phone}</div>
-                      </TD>
-                      <TD onClick={(e) => e.stopPropagation()}>
-                        {att ? (
-                          editingSiteId === att._id ? (
-                            <div className="flex items-center gap-1">
-                              <select
-                                autoFocus
-                                value={siteIdOf(att.site as string | { _id: string; name: string }) ?? "__none"}
-                                onChange={(e) => {
-                                  const v = e.target.value === "__none" ? null : e.target.value;
-                                  handleSiteAutoSave(item, v);
-                                }}
-                                disabled={isSiteSaving}
-                                className="rounded-md border border-primary bg-surface px-2 py-1 text-sm"
-                              >
-                                <option value="__none">No Site</option>
-                                {sites.map((s) => (<option key={s._id} value={s._id}>{s.name}</option>))}
-                              </select>
-                              <button type="button" className="text-xs text-text-muted hover:text-text" onClick={() => setEditingSiteId(null)}>✕</button>
-                            </div>
+        <>
+          <Table>
+                <THead>
+                  <TR>
+                    <TH className="w-10 text-center">
+                      <label className="inline-flex cursor-pointer items-center justify-center">
+                        <input
+                          type="checkbox"
+                          checked={allPageSelected}
+                          onChange={toggleSelectAllPage}
+                          aria-label="Select all on this page"
+                          className="peer sr-only"
+                        />
+                        <span
+                          className={cn(
+                            "inline-flex h-4 w-4 items-center justify-center rounded-[4px] border-2 transition-colors",
+                            allPageSelected ? "border-primary bg-primary text-white" : "border-border bg-surface",
+                          )}
+                        >
+                          {allPageSelected && <Check className="h-3 w-3 text-white" />}
+                        </span>
+                      </label>
+                    </TH>
+                    <TH>Labour</TH>
+                    <TH>Site</TH>
+                    <TH>Status</TH>
+                    <TH>Actions</TH>
+                  </TR>
+                </THead>
+                <tbody>
+                  {paginated.map((item) => {
+                    const isSelected = selected.has(item.labour._id);
+                    const att = item.attendance;
+                    const siteName = att ? attendanceSiteName(att) : null;
+                    const pendingVal = pendingSite[item.labour._id];
+                    const hasPending = pendingVal !== undefined;
+                    const isSiteSaving = att ? siteSavingId === att._id : false;
+                    const isSiteSaved = att ? siteSavedId === att._id : false;
+                    return (
+                      <TR key={item.labour._id} className={cn(isSelected && "bg-primary/5", "cursor-pointer hover:bg-background/70")} onClick={() => router.push(`/dashboard/labour/${item.labour._id}`)}>
+                        <TD className="text-center" onClick={(e) => e.stopPropagation()}>
+                          <label className="inline-flex cursor-pointer items-center justify-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelect(item.labour._id)}
+                              aria-label={`Select ${item.labour.name}`}
+                              className="peer sr-only"
+                            />
+                            <span
+                              className={cn(
+                                "inline-flex h-4 w-4 items-center justify-center rounded-[4px] border-2 transition-colors",
+                                isSelected ? "border-primary bg-primary text-white" : "border-border bg-surface",
+                              )}
+                            >
+                              {isSelected && <Check className="h-3 w-3 text-white" />}
+                            </span>
+                          </label>
+                        </TD>
+                        <TD>
+                          <div className="font-medium text-primary">{item.labour.name}</div>
+                          <div className="text-xs text-text-muted">{item.labour.skill}</div>
+                        </TD>
+                        <TD onClick={(e) => e.stopPropagation()}>
+                          {att ? (
+                            editingSiteId === att._id ? (
+                              <div className="flex items-center gap-1">
+                                <select
+                                  autoFocus
+                                  value={siteIdOf(att.site as string | { _id: string; name: string }) ?? "__none"}
+                                  onChange={(e) => {
+                                    const v = e.target.value === "__none" ? null : e.target.value;
+                                    handleSiteAutoSave(item, v);
+                                  }}
+                                  disabled={isSiteSaving}
+                                  className="rounded-md border border-primary bg-surface px-2 py-1 text-sm"
+                                >
+                                  <option value="__none">No Site</option>
+                                  {sites.map((s) => (<option key={s._id} value={s._id}>{s.name}</option>))}
+                                </select>
+                                <button type="button" className="inline-flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-border hover:text-text" onClick={() => setEditingSiteId(null)} aria-label="Cancel site edit">
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className={cn("inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm", isSiteSaved ? "border-success bg-success/10" : "border-border bg-background")}>
+                                {/* {!siteName && <Building2 className="h-3.5 w-3.5 text-text-muted" />} */}
+                                <span className={cn(isSiteSaved && "text-success font-medium")}>{siteName ?? "No Site"}</span>
+                                {isSiteSaving ? <span className="text-xs text-text-muted">Saving…</span> : isSiteSaved ? <span className="text-xs text-success">✓ Saved</span> : null}
+                                <button
+                                  type="button"
+                                  title="Change site"
+                                  aria-label="Change site"
+                                  className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-border hover:text-text"
+                                  onClick={() => setEditingSiteId(att._id)}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            )
                           ) : (
-                            <div className={cn("inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm", isSiteSaved ? "border-success bg-success/10" : "border-border bg-background")}>
-                              <span className={cn(isSiteSaved && "text-success font-medium")}>{siteName ?? "No Site"}</span>
-                              {isSiteSaving ? <span className="text-xs text-text-muted">Saving…</span> : isSiteSaved ? <span className="text-xs text-success">✓ Saved</span> : null}
+                            <select
+                              value={hasPending ? (pendingVal ?? "__none") : (item.suggestedSite?._id ?? "__none")}
+                              onChange={(e) => {
+                                const v = e.target.value === "__none" ? null : e.target.value;
+                                setPendingSite((prev) => ({ ...prev, [item.labour._id]: v }));
+                              }}
+                              className="h-8 rounded-md border border-border bg-surface px-2 text-sm focus:border-primary focus:outline-none"
+                            >
+                              <option value="__none">No Site</option>
+                              {sites.map((s) => (<option key={s._id} value={s._id}>{s.name}</option>))}
+                            </select>
+                          )}
+                        </TD>
+                        <TD>
+                          {att ? <Badge tone={STATUS_TONE[att.status]}>{STATUS_LABEL[att.status]}</Badge> : <Badge tone="neutral">Not Marked</Badge>}
+                        </TD>
+                        <TD onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1">
                               <button
                                 type="button"
-                                title="Change site"
-                                className="ml-1 rounded p-0.5 text-text-muted hover:bg-border hover:text-text"
-                                onClick={() => setEditingSiteId(att._id)}
+                                aria-label="Present"
+                                title="Present"
+                                onClick={() => markOne(item, "present")}
+                                disabled={saving}
+                                className={cn("inline-flex h-8 w-8 items-center justify-center rounded-md", att?.status === "present" ? "bg-primary text-white" : "text-text-muted hover:bg-primary/10 hover:text-primary")}
                               >
-                                {/* reset/edit icon */}
-                                <span className="text-xs">✎</span>
+                                <UserCheck className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label="Half Day"
+                                title="Half Day"
+                                onClick={() => markOne(item, "half-day")}
+                                disabled={saving}
+                                className={cn("inline-flex h-8 w-8 items-center justify-center rounded-md", att?.status === "half-day" ? "bg-amber-500 text-white" : "text-text-muted hover:bg-amber-500/10 hover:text-amber-600")}
+                              >
+                                <UserRoundMinus className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label="Absent"
+                                title="Absent"
+                                onClick={() => markOne(item, "absent")}
+                                disabled={saving}
+                                className={cn("inline-flex h-8 w-8 items-center justify-center rounded-md", att?.status === "absent" ? "bg-danger text-white" : "text-text-muted hover:bg-danger/10 hover:text-danger")}
+                              >
+                                <UserRoundX className="h-4 w-4" />
                               </button>
                             </div>
-                          )
-                        ) : (
-                          <select
-                            value={hasPending ? (pendingVal ?? "__none") : (item.suggestedSite?._id ?? "__none")}
-                            onChange={(e) => {
-                              const v = e.target.value === "__none" ? null : e.target.value;
-                              setPendingSite((prev) => ({ ...prev, [item.labour._id]: v }));
-                            }}
-                            className="h-8 rounded-md border border-border bg-surface px-2 text-sm focus:border-primary focus:outline-none"
-                          >
-                            <option value="__none">No Site</option>
-                            {sites.map((s) => (<option key={s._id} value={s._id}>{s.name}</option>))}
-                          </select>
-                        )}
-                      </TD>
-                      <TD>
-                        {att ? <Badge tone={STATUS_TONE[att.status]}>{STATUS_LABEL[att.status]}</Badge> : <Badge tone="neutral">Not Marked</Badge>}
-                      </TD>
-                      <TD onClick={(e) => e.stopPropagation()}>
-                        <div className="flex flex-wrap gap-1">
-                          <Button size="sm" variant={att?.status === "present" ? "primary" : "outline"} onClick={() => markOne(item, "present")} disabled={saving}>Present</Button>
-                          <Button size="sm" variant={att?.status === "half-day" ? "primary" : "outline"} onClick={() => markOne(item, "half-day")} disabled={saving}>Half</Button>
-                          <Button size="sm" variant={att?.status === "absent" ? "primary" : "outline"} onClick={() => markOne(item, "absent")} disabled={saving}>Absent</Button>
-                          {item.overtime ? (
-                            <Button size="sm" variant="primary" onClick={() => { if (!att) return; setOtItem(item); setOtEditing({ _id: item.overtime!._id, hours: item.overtime!.hours, rate: item.overtime!.rate, notes: item.overtime!.notes }); }} disabled={!att} title={`OT ${item.overtime.hours}h @ ${item.overtime.rate} → Edit`}>
-                              OT {item.overtime.hours}h
-                            </Button>
-                          ) : (
-                            <Button size="sm" variant="outline" onClick={() => { if (!att) return; setOtItem(item); setOtEditing(null); }} disabled={!att} title={!att ? "Mark attendance first" : "Add OT"}>
-                              + OT
-                            </Button>
-                          )}
-                          <Button size="sm" variant="outline" onClick={() => { if (!att) return; setDeleteTarget(item); }} disabled={!att} title="Delete attendance (also deletes OT)">
-                            X
-                          </Button>
-                        </div>
-                      </TD>
-                    </TR>
-                  );
-                })}
-              </tbody>
-            </Table>
+                            <div className="flex items-center gap-1">
+                             {item.overtime ? (
+  <button
+    type="button"
+    aria-label="Edit overtime"
+    title={`OT ${item.overtime.hours}h → Edit`}
+    onClick={() => {
+      if (!att) return;
+      setOtItem(item);
+      setOtEditing({
+        _id: item.overtime!._id,
+        hours: item.overtime!.hours,
+        rate: item.overtime!.rate,
+        notes: item.overtime!.notes,
+        site: item.overtime!.site,
+      });
+    }}
+    disabled={!att}
+    className="inline-flex h-8 min-w-8 items-center justify-center gap-1 rounded-md bg-primary px-2 text-white hover:bg-primary/90"
+  >
+    <span className="text-xs font-semibold">
+      +{item.overtime.hours}h
+    </span>
+  </button>
+) : (
+  <button
+    type="button"
+    aria-label="Add overtime"
+    title={!att ? "Mark attendance first" : "Add OT"}
+    onClick={() => {
+      if (!att) return;
+      setOtItem(item);
+      setOtEditing(null);
+    }}
+    disabled={!att}
+    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary disabled:opacity-40"
+  >
+    <ClockPlus className="h-4 w-4" />
+  </button>
+)}
+                              <button
+                                type="button"
+                                aria-label="Delete attendance"
+                                title="Delete attendance (also deletes OT)"
+                                onClick={() => { if (!att) return; setDeleteTarget(item); }}
+                                disabled={!att}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger disabled:opacity-40"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </TD>
+                      </TR>
+                    );
+                  })}
+                </tbody>
+              </Table>
+          <div className="flex items-center justify-between text-sm text-text-muted">
+            <p className="tnum">{filtered.length} labourers · Page {page} of {totalPages}</p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                Previous
+              </Button>
+              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                Next
+              </Button>
+            </div>
           </div>
-        </Card>
-      )}
-
-      {detailItem && (
-        <AttendanceDayDetail
-          open={!!detailItem}
-          onClose={() => setDetailItem(null)}
-          item={detailItem}
-          date={date}
-          sites={sites}
-          onSiteSaved={async () => { await fetchRoster(); onOtChange?.(); }}
-        />
+        </>
       )}
 
       {otItem && (

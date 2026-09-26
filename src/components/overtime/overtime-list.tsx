@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { Modal, ConfirmDialog } from "@/components/ui/modal";
 import { formatDateShort, formatINR, toDateInputValue } from "@/lib/utils";
+import { Pencil, Trash2 } from "lucide-react";
 import type { OvertimeDTO } from "@/types/attendance";
 import type { ProjectDTO } from "@/types/project";
 import type { SiteDTO } from "@/types/site";
@@ -32,10 +33,7 @@ function refName(ref: OvertimeDTO["labour"] | OvertimeDTO["site"]): string {
 }
 
 export function OvertimeList({ externalRefreshKey }: { externalRefreshKey?: number } = {}) {
-  const [from, setFrom] = useState(() =>
-    toDateInputValue(new Date(Date.now() - 29 * 86400000)),
-  );
-  const [to, setTo] = useState(() => toDateInputValue());
+  const router = useRouter();
   const [projectId, setProjectId] = useState("");
   const [siteId, setSiteId] = useState("");
   const [labourId, setLabourId] = useState("");
@@ -87,8 +85,6 @@ export function OvertimeList({ externalRefreshKey }: { externalRefreshKey?: numb
 
   useEffect(() => {
     const params = new URLSearchParams({ page: String(page), limit: "20" });
-    if (from) params.set("from", from);
-    if (to) params.set("to", to);
     if (projectId) params.set("project", projectId);
     if (siteId) params.set("site", siteId);
     if (labourId) params.set("labour", labourId);
@@ -102,7 +98,7 @@ export function OvertimeList({ externalRefreshKey }: { externalRefreshKey?: numb
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [from, to, projectId, siteId, labourId, page, reloadKey]);
+  }, [projectId, siteId, labourId, page, reloadKey]);
 
   function refresh() {
     setLoading(true);
@@ -132,11 +128,15 @@ export function OvertimeList({ externalRefreshKey }: { externalRefreshKey?: numb
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
 
+  function labourIdOf(ref: OvertimeDTO["labour"]): string | null {
+    if (!ref) return null;
+    return typeof ref === "string" ? ref : (ref as { _id: string })._id;
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Overtime"
-        description="Extra work beyond attendance OT hours. Enter here only — salary counts both."
         action={
           <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
             Add Overtime
@@ -144,14 +144,7 @@ export function OvertimeList({ externalRefreshKey }: { externalRefreshKey?: numb
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Total Hours" value={data ? String(data.totalHours) : "—"} hint="In selected filters" />
-        <StatCard label="Total Amount" value={data ? formatINR(data.totalAmount) : "—"} hint="Hours × rate" />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Input label="From" type="date" value={from} onChange={(e) => { setFrom(e.target.value); resetPage(); }} />
-        <Input label="To" type="date" value={to} onChange={(e) => { setTo(e.target.value); resetPage(); }} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Select label="Project" value={projectId} onChange={(e) => { setProjectId(e.target.value); setSiteId(""); setSites([]); resetPage(); }}>
           <option value="">All projects</option>
           {projects.map((p) => (
@@ -202,12 +195,12 @@ export function OvertimeList({ externalRefreshKey }: { externalRefreshKey?: numb
                 <TH numeric>Hours</TH>
                 <TH numeric>Rate</TH>
                 <TH numeric>Amount</TH>
-                <TH>Actions</TH>
+                <TH className="text-right">Actions</TH>
               </TR>
             </THead>
             <tbody>
               {data.data.map((o) => (
-                <TR key={o._id}>
+                <TR key={o._id} className="cursor-pointer hover:bg-background/70" onClick={() => { const id = labourIdOf(o.labour); if (id) router.push(`/dashboard/labour/${id}`); }}>
                   <TD className="tnum">{formatDateShort(o.date)}</TD>
                   <TD className="font-medium">{refName(o.labour)}</TD>
                   <TD>{refName(o.site)}</TD>
@@ -215,20 +208,22 @@ export function OvertimeList({ externalRefreshKey }: { externalRefreshKey?: numb
                   <TD numeric>{formatINR(o.rate)}</TD>
                   <TD numeric>{formatINR(o.amount)}</TD>
                   <TD>
-                    <div className="flex gap-2">
+                    <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
+                        aria-label="Edit overtime"
                         onClick={() => { setEditing(o); setFormOpen(true); }}
-                        className="text-sm text-text-muted hover:underline"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
                       >
-                        Edit
+                        <Pencil className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
+                        aria-label="Delete overtime"
                         onClick={() => { setDeleting(o); setDeleteError(null); }}
-                        className="text-sm text-danger hover:underline"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger"
                       >
-                        Delete
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </TD>
@@ -365,7 +360,6 @@ function OvertimeFormModal({
           ))}
         </Select>
         <Input label="Date" required type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={!!initial} />
-        {initial && <p className="text-xs text-text-muted">Date and worker cannot be changed. Delete to move to another date.</p>}
         <Input
           label="Hours"
           required

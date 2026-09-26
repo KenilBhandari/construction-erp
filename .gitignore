@@ -133,3 +133,4 @@ src/app/api/debug-auth/
 # Temp debug scripts
 scripts/*-tmp.ts
 src/app/api/debug-auth/
+next-env.d.ts

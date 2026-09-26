@@ -105,7 +105,7 @@ export function AttendanceOtModal({ open, onClose, onSaved, labour, date, sites,
       <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
         <div className="rounded-md bg-background p-3 text-sm">
           <p className="font-medium text-text">{labour.name}</p>
-          <p className="text-text-muted">{date} {suggestedSiteId ? `· ${sites.find(s => s._id === suggestedSiteId)?.name ?? ""}` : ""}</p>
+          <p className="text-text-muted">{date} {(siteId || suggestedSiteId) ? `· ${sites.find(s => s._id === (siteId || suggestedSiteId))?.name ?? ""}` : ""}</p>
         </div>
 
         <Select label="Site" required value={siteId} onChange={(e) => setSiteId(e.target.value)} disabled={pending}>

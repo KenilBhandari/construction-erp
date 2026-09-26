@@ -11,10 +11,7 @@ function AttendanceContent() {
   const [otRefreshKey, setOtRefreshKey] = useState(0);
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Attendance"
-        description="Daily muster — choose a date, mark workers, filter remaining, bulk-mark, correct. Overtime is per-day (one per worker) and lives here."
-      />
+      <PageHeader title="Attendance" />
       <div className="flex gap-2 border-b border-border">
         <button
           type="button"

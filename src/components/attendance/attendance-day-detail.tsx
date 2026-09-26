@@ -215,7 +215,7 @@ export function AttendanceDayDetail({ open, onClose, item, date, sites, onSiteSa
         date={date}
         sites={sites}
         suggestedSiteId={siteForOt ?? null}
-        existing={editingOt ? { _id: editingOt._id, hours: editingOt.hours, rate: editingOt.rate, notes: editingOt.notes } : null}
+        existing={editingOt ? { _id: editingOt._id, hours: editingOt.hours, rate: editingOt.rate, notes: editingOt.notes, site: editingOt.site } : null}
       />
     </>
   );
