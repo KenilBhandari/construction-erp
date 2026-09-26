@@ -36,7 +36,7 @@ const StockTransactionSchema = new Schema(
       index: true,
     },
     quantity: { type: Number, required: true },
-    unit: { type: String, required: true },
+    unit: { type: String, default: null },
     rate: { type: Number, min: 0, default: 0 },
     total: { type: Number, min: 0, default: 0 },
     supplier: { type: String, default: null },

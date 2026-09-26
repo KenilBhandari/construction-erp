@@ -36,7 +36,7 @@ export interface DashboardSummary {
   labourCostAssigned: number;
   labourCostUnassigned: number;
   lowStockCount: number;
-  lowStock: { _id: string; name: string; currentStock: number; minimumStock: number; unit: string }[];
+  lowStock: { _id: string; name: string; currentStock: number; minimumStock: number; unit: string | null }[];
   recentActivity: { at: Date; text: string }[];
   monthlyExpenses: { month: string; amount: number }[];
   projects: {
@@ -307,7 +307,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       name: m.name,
       currentStock: m.currentStock,
       minimumStock: m.minimumStock,
-      unit: m.unit,
+      unit: m.unit ?? null,
     })),
     recentActivity: activity,
     monthlyExpenses,
@@ -409,7 +409,7 @@ export async function getExpenseReport(): Promise<ExpenseReport> {
 }
 
 export interface StockReport {
-  materials: { _id: string; name: string; unit: string; stock: number; min: number; low: boolean }[];
+  materials: { _id: string; name: string; unit: string | null; stock: number; min: number; low: boolean }[];
   lowCount: number;
   last30Days: { purchased: number; consumed: number };
 }
@@ -437,7 +437,7 @@ export async function getStockReport(): Promise<StockReport> {
     materials: materials.map((m) => ({
       _id: String(m._id),
       name: m.name,
-      unit: m.unit,
+      unit: m.unit ?? null,
       stock: m.currentStock,
       min: m.minimumStock,
       low: m.currentStock <= m.minimumStock,

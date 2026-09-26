@@ -72,20 +72,26 @@ export function SalaryEditModal({
     }
   }
 
+  const showOutstanding = outstanding !== null && (outstanding > 0 || available > 0);
+
   return (
     <Modal open onClose={onClose} title={`Edit Settlement — ${typeof record.labour === "string" ? record.labour : record.labour.name}`}>
-      <div className="mb-3 rounded bg-background p-3 text-sm">
-        <p className="text-text-muted">Net {safeINR(record.net)} · Gross {safeINR(toSafeNumber(record.gross) + toSafeNumber(record.overtimeAmount))} · Paid {safeINR(record.paidAmount)}</p>
-        <p className="text-xs text-text-muted">Outstanding: {outstanding !== null ? safeINR(outstanding) : "…"} · Available: {outstanding !== null ? safeINR(available) : "…"} (outstanding + current recovery)</p>
-        <p className="mt-1 text-[11px] text-text-muted">Recovery recovers previously given advance (reduces outstanding). 0 is valid. Once payments begin, snapshot freezes — use Pay instead.</p>
-      </div>
+      <dl className="mb-4 grid grid-cols-3 gap-3 rounded-lg bg-background p-3 text-sm">
+        <div><dt className="text-xs text-text-muted">Net</dt><dd className="mt-0.5 font-semibold text-primary tnum">{safeINR(record.net)}</dd></div>
+        <div><dt className="text-xs text-text-muted">Gross</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(toSafeNumber(record.gross) + toSafeNumber(record.overtimeAmount))}</dd></div>
+        <div><dt className="text-xs text-text-muted">Paid</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(record.paidAmount)}</dd></div>
+        {showOutstanding && (
+          <>
+            <div><dt className="text-xs text-text-muted">Outstanding</dt><dd className="mt-0.5 font-medium tnum">{safeINR(outstanding)}</dd></div>
+            <div className="col-span-2"><dt className="text-xs text-text-muted">Available</dt><dd className="mt-0.5 font-medium tnum">{safeINR(available)}</dd></div>
+          </>
+        )}
+      </dl>
       <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
         <Input label="Advance recovery (₹)" type="number" min={0} value={recovery} onChange={(e) => setRecovery(e.target.value)} required disabled={pending || isLocked} />
         <Input label="Other deductions (₹)" type="number" min={0} value={deductions} onChange={(e) => setDeductions(e.target.value)} required disabled={pending || isLocked} />
-        {isLocked ? (
-          <p className="text-xs text-warning">This settlement is locked — payments have been recorded. Recovery and deductions are frozen.</p>
-        ) : (
-          <p className="text-xs text-text-muted">This settlement has no payments yet, so recovery can be changed. Once a payment is recorded, recovery becomes locked.</p>
+        {isLocked && (
+          <p className="text-xs text-warning">This settlement is locked — payments have been recorded.</p>
         )}
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2">

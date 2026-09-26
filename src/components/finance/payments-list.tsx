@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
@@ -44,6 +45,7 @@ export function PaymentsList() {
   const [error, setError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ClientPaymentDTO | null>(null);
+  const [viewing, setViewing] = useState<ClientPaymentDTO | null>(null);
   const [deleting, setDeleting] = useState<ClientPaymentDTO | null>(null);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -105,7 +107,6 @@ export function PaymentsList() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Client Payments"
-        description="Money received from clients, per project. Pending = contract − received."
         action={
           <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
             Record Payment
@@ -113,21 +114,31 @@ export function PaymentsList() {
         }
       />
 
-      <StatCard
-        label="Total Received"
-        value={data ? formatINR(data.totalReceived) : "—"}
-        hint="In selected filters"
-      />
+      <div className="grid max-w-sm grid-cols-2 gap-2">
+        <Card className="p-3">
+          <p className="text-xs text-text-muted">Received</p>
+          <p className="mt-0.5 text-lg font-semibold tnum">{data && !error ? formatINR(data.totalReceived) : "—"}</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-xs text-text-muted">Entries</p>
+          <p className="mt-0.5 text-lg font-semibold tnum">{data && !error ? data.total : "—"}</p>
+        </Card>
+      </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Select aria-label="Filter by project" value={projectId} onChange={(e) => { setProjectId(e.target.value); resetPage(); }}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Select aria-label="Filter by project" className="w-44" value={projectId} onChange={(e) => { setProjectId(e.target.value); resetPage(); }}>
           <option value="">All projects</option>
           {projects.map((p) => (
             <option key={p._id} value={p._id}>{p.name}</option>
           ))}
         </Select>
-        <Input label="From" type="date" value={from} onChange={(e) => { setFrom(e.target.value); resetPage(); }} />
-        <Input label="To" type="date" value={to} onChange={(e) => { setTo(e.target.value); resetPage(); }} />
+        <Input aria-label="From date" type="date" className="w-36" value={from} onChange={(e) => { setFrom(e.target.value); resetPage(); }} />
+        <Input aria-label="To date" type="date" className="w-36" value={to} onChange={(e) => { setTo(e.target.value); resetPage(); }} />
+        {(projectId || from || to) && (
+          <Button variant="outline" size="sm" onClick={() => { setProjectId(""); setFrom(""); setTo(""); resetPage(); }}>
+            Clear
+          </Button>
+        )}
       </div>
 
       {loading && <TableSkeleton rows={6} />}
@@ -140,7 +151,6 @@ export function PaymentsList() {
       {!loading && !error && data && data.data.length === 0 && (
         <EmptyState
           title="No payments yet"
-          description="Record the first client receipt against its project."
           action={
             <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
               Record Payment
@@ -158,47 +168,50 @@ export function PaymentsList() {
                 <TH>Project / Client</TH>
                 <TH>Method</TH>
                 <TH numeric>Amount</TH>
-                <TH>Actions</TH>
+                <TH className="text-right">Actions</TH>
               </TR>
             </THead>
             <tbody>
-              {data.data.map((p) => (
-                <TR key={p._id}>
+              {data.data.map((p) => {
+                const client = clientName(p);
+                return (
+                <TR key={p._id} className="cursor-pointer hover:bg-background/70" onClick={() => setViewing(p)}>
                   <TD className="tnum">{formatDateShort(p.date)}</TD>
-                  <TD>
-                    <span className="font-medium">{projectName(p)}</span>
-                    <p className="text-xs text-text-muted">{clientName(p)}</p>
+                  <TD className="max-w-[220px] truncate font-medium text-primary" title={client === "—" ? projectName(p) : `${projectName(p)} · ${client}`}>
+                    {projectName(p)}{client === "—" ? "" : ` · ${client}`}
                   </TD>
-                  <TD>
-                    {p.paymentMethod}
-                    {p.reference && <p className="text-xs text-text-muted">{p.reference}</p>}
-                  </TD>
+                  <TD>{p.paymentMethod}</TD>
                   <TD numeric>{formatINR(p.amount)}</TD>
                   <TD>
-                    <div className="flex gap-2">
+                    <div className="flex items-center justify-end gap-1" onClick={(ev) => ev.stopPropagation()}>
                       <button
                         type="button"
+                        aria-label="Edit payment"
+                        title="Edit"
                         onClick={() => { setEditing(p); setFormOpen(true); }}
-                        className="text-sm text-text-muted hover:underline"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
                       >
-                        Edit
+                        <Pencil className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
+                        aria-label="Delete payment"
+                        title="Delete"
                         onClick={() => { setDeleting(p); setDeleteError(null); }}
-                        className="text-sm text-danger hover:underline"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger"
                       >
-                        Delete
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </TD>
                 </TR>
-              ))}
+                );
+              })}
             </tbody>
           </Table>
 
           <div className="flex items-center justify-between text-sm text-text-muted">
-            <p className="tnum">{data.total} payment(s) · Page {data.page} of {totalPages}</p>
+            <p className="tnum">Page {data.page} of {totalPages}</p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
                 Previous
@@ -224,12 +237,33 @@ export function PaymentsList() {
         />
       )}
 
+      {viewing && (
+        <Modal open={!!viewing} onClose={() => setViewing(null)} title="Payment Details" size="lg">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="text-base font-semibold">{projectName(viewing)}</p>
+              <p className="text-sm font-semibold tnum">{formatINR(viewing.amount)}</p>
+            </div>
+            <p className="-mt-3 text-xs text-text-muted tnum">
+              {formatDateShort(viewing.date)}
+              {viewing.paymentMethod ? ` · ${viewing.paymentMethod}` : ""}
+              {viewing.reference ? ` · ${viewing.reference}` : ""}
+            </p>
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <div><dt className="text-xs text-text-muted">Client</dt><dd className="mt-0.5 font-medium">{clientName(viewing)}</dd></div>
+              <div><dt className="text-xs text-text-muted">Payment Method</dt><dd className="mt-0.5">{viewing.paymentMethod}</dd></div>
+              {viewing.notes && <div className="col-span-2"><dt className="text-xs text-text-muted">Notes</dt><dd className="mt-0.5 text-sm">{viewing.notes}</dd></div>}
+            </dl>
+          </div>
+        </Modal>
+      )}
+
       <ConfirmDialog
         open={deleting !== null}
         onClose={() => setDeleting(null)}
         onConfirm={handleDelete}
         title="Delete this payment?"
-        description={deleteError ?? "Pending amounts update automatically."}
+        description={deleteError ?? `Deletes the ${deleting ? formatINR(deleting.amount) : ""} payment permanently.`}
         pending={deletePending}
       />
     </div>
@@ -310,9 +344,7 @@ function PaymentFormModal({
             ))}
           </Select>
         ) : (
-          <p className="text-sm text-text-muted">
-            {projectName(initial)} · payments stay on their project.
-          </p>
+          <Input label="Project" value={projectName(initial)} disabled />
         )}
         {selectedProject && (
           <p className="text-sm text-text-muted tnum">

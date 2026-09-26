@@ -19,7 +19,11 @@ export function SalaryPaymentModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const remaining = toSafeNumber(record.remainingAmount ?? toSafeNumber(record.net) - toSafeNumber(record.paidAmount), 0);
+  const remaining = toSafeNumber(
+    record.remainingAmount ??
+      toSafeNumber(record.net) - toSafeNumber(record.paidAmount),
+    0,
+  );
   const [amount, setAmount] = useState(remaining > 0 ? String(remaining) : "");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState<string>("Cash");
@@ -27,7 +31,11 @@ export function SalaryPaymentModal({
   const [notes, setNotes] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [idemKey] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}-${Math.random()}`));
+  const [idemKey] = useState(() =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random()}-${Math.random()}`,
+  );
 
   // Lock check
   const isLocked = record.status === "paid";
@@ -48,7 +56,9 @@ export function SalaryPaymentModal({
       return;
     }
     if (amt > remaining) {
-      setError(`Payment ${safeINR(amt)} exceeds remaining ${safeINR(remaining)}.`);
+      setError(
+        `Payment ${safeINR(amt)} exceeds remaining ${safeINR(remaining)}.`,
+      );
       return;
     }
     if (pending) return;
@@ -57,14 +67,27 @@ export function SalaryPaymentModal({
     try {
       const res = await fetch(`/api/salary/${record._id}/payments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Idempotency-Key": idemKey },
-        body: JSON.stringify({ amount: amt, date, paymentMethod: method, reference: reference.trim() || null, notes: notes.trim() || null }),
+        headers: {
+          "Content-Type": "application/json",
+          "X-Idempotency-Key": idemKey,
+        },
+        body: JSON.stringify({
+          amount: amt,
+          date,
+          paymentMethod: method,
+          reference: reference.trim() || null,
+          notes: notes.trim() || null,
+        }),
       });
       const j = await res.json();
       if (!res.ok) {
         const msg = j.error ?? "Payment failed.";
         // idempotent duplicate is success — already paid
-        if (msg.toLowerCase().includes("duplicate") || msg.toLowerCase().includes("already processed") || msg.toLowerCase().includes("concurrent")) {
+        if (
+          msg.toLowerCase().includes("duplicate") ||
+          msg.toLowerCase().includes("already processed") ||
+          msg.toLowerCase().includes("concurrent")
+        ) {
           // refetch authoritative before closing
           onSaved();
           return;
@@ -74,7 +97,10 @@ export function SalaryPaymentModal({
       onSaved();
     } catch (err) {
       const msg = (err as Error).message;
-      if (msg.toLowerCase().includes("duplicate") || msg.toLowerCase().includes("already processed")) {
+      if (
+        msg.toLowerCase().includes("duplicate") ||
+        msg.toLowerCase().includes("already processed")
+      ) {
         onSaved();
         return;
       }
@@ -85,30 +111,98 @@ export function SalaryPaymentModal({
   }
 
   return (
-    <Modal open onClose={onClose} title={`Record Payment — ${typeof record.labour === "string" ? record.labour : record.labour.name}`}>
-      <dl className="grid grid-cols-3 gap-3 text-sm">
-        <div><dt className="text-text-muted">Net payable</dt><dd className="font-semibold tnum">{safeINR(record.net)}</dd></div>
-        <div><dt className="text-text-muted">Already paid</dt><dd className="font-semibold tnum">{safeINR(record.paidAmount)}</dd></div>
-        <div><dt className="text-text-muted">Remaining</dt><dd className="font-semibold tnum text-primary">{safeINR(remaining)}</dd></div>
+    <Modal
+      open
+      onClose={onClose}
+      title={`Record Payment — ${typeof record.labour === "string" ? record.labour : record.labour.name}`}
+    >
+      <dl className="grid grid-cols-3 gap-3 rounded-lg bg-background p-3 text-sm">
+        <div>
+          <dt className="text-xs text-text-muted">Net payable</dt>
+          <dd className="mt-0.5 font-semibold tnum">{safeINR(record.net)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-text-muted">Already paid</dt>
+          <dd className="mt-0.5 font-semibold tnum">
+            {safeINR(record.paidAmount)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-text-muted">Remaining</dt>
+          <dd className="mt-0.5 font-semibold text-primary tnum">
+            {safeINR(remaining)}
+          </dd>
+        </div>
       </dl>
-      <p className="mt-2 text-xs text-text-muted">Payment reduces remaining salary payable only — not site labour cost. Default is remaining; you can pay partially.</p>
       {isLocked ? (
-        <p className="mt-4 text-sm text-danger">This salary is locked — no further payments allowed.</p>
+        <p className="mt-4 text-sm text-danger">
+          This salary is locked — no further payments allowed.
+        </p>
       ) : (
         <form className="mt-4 flex flex-col gap-4" onSubmit={handleSubmit}>
-          <Input label="Amount (₹)" type="number" min={1} max={remaining} value={amount} onChange={(e) => setAmount(e.target.value)} required disabled={pending} />
-          <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required disabled={pending} />
-          <Select label="Payment method" value={method} onChange={(e) => setMethod(e.target.value)} disabled={pending}>
+          <Input
+            label="Amount (₹)"
+            type="number"
+            min={1}
+            max={remaining}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            required
+            disabled={pending}
+          />
+          <Input
+            label="Date"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+            disabled={pending}
+          />
+          <Select
+            label="Payment method"
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
+            disabled={pending}
+          >
             {PAYMENT_METHODS.map((m) => (
-              <option key={m} value={m}>{m}</option>
+              <option key={m} value={m}>
+                {m}
+              </option>
             ))}
           </Select>
-          <Input label="Reference (optional)" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Txn ID / Cheque No" disabled={pending} />
-          <Textarea label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reason…" disabled={pending} />
-          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+          {method !== "Cash" && (
+            <Input
+              label="Reference (optional)"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="Txn ID / Cheque No"
+              disabled={pending}
+            />
+          )}
+          <Textarea
+            label="Notes (optional)"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Reason…"
+            disabled={pending}
+          />
+          {error && (
+            <p role="alert" className="text-sm text-danger">
+              {error}
+            </p>
+          )}
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onClose} disabled={pending}>Cancel</Button>
-            <Button type="submit" disabled={pending || isLocked}>{pending ? "Saving…" : "Record Payment"}</Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={pending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={pending || isLocked}>
+              {pending ? "Saving…" : "Record Payment"}
+            </Button>
           </div>
         </form>
       )}

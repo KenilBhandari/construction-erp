@@ -63,48 +63,49 @@ export function SalaryDetailView({ salaryId, open, onClose }: { salaryId: string
 
   if (!open) return null;
   return (
-    <Modal open={open} onClose={onClose} size="xl" title={salary ? `${typeof salary.labour === "string" ? salary.labour : salary.labour.name} — Salary Detail` : "Salary Detail"}>
+    <Modal open={open} onClose={onClose} size="xl" title="Salary Detail">
       {loading && <p className="text-sm text-text-muted">Loading…</p>}
       {error && <p className="text-sm text-danger">{error}</p>}
       {!loading && !error && salary && (
-        <div className="flex flex-col gap-4">
-          {/* Settlement summary */}
-          <Card className="p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold">{typeof salary.labour === "string" ? salary.labour : salary.labour.name}</p>
-                <p className="text-sm text-text-muted tnum">{formatDateShort(salary.periodStart)} – {formatDateShort(salary.periodEnd)} · {toSafeNumber(salary.presentDays)}P / {toSafeNumber(salary.halfDays)}H · {toSafeNumber(salary.overtimeHours)} OT hrs</p>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <Badge tone={salary.status === "paid" ? "success" : salary.status === "partially-paid" ? "warning" : "neutral"}>{STATUS_LABEL[salary.status]}</Badge>
-                {salary.needsReconciliation && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-warning">Needs reconciliation — attendance changed after payment</span>}
-                {salary.status !== "pending" && <span className="text-xs text-text-muted">Locked — snapshot frozen</span>}
-              </div>
+        <div className="flex flex-col gap-5">
+          {/* Header */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-base font-semibold text-text">{typeof salary.labour === "string" ? salary.labour : salary.labour.name}</p>
+              <p className="mt-0.5 text-sm text-text-muted tnum">{formatDateShort(salary.periodStart)} – {formatDateShort(salary.periodEnd)} · {toSafeNumber(salary.presentDays)}P / {toSafeNumber(salary.halfDays)}H · {toSafeNumber(salary.overtimeHours)} OT hrs</p>
             </div>
-            <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-              <div><dt className="text-text-muted">Attendance earnings (gross)</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(salary.gross)}</dd></div>
-              <div><dt className="text-text-muted">Overtime</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(salary.overtimeAmount)}</dd><dd className="text-xs text-text-muted">records {safeINR(salary.overtimeRecordsAmount)}</dd></div>
-              <div><dt className="text-text-muted">Gross (labour earned)</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(toSafeNumber(salary.gross) + toSafeNumber(salary.overtimeAmount))}</dd></div>
-              <div><dt className="text-text-muted">Snapshot rates</dt><dd className="mt-0.5 text-xs tnum">{safeINR(salary.snapshotDailyRate)}/d · {safeINR(salary.snapshotHourlyRate)}/h</dd></div>
+            <div className="flex items-center gap-2">
+              {salary.status !== "pending" && <span className="text-xs text-text-muted">Locked</span>}
+              <Badge tone={salary.status === "paid" ? "success" : salary.status === "partially-paid" ? "warning" : "neutral"}>{STATUS_LABEL[salary.status]}</Badge>
+            </div>
+          </div>
+          {salary.needsReconciliation && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-warning">Needs reconciliation — attendance changed after payment.</p>}
+
+          {/* Hero summary */}
+          <Card className="p-4">
+            <dl className="grid grid-cols-3 gap-3 text-sm">
+              <div><dt className="text-sm text-text-muted">Net payable</dt><dd className="mt-0.5 font-semibold tnum text-warning">{safeINR(salary.net)}</dd></div>
+              <div><dt className="text-sm text-text-muted">Paid</dt><dd className="mt-0.5 font-medium tnum">{safeINR(salary.paidAmount)}</dd></div>
+              <div><dt className="text-sm text-text-muted">Remaining</dt><dd className="mt-0.5 font-medium tnum">{safeINR(salary.remainingAmount)}</dd></div>
             </dl>
-            <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm sm:grid-cols-4">
-              <div><dt className="text-text-muted">Advance recovery</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(salary.advanceRecovery)}</dd><dd className="text-xs text-text-muted">Reduces advance outstanding</dd></div>
-              <div><dt className="text-text-muted">Other deductions</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(salary.deductions)}</dd></div>
-              <div><dt className="text-text-muted">Net payable</dt><dd className="mt-0.5 font-semibold tnum text-primary">{safeINR(salary.net)}</dd></div>
-              <div><dt className="text-text-muted">Paid / Remaining</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(salary.paidAmount)} <span className="text-text-muted">/</span> <span className={toSafeNumber(salary.remainingAmount ?? toSafeNumber(salary.net) - toSafeNumber(salary.paidAmount)) > 0 ? "text-warning" : ""}>{safeINR(salary.remainingAmount)}</span></dd></div>
+            <dl className="mt-3 grid grid-cols-3 gap-3 border-t border-border pt-3 text-sm sm:grid-cols-5">
+              <div><dt className="text-xs text-text-muted">Attendance</dt><dd className={`mt-0.5 tnum ${toSafeNumber(salary.gross) > 0 ? "font-semibold" : "text-text-muted"}`}>{safeINR(salary.gross)}</dd></div>
+              <div><dt className="text-xs text-text-muted">Overtime</dt><dd className={`mt-0.5 tnum ${toSafeNumber(salary.overtimeAmount) > 0 ? "font-semibold" : "text-text-muted"}`}>{safeINR(salary.overtimeAmount)}</dd></div>
+              <div><dt className="text-xs text-text-muted">Gross</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(toSafeNumber(salary.gross) + toSafeNumber(salary.overtimeAmount))}</dd></div>
+              <div><dt className="text-xs text-text-muted">Recovery</dt><dd className={`mt-0.5 tnum ${toSafeNumber(salary.advanceRecovery) > 0 ? "font-semibold" : "text-text-muted"}`}>{safeINR(salary.advanceRecovery)}</dd></div>
+              <div><dt className="text-xs text-text-muted">Deductions</dt><dd className={`mt-0.5 tnum ${toSafeNumber(salary.deductions) > 0 ? "font-semibold" : "text-text-muted"}`}>{safeINR(salary.deductions)}</dd></div>
             </dl>
           </Card>
 
           {/* Earnings breakdown */}
-          <Card className="p-4">
-            <h3 className="text-sm font-semibold text-text">Earnings breakdown — where work happened</h3>
-            <p className="mt-1 text-xs text-text-muted">Historical site/project attribution at time of attendance. Unassigned = no site selected.</p>
+          <div>
+            <h3 className="text-sm font-medium text-text">Earnings breakdown{salary.earningsBreakdown && salary.earningsBreakdown.length > 0 ? <span className="ml-1 font-normal text-text-muted">· {salary.earningsBreakdown.length} sites</span> : null}</h3>
             {!salary.earningsBreakdown || salary.earningsBreakdown.length === 0 ? (
-              <p className="mt-3 text-sm text-text-muted">No breakdown — legacy record or no attendance. Gross is single-site total.</p>
+              <p className="mt-2 text-sm text-text-muted">No breakdown — single-site total.</p>
             ) : (
-              <div className="mt-3 overflow-x-auto rounded border border-border">
+              <div className="mt-2 overflow-x-auto">
                 <Table>
-                  <THead><TR><TH>Site</TH><TH>Project</TH><TH numeric>P / H</TH><TH numeric>Work (₹)</TH><TH numeric>OT (₹)</TH><TH numeric>Total (₹)</TH></TR></THead>
+                  <THead><TR><TH>Site</TH><TH>Project</TH><TH numeric>Present/Half</TH><TH numeric>Gross</TH><TH numeric>OT</TH><TH numeric>Total</TH></TR></THead>
                   <tbody>
                     {salary.earningsBreakdown.map((b, idx) => {
                       const siteName = b.siteName ?? (b.site && typeof b.site === "object" && "name" in b.site ? (b.site as { name: string }).name : null) ?? "Unassigned";
@@ -121,26 +122,25 @@ export function SalaryDetailView({ salaryId, open, onClose }: { salaryId: string
                         </TR>
                       );
                     })}
-                    <TR key="total" className="bg-background font-semibold">
-                      <TD colSpan={3} className="text-right">Total labour earned</TD>
+                    <TR key="total" className="bg-background/50 text-sm">
+                      <TD colSpan={3} className="text-right text-text-muted">Total</TD>
                       <TD numeric>{safeINR(salary.gross)}</TD>
                       <TD numeric>{safeINR(salary.overtimeAmount)}</TD>
-                      <TD numeric>{safeINR(toSafeNumber(salary.gross) + toSafeNumber(salary.overtimeAmount))}</TD>
+                      <TD numeric><span className="font-semibold">{safeINR(toSafeNumber(salary.gross) + toSafeNumber(salary.overtimeAmount))}</span></TD>
                     </TR>
                   </tbody>
                 </Table>
               </div>
             )}
-          </Card>
+          </div>
 
           {/* Payments */}
-          <Card className="p-4">
-            <h3 className="text-sm font-semibold text-text">Payment history — actual cash paid</h3>
-            <p className="mt-1 text-xs text-text-muted">Reduces remaining salary payable only — does not change site labour cost.</p>
+          <div>
+            <h3 className="text-sm font-medium text-text">Payments{payments.length > 0 ? <span className="ml-1 font-normal text-text-muted">· {payments.length}</span> : null}</h3>
             {payments.length === 0 ? (
-              <p className="mt-3 text-sm text-text-muted">No payments yet.</p>
+              <p className="mt-2 text-sm text-text-muted">No payments yet.</p>
             ) : (
-              <div className="mt-3 overflow-x-auto rounded border border-border">
+              <div className="mt-2 overflow-x-auto">
                 <Table>
                   <THead><TR><TH>Date</TH><TH numeric>Amount</TH><TH>Method</TH><TH>Reference</TH><TH>Notes</TH></TR></THead>
                   <tbody>
@@ -157,15 +157,13 @@ export function SalaryDetailView({ salaryId, open, onClose }: { salaryId: string
                 </Table>
               </div>
             )}
-            <p className="mt-2 text-xs text-text-muted">Total paid {safeINR(salary.paidAmount)} · Remaining {safeINR(salary.remainingAmount)} · Status {STATUS_LABEL[salary.status]}</p>
-          </Card>
+          </div>
 
           {/* Adjustments */}
           {adjustments.length > 0 && (
-            <Card className="p-4 border-warning bg-amber-50/40">
-              <h3 className="text-sm font-semibold text-warning">Adjustments — attendance/OT changed after payment</h3>
-              <p className="mt-1 text-xs text-text-muted">Not silently applied — requires reconciliation. Create a new settlement or manual correction.</p>
-              <div className="mt-3 overflow-x-auto rounded border border-border bg-surface">
+            <div>
+              <h3 className="text-sm font-medium text-text">Adjustments{<span className="ml-1 font-normal text-text-muted">· {adjustments.length}</span>}</h3>
+              <div className="mt-2 overflow-x-auto">
                 <Table>
                   <THead><TR><TH>Date</TH><TH>Type</TH><TH numeric>Amount</TH><TH>Reason</TH></TR></THead>
                   <tbody>
@@ -180,7 +178,7 @@ export function SalaryDetailView({ salaryId, open, onClose }: { salaryId: string
                   </tbody>
                 </Table>
               </div>
-            </Card>
+            </div>
           )}
         </div>
       )}

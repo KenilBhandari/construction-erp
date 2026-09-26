@@ -65,7 +65,7 @@ export async function POST(req: Request) {
     const created = await Material.create({
       name: body.name,
       category: body.category,
-      unit: body.unit,
+      unit: body.unit ?? null,
       currentStock: 0,
       minimumStock: body.minimumStock,
       defaultPurchaseRate: body.defaultPurchaseRate,
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
         date: toDayDate(new Date().toISOString().slice(0, 10)),
         type: "adjustment",
         quantity: body.openingStock,
-        unit: body.unit,
+        unit: body.unit ?? null,
         rate: 0,
         total: 0,
         notes: "Opening stock",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -12,10 +12,10 @@ import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { Modal, ConfirmDialog } from "@/components/ui/modal";
 import { formatDateShort, formatINR, toDateInputValue } from "@/lib/utils";
+import { Pencil, Trash2 } from "lucide-react";
 import type { MaterialDTO, StockTransactionDTO, TransactionType } from "@/types/inventory";
 import { transactionMaterialName } from "@/types/inventory";
 import { siteProjectName } from "@/types/site";
-import type { ProjectDTO } from "@/types/project";
 import type { SiteDTO } from "@/types/site";
 
 interface ListResponse {
@@ -43,7 +43,7 @@ const TYPE_TONE: Record<TransactionType, "success" | "neutral" | "warning" | "pr
 
 function detailOf(t: StockTransactionDTO): string {
   if (t.type === "purchase") {
-    const bits = [`${formatINR(t.rate)} / ${t.unit}`];
+    const bits = [t.unit ? `${formatINR(t.rate)} / ${t.unit}` : formatINR(t.rate)];
     if (t.supplier) bits.push(t.supplier);
     if (t.invoiceNumber) bits.push(`#${t.invoiceNumber}`);
     return bits.join(" · ");
@@ -61,14 +61,15 @@ export function TransactionsList({
   description,
   types,
   newLabel,
+  headerSuffix,
 }: {
   title: string;
   description: string;
   types: TransactionType[];
   newLabel: string;
+  headerSuffix?: React.ReactNode;
 }) {
   const [materialId, setMaterialId] = useState("");
-  const [projectId, setProjectId] = useState("");
   const [siteId, setSiteId] = useState("");
   const [type, setType] = useState("");
   const [from, setFrom] = useState("");
@@ -76,7 +77,6 @@ export function TransactionsList({
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
   const [materials, setMaterials] = useState<MaterialDTO[]>([]);
-  const [projects, setProjects] = useState<ProjectDTO[]>([]);
   const [sites, setSites] = useState<SiteDTO[]>([]);
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,27 +92,15 @@ export function TransactionsList({
       .then(async (r) => r.json())
       .then((j) => {
         if (Array.isArray(j.data)) setMaterials(j.data);
-        console.log(materials, "maeakewrio");
-        
       })
       .catch(() => {});
-    fetch("/api/projects?limit=100")
-      .then(async (r) => r.json())
-      .then((j) => {
-        if (Array.isArray(j.data)) setProjects(j.data);
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (!projectId) return;
-    fetch(`/api/sites?project=${projectId}&limit=100`)
+    fetch("/api/sites?limit=100")
       .then(async (r) => r.json())
       .then((j) => {
         if (Array.isArray(j.data)) setSites(j.data);
       })
       .catch(() => {});
-  }, [projectId]);
+  }, []);
 
   // Stable string — the `types` prop is an inline array literal.
   const typeParam = type || types.join(",");
@@ -124,7 +112,6 @@ export function TransactionsList({
       type: typeParam,
     });
     if (materialId) params.set("material", materialId);
-    if (projectId) params.set("project", projectId);
     if (siteId) params.set("site", siteId);
     if (from) params.set("from", from);
     if (to) params.set("to", to);
@@ -137,7 +124,7 @@ export function TransactionsList({
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [materialId, projectId, siteId, typeParam, from, to, page, reloadKey]);
+  }, [materialId, siteId, typeParam, from, to, page, reloadKey]);
 
   function refresh() {
     setLoading(true);
@@ -172,7 +159,6 @@ export function TransactionsList({
     <div className="flex flex-col gap-5">
       <PageHeader
         title={title}
-        description={description}
         action={
           <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
             {newLabel}
@@ -180,21 +166,17 @@ export function TransactionsList({
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+      {headerSuffix}
+
+      <div className={`grid grid-cols-2 items-end gap-3 ${showTypeColumn ? "lg:grid-cols-[1.4fr_1fr_0.9fr_1fr_1fr_auto]" : "lg:grid-cols-[1.4fr_1fr_1fr_1fr_auto]"}`}>
         <Select aria-label="Filter by material" value={materialId} onChange={(e) => { setMaterialId(e.target.value); resetPage(); }}>
           <option value="">All materials</option>
           {materials.map((m) => (
             <option key={m._id} value={m._id}>{m.name}</option>
           ))}
         </Select>
-        <Select aria-label="Filter by project" value={projectId} onChange={(e) => { setProjectId(e.target.value); setSiteId(""); setSites([]); resetPage(); }}>
-          <option value="">All projects</option>
-          {projects.map((p) => (
-            <option key={p._id} value={p._id}>{p.name}</option>
-          ))}
-        </Select>
         <Select aria-label="Filter by site" value={siteId} onChange={(e) => { setSiteId(e.target.value); resetPage(); }}>
-          <option value="">{projectId ? "All sites" : "Pick project first"}</option>
+          <option value="">All sites</option>
           {sites.map((s) => (
             <option key={s._id} value={s._id}>{s.name}</option>
           ))}
@@ -209,14 +191,16 @@ export function TransactionsList({
         )}
         <Input label="From" type="date" value={from} onChange={(e) => { setFrom(e.target.value); resetPage(); }} />
         <Input label="To" type="date" value={to} onChange={(e) => { setTo(e.target.value); resetPage(); }} />
+        {(materialId || siteId || type || from || to) && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setMaterialId(""); setSiteId(""); setType(""); setFrom(""); setTo(""); resetPage(); }}
+          >
+            Clear
+          </Button>
+        )}
       </div>
-
-      {data && !loading && !error && (
-        <p className="text-sm text-text-muted tnum">
-          {data.total} entries
-          {types.includes("purchase") && ` · ${formatINR(data.totalAmount)} total`}
-        </p>
-      )}
 
       {loading && <TableSkeleton rows={6} />}
       {error && (
@@ -247,9 +231,9 @@ export function TransactionsList({
                 {showTypeColumn && <TH>Type</TH>}
                 <TH>Site</TH>
                 <TH numeric>Qty</TH>
-                <TH>Detail</TH>
+                <TH>Purpose</TH>
                 {types.includes("purchase") && <TH numeric>Amount</TH>}
-                <TH>Actions</TH>
+                <TH className="text-right">Actions</TH>
               </TR>
             </THead>
             <tbody>
@@ -267,27 +251,31 @@ export function TransactionsList({
                   </TD>
                   <TD numeric>
                     {t.type === "consumption" ? "−" : t.type === "adjustment" && t.quantity < 0 ? "" : "+"}
-                    {Math.abs(t.quantity)} {t.unit}
+                    {Math.abs(t.quantity)}{t.unit ? ` ${t.unit}` : ""}
                   </TD>
                   <TD>{detailOf(t)}</TD>
                   {types.includes("purchase") && (
                     <TD numeric>{t.type === "purchase" ? formatINR(t.total) : "—"}</TD>
                   )}
                   <TD>
-                    <div className="flex gap-2">
+                    <div className="flex items-center justify-end gap-1">
                       <button
                         type="button"
+                        aria-label="Edit entry"
+                        title="Edit"
                         onClick={() => { setEditing(t); setFormOpen(true); }}
-                        className="text-sm text-text-muted hover:underline"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
                       >
-                        Edit
+                        <Pencil className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
+                        aria-label="Delete entry"
+                        title="Delete"
                         onClick={() => { setDeleting(t); setDeleteError(null); }}
-                        className="text-sm text-danger hover:underline"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger"
                       >
-                        Delete
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </TD>
@@ -297,7 +285,7 @@ export function TransactionsList({
           </Table>
 
           <div className="flex items-center justify-between text-sm text-text-muted">
-            <p className="tnum">Page {data.page} of {totalPages}</p>
+            <p className="tnum">{data.total} entries{types.includes("purchase") && ` · ${formatINR(data.totalAmount)} total`} · Page {data.page} of {totalPages}</p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
                 Previous
@@ -373,9 +361,24 @@ function TransactionFormModal({
   const [modalMaterials, setModalMaterials] = useState<MaterialDTO[]>([]);
   const [materialQuery, setMaterialQuery] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [matHighlight, setMatHighlight] = useState(-1);
   const [materialsLoading, setMaterialsLoading] = useState(false);
   const [materialError, setMaterialError] = useState<string | null>(null);
+  const matWrapRef = useRef<HTMLDivElement>(null);
   const selectedMaterial = modalMaterials.find((m) => m._id === materialId) ?? materialOptions.find((m) => m._id === materialId);
+  const lockedSite = initial && initial.site && typeof initial.site === "object" ? initial.site : null;
+  const showLockedSiteOption = !!lockedSite && !sites.some((s) => s._id === (lockedSite as { _id: string })._id);
+
+  useEffect(() => {
+    function onOutside(e: MouseEvent) {
+      if (matWrapRef.current && !matWrapRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+        setMatHighlight(-1);
+      }
+    }
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, []);
 
   useEffect(() => {
     fetch("/api/sites?limit=100")
@@ -426,8 +429,11 @@ function TransactionFormModal({
   // Prefill purchase rate from the material master (create mode only).
   function onMaterialChange(id: string) {
     setMaterialId(id);
+    setMaterialQuery("");
+    setDropdownOpen(false);
+    setMatHighlight(-1);
     if (!initial && type === "purchase" && rate === "") {
-      const m = materialOptions.find((x) => x._id === id);
+      const m = modalMaterials.find((x) => x._id === id) ?? materialOptions.find((x) => x._id === id);
       if (m) setRate(String(m.defaultPurchaseRate));
     }
   }
@@ -498,65 +504,107 @@ function TransactionFormModal({
                 <option key={t} value={t}>{TYPE_LABEL[t]}</option>
               ))}
             </Select>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-text">Material <span className="text-danger">*</span></label>
+            <div className="flex flex-col gap-1" ref={matWrapRef}>
+              <label htmlFor="txn-material" className="text-sm font-medium text-text">Material <span className="text-danger">*</span></label>
               <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setDropdownOpen((o) => !o)}
-                  className="flex w-full items-center justify-between rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:outline-none"
-                >
-                  <span className={selectedMaterial ? "text-text" : "text-text-muted"}>
-                    {selectedMaterial ? `${selectedMaterial.name} — ${selectedMaterial.currentStock} ${selectedMaterial.unit} left` : "Select material…"}
-                  </span>
-                  <span className="text-text-muted">▾</span>
-                </button>
+                <input
+                  id="txn-material"
+                  value={dropdownOpen ? materialQuery : (selectedMaterial?.name ?? "")}
+                  onChange={(e) => {
+                    setMaterialQuery(e.target.value);
+                    setDropdownOpen(true);
+                    setMatHighlight(-1);
+                  }}
+                  onFocus={() => {
+                    setDropdownOpen(true);
+                    setMatHighlight(-1);
+                  }}
+                  onClick={() => {
+                    setDropdownOpen(true);
+                    setMatHighlight(-1);
+                  }}
+                  onKeyDown={(e) => {
+                    if (!dropdownOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+                      setDropdownOpen(true);
+                      setMatHighlight(0);
+                      e.preventDefault();
+                      return;
+                    }
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setMatHighlight((h) => Math.min(h + 1, modalMaterials.length - 1));
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setMatHighlight((h) => Math.max(h - 1, 0));
+                    } else if (e.key === "Enter") {
+                      if (matHighlight >= 0 && matHighlight < modalMaterials.length) {
+                        e.preventDefault();
+                        onMaterialChange(modalMaterials[matHighlight]._id);
+                      }
+                    } else if (e.key === "Escape") {
+                      setDropdownOpen(false);
+                      setMatHighlight(-1);
+                    }
+                  }}
+                  placeholder="Select material…"
+                  autoComplete="off"
+                  aria-autocomplete="list"
+                  aria-expanded={dropdownOpen}
+                  aria-controls="txn-material-suggestions"
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 pr-8 text-sm text-text placeholder:text-text-muted focus:border-primary focus:outline-none"
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-text-muted opacity-60">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4 L6 8 L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </span>
                 {dropdownOpen && (
-                  <div className="absolute left-0 right-0 z-10 mt-1 rounded-md border border-border bg-surface shadow-lg">
-                    <div className="p-2">
-                      <Input
-                        autoFocus
-                        placeholder="Search materials…"
-                        value={materialQuery}
-                        onChange={(e) => setMaterialQuery(e.target.value)}
-                      />
-                    </div>
-                    <div className="max-h-60 overflow-y-auto">
-                      {materialsLoading && <p className="px-3 py-2 text-sm text-text-muted">Loading…</p>}
-                      {materialError && <p className="px-3 py-2 text-sm text-danger">{materialError}</p>}
-                      {!materialsLoading && !materialError && modalMaterials.length === 0 && (
-                        <p className="px-3 py-2 text-sm text-text-muted">No materials found.</p>
-                      )}
-                      {!materialsLoading && !materialError && modalMaterials.map((m) => (
-                        <button
-                          key={m._id}
-                          type="button"
-                          onClick={() => {
-                            onMaterialChange(m._id);
-                            setDropdownOpen(false);
-                          }}
-                          className={`flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-border/50 ${materialId === m._id ? "bg-border/30 font-medium" : ""}`}
-                        >
-                          <span>{m.name}</span>
-                          <span className="text-xs text-text-muted">{m.currentStock} {m.unit} left · {m.category}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <ul
+                    id="txn-material-suggestions"
+                    role="listbox"
+                    className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-auto rounded-md border border-border bg-surface shadow-md"
+                  >
+                    {materialsLoading && <li className="px-3 py-2 text-sm text-text-muted">Loading…</li>}
+                    {materialError && <li className="px-3 py-2 text-sm text-danger">{materialError}</li>}
+                    {!materialsLoading && !materialError && modalMaterials.length === 0 && (
+                      <li className="px-3 py-2 text-sm text-text-muted">No materials found.</li>
+                    )}
+                    {!materialsLoading && !materialError && modalMaterials.map((m, idx) => (
+                      <li
+                        key={m._id}
+                        role="option"
+                        aria-selected={idx === matHighlight}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          onMaterialChange(m._id);
+                        }}
+                        onMouseEnter={() => setMatHighlight(idx)}
+                        className={`cursor-pointer px-3 py-2 text-sm ${idx === matHighlight ? "bg-primary/10 text-primary" : materialId === m._id ? "bg-border/30 font-medium text-text" : "text-text hover:bg-background"}`}
+                      >
+                        <span className="block">{m.name}</span>
+                        <span className={`block text-xs ${idx === matHighlight ? "text-primary/70" : "text-text-muted"}`}>{m.currentStock}{m.unit ? ` ${m.unit}` : ""} left · {m.category}</span>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
+              {!dropdownOpen && selectedMaterial && (
+                <p className="text-xs text-text-muted tnum">{selectedMaterial.currentStock}{selectedMaterial.unit ? ` ${selectedMaterial.unit}` : ""} left · {selectedMaterial.category}</p>
+              )}
             </div>
           </div>
         )}
         {initial && (
-          <p className="text-sm text-text-muted">
-            {transactionMaterialName(initial)} · {TYPE_LABEL[initial.type]} · material, site and type are fixed.
-          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Type" value={TYPE_LABEL[initial.type]} disabled />
+            <Input label="Material" value={transactionMaterialName(initial)} disabled />
+          </div>
         )}
         <div className="grid grid-cols-2 gap-4">
           <Input label="Date" required type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          <Select label="Site" required={type === "purchase" || type === "consumption"} value={siteId} onChange={(e) => setSiteId(e.target.value)}>
+          <Select label="Site" required={type === "purchase" || type === "consumption"} value={siteId} onChange={(e) => setSiteId(e.target.value)} disabled={!!initial}>
             <option value="">{type === "purchase" || type === "consumption" ? "Select site…" : "No site"}</option>
+            {showLockedSiteOption && lockedSite && (
+              <option value={lockedSite._id}>{lockedSite.name}</option>
+            )}
             {sites.map((s) => (
               <option key={s._id} value={s._id}>
                 {s.name} · {siteProjectName(s)}
@@ -564,9 +612,9 @@ function TransactionFormModal({
             ))}
           </Select>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className={`grid gap-4 ${(type === "purchase" || type === "consumption") ? "grid-cols-2" : "grid-cols-1"}`}>
           <Input
-            label={`Quantity${selectedMaterial ? ` (${selectedMaterial.unit})` : ""}${type === "adjustment" ? " (+/−)" : ""}`}
+            label={`Quantity${selectedMaterial?.unit ? ` (${selectedMaterial.unit})` : ""}${type === "adjustment" ? " (+/−)" : ""}`}
             required
             type="number"
             step="any"
@@ -577,6 +625,9 @@ function TransactionFormModal({
           {type === "purchase" && (
             <Input label="Rate (₹)" type="number" min={0} step="any" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="Defaults to material rate" />
           )}
+          {type === "consumption" && (
+            <Input label="Purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="Slab work" />
+          )}
         </div>
         {previewTotal !== null && !Number.isNaN(previewTotal) && (
           <p className="text-sm text-text-muted tnum">Total: {formatINR(previewTotal)}</p>
@@ -586,9 +637,6 @@ function TransactionFormModal({
             <Input label="Supplier" value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="Supplier name" />
             <Input label="Invoice #" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="INV-1024" />
           </div>
-        )}
-        {type === "consumption" && (
-          <Input label="Purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="Slab work" />
         )}
         <Textarea
           label={`Notes${type === "adjustment" ? " (required)" : ""}`}

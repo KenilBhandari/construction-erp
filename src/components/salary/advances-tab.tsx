@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Pencil, Trash2 } from "lucide-react";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { Modal, ConfirmDialog } from "@/components/ui/modal";
@@ -243,8 +243,7 @@ export function AdvancesTab() {
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-medium text-text">Advances — recoverable, not expenses</p>
-            <p className="text-xs text-text-muted">Advance → Recovery <em>or</em> Write-off. Separate from salary payment and site labour cost.</p>
+            <p className="text-sm font-medium text-text">Advances</p>
           </div>
           <div className="flex gap-2">
             <Button
@@ -268,37 +267,49 @@ export function AdvancesTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total Given" value={summaryLoading ? "…" : summary ? safeINR(summary.totalGiven) : "—"} hint="Money given" />
-        <StatCard label="Total Recovered" value={summaryLoading ? "…" : summary ? safeINR(summary.totalRecovered) : "—"} hint="Via salary recovery" />
-        <StatCard label="Total Written Off" value={summaryLoading ? "…" : summary ? safeINR(summary.totalWrittenOff) : "—"} hint="Unrecoverable → expense" />
-        <StatCard label="Outstanding" value={summaryLoading ? "…" : summary ? safeINR(summary.outstanding) : "—"} hint={labourId ? "For selected worker" : "All workers"} />
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <Card className="p-3">
+          <p className="text-xs text-text-muted">Total Given</p>
+          <p className="mt-0.5 text-lg font-semibold tnum">{summaryLoading ? "…" : summary ? safeINR(summary.totalGiven) : "—"}</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-xs text-text-muted">Total Recovered</p>
+          <p className="mt-0.5 text-lg font-semibold tnum">{summaryLoading ? "…" : summary ? safeINR(summary.totalRecovered) : "—"}</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-xs text-text-muted">Total Written Off <span className="text-[11px]">· Unrecoverable</span></p>
+          <p className="mt-0.5 text-lg font-semibold tnum">{summaryLoading ? "…" : summary ? safeINR(summary.totalWrittenOff) : "—"}</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-xs text-text-muted">Outstanding</p>
+          <p className="mt-0.5 text-lg font-semibold tnum text-primary">{summaryLoading ? "…" : summary ? safeINR(summary.outstanding) : "—"}</p>
+        </Card>
       </div>
 
       <Card className="p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Select aria-label="Filter by worker" value={labourId} onChange={(e) => { setLabourId(e.target.value); setPage(1); }}>
+        <div className="grid grid-cols-2 items-end gap-3 sm:grid-cols-[1.4fr_1fr_1fr_auto]">
+          <Select label="Worker" value={labourId} onChange={(e) => { setLabourId(e.target.value); setPage(1); }}>
             <option value="">All workers</option>
             {labour.map((l) => (<option key={l._id} value={l._id}>{l.name}</option>))}
           </Select>
           <Input label="From" type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
           <Input label="To" type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} />
+          <Button variant="outline" size="sm" onClick={() => { setLabourId(""); setFrom(""); setTo(""); setPage(1); }} disabled={!from && !to && !labourId} className={!from && !to && !labourId ? "invisible" : undefined}>Clear</Button>
         </div>
-        {(from || to || labourId) && <button type="button" onClick={() => { setLabourId(""); setFrom(""); setTo(""); setPage(1); }} className="mt-2 text-xs text-primary hover:underline">Clear filters</button>}
       </Card>
 
       {loading && <TableSkeleton rows={6} />}
       {error && <p role="alert" className="text-sm text-danger">{error} <button type="button" className="underline" onClick={refresh}>Retry</button></p>}
 
       {!loading && !error && data && data.data.length === 0 && (
-        <EmptyState title="No advances yet" description="Record money given in advance — outstanding until recovered (salary) or written off (expense)." action={<Button onClick={() => { setEditing(null); setFormOpen(true); }}>Add Advance</Button>} />
+        <EmptyState title="No advances yet" description="Record money given in advance." action={<Button onClick={() => { setEditing(null); setFormOpen(true); }}>Add Advance</Button>} />
       )}
 
       {!loading && !error && data && data.data.length > 0 && (
         <>
           <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
-              <THead><TR><TH>Date</TH><TH>Worker</TH><TH>Site / Project</TH><TH numeric>Amount</TH><TH>Payment</TH><TH>Reference</TH><TH>Reason / Notes</TH><TH>Actions</TH></TR></THead>
+              <THead><TR><TH>Date</TH><TH>Worker</TH><TH>Site / Project</TH><TH numeric>Amount</TH><TH>Payment</TH><TH>Reference</TH><TH>Reason / Notes</TH><TH className="text-right">Actions</TH></TR></THead>
               <tbody>
                 {data.data.map((a) => {
                   const siteLabel = advanceSiteName(a) ?? "—";
@@ -306,7 +317,7 @@ export function AdvancesTab() {
                   const siteProject = projectLabel ? `${siteLabel} · ${projectLabel}` : siteLabel;
                   const reasonNotes = [a.reason, a.notes].filter(Boolean).join(" — ") || "—";
                   return (
-                    <TR key={a._id}>
+                    <TR key={a._id} className="cursor-pointer hover:bg-background/70" onClick={() => setViewing(a)}>
                       <TD className="tnum">{formatDateShort(a.date)}</TD>
                       <TD className="font-medium">{advanceLabourName(a)}</TD>
                       <TD>{siteProject}</TD>
@@ -315,10 +326,25 @@ export function AdvancesTab() {
                       <TD className="tnum">{a.reference ?? "—"}</TD>
                       <TD className="max-w-[220px] truncate"><span title={reasonNotes}>{reasonNotes}</span></TD>
                       <TD>
-                        <div className="flex gap-2">
-                          <button type="button" onClick={() => setViewing(a)} className="text-sm text-primary hover:underline">View</button>
-                          <button type="button" onClick={() => { setEditing(a); setFormOpen(true); }} className="text-sm text-text-muted hover:underline">Edit</button>
-                          <button type="button" onClick={() => { setDeleting(a); setDeleteError(null); }} className="text-sm text-danger hover:underline">Delete</button>
+                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            aria-label="Edit advance"
+                            title="Edit"
+                            onClick={() => { setEditing(a); setFormOpen(true); }}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Delete advance"
+                            title="Delete"
+                            onClick={() => { setDeleting(a); setDeleteError(null); }}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       </TD>
                     </TR>
@@ -348,30 +374,29 @@ export function AdvancesTab() {
       )}
 
       {viewing && (
-        <Modal open={!!viewing} onClose={() => setViewing(null)} title={`Advance — ${advanceLabourName(viewing)} · ${safeINR(viewing.amount)}`} size="lg">
+        <Modal open={!!viewing} onClose={() => setViewing(null)} title="Advance Details" size="lg">
           <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div><dt className="text-text-muted">Date</dt><dd className="font-medium tnum">{formatDateShort(viewing.date)}</dd></div>
-              <div><dt className="text-text-muted">Amount</dt><dd className="font-semibold tnum">{safeINR(viewing.amount)}</dd></div>
-              <div><dt className="text-text-muted">Worker</dt><dd className="font-medium">{advanceLabourName(viewing)}</dd></div>
-              <div><dt className="text-text-muted">Site / Project</dt><dd>{advanceSiteName(viewing) ?? "—"} {viewing.project && typeof viewing.project === "object" && "name" in viewing.project ? `· ${(viewing.project as { name: string }).name}` : ""}</dd></div>
-              <div><dt className="text-text-muted">Payment</dt><dd>{viewing.paymentMethod ?? "—"} {viewing.reference ? `· ${viewing.reference}` : ""}</dd></div>
-              <div><dt className="text-text-muted">Reason</dt><dd>{viewing.reason ?? "—"}</dd></div>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="text-base font-semibold">{advanceLabourName(viewing)}</p>
+              <p className="text-sm font-semibold tnum">{safeINR(viewing.amount)}</p>
             </div>
-            {viewing.notes && <p className="text-sm text-text-muted">Notes: {viewing.notes}</p>}
-            <Card className="p-3 bg-background">
-              <p className="text-xs font-semibold text-text">Labour advance balance (single source of truth)</p>
+            <p className="-mt-3 text-xs text-text-muted tnum">{formatDateShort(viewing.date)}{viewing.paymentMethod ? ` · ${viewing.paymentMethod}` : ""}{viewing.reference ? ` · ${viewing.reference}` : ""}</p>
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <div><dt className="text-xs text-text-muted">Site / Project</dt><dd className="mt-0.5 font-medium">{advanceSiteName(viewing) ?? "—"} {viewing.project && typeof viewing.project === "object" && "name" in viewing.project ? `· ${(viewing.project as { name: string }).name}` : ""}</dd></div>
+              <div><dt className="text-xs text-text-muted">Reason</dt><dd className="mt-0.5">{viewing.reason ?? "—"}</dd></div>
+              {viewing.notes && <div className="col-span-2"><dt className="text-xs text-text-muted">Notes</dt><dd className="mt-0.5 text-sm">{viewing.notes}</dd></div>}
+            </dl>
+            <div className="border-t border-border pt-3">
+              <h3 className="text-sm font-medium text-text">Balance</h3>
               {viewSummary ? (
                 <dl className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-                  <div><dt className="text-text-muted">Total given</dt><dd className="font-semibold tnum">{safeINR(viewSummary.totalGiven)}</dd></div>
-                  <div><dt className="text-text-muted">Recovered</dt><dd className="font-semibold tnum">{safeINR(viewSummary.totalRecovered)}</dd></div>
-                  <div><dt className="text-text-muted">Written off</dt><dd className="font-semibold tnum">{safeINR(viewSummary.totalWrittenOff)}</dd></div>
-                  <div><dt className="text-text-muted">Outstanding</dt><dd className="font-semibold tnum text-primary">{safeINR(viewSummary.outstanding)}</dd></div>
+                  <div><dt className="text-xs text-text-muted">Total given</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(viewSummary.totalGiven)}</dd></div>
+                  <div><dt className="text-xs text-text-muted">Recovered</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(viewSummary.totalRecovered)}</dd></div>
+                  <div><dt className="text-xs text-text-muted">Written off</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(viewSummary.totalWrittenOff)}</dd></div>
+                  <div><dt className="text-xs text-text-muted">Outstanding</dt><dd className="mt-0.5 font-semibold tnum text-primary">{safeINR(viewSummary.outstanding)}</dd></div>
                 </dl>
               ) : <p className="mt-2 text-xs text-text-muted">Loading balance…</p>}
-              <p className="mt-2 text-xs text-text-muted">Outstanding = given − recovered − written off. This advance is one of the &quot;given&quot; rows.</p>
-            </Card>
-            <p className="text-xs text-text-muted">Write-off covers unrecoverable outstanding as a separate expense — does not affect salary earned or site cost.</p>
+            </div>
           </div>
         </Modal>
       )}
@@ -379,42 +404,39 @@ export function AdvancesTab() {
       {writeOffOpen && (
         <Modal open={writeOffOpen} onClose={resetWriteOff} title="Write off outstanding advance" size="lg">
           <form className="flex flex-col gap-4" onSubmit={handleWriteOff}>
-            <p className="text-sm font-medium text-text">Write off outstanding advance</p>
-            <p className="text-xs text-text-muted">This does not delete the advance history. It records the unrecovered amount as a company expense.</p>
-
-            <Select label="Worker *" required value={writeOffWorker} onChange={(e) => { setWriteOffWorker(e.target.value); setWriteOffError(null); setWriteOffSuccess(null); }}>
+            <Select label="Worker" required value={writeOffWorker} onChange={(e) => { setWriteOffWorker(e.target.value); setWriteOffError(null); setWriteOffSuccess(null); }}>
               <option value="">Select worker…</option>
               {labour.map((l) => (<option key={l._id} value={l._id}>{l.name} · {l.skill}</option>))}
             </Select>
 
             {writeOffWorker && (
-              <Card className="p-3 bg-background">
+              <div>
                 {writeOffSummaryLoading ? (
                   <p className="text-xs text-text-muted">Loading balance…</p>
                 ) : writeOffSummary ? (
                   <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-                    <div><dt className="text-text-muted">Total given</dt><dd className="font-semibold tnum">{safeINR(writeOffSummary.totalGiven)}</dd></div>
-                    <div><dt className="text-text-muted">Recovered</dt><dd className="font-semibold tnum">{safeINR(writeOffSummary.totalRecovered)}</dd></div>
-                    <div><dt className="text-text-muted">Written off</dt><dd className="font-semibold tnum">{safeINR(writeOffSummary.totalWrittenOff)}</dd></div>
-                    <div><dt className="text-text-muted">Outstanding</dt><dd className="font-semibold tnum text-primary">{safeINR(writeOffSummary.outstanding)}</dd></div>
+                    <div><dt className="text-xs text-text-muted">Total given</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(writeOffSummary.totalGiven)}</dd></div>
+                    <div><dt className="text-xs text-text-muted">Recovered</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(writeOffSummary.totalRecovered)}</dd></div>
+                    <div><dt className="text-xs text-text-muted">Written off</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(writeOffSummary.totalWrittenOff)}</dd></div>
+                    <div><dt className="text-xs text-text-muted">Outstanding</dt><dd className="mt-0.5 font-semibold tnum text-primary">{safeINR(writeOffSummary.outstanding)}</dd></div>
                   </dl>
                 ) : (
                   <p className="text-xs text-text-muted">No advance data.</p>
                 )}
-              </Card>
+              </div>
             )}
 
-            <Input label="Write-off amount (₹) *" required type="number" min={1} max={writeOffSummary?.outstanding} value={writeOffAmount} onChange={(e) => setWriteOffAmount(e.target.value)} placeholder={writeOffSummary ? `max ${safeINR(writeOffSummary.outstanding)}` : "1000"} disabled={writeOffPending} />
+            <Input label="Write-off amount (₹)" required type="number" min={1} max={writeOffSummary?.outstanding} value={writeOffAmount} onChange={(e) => setWriteOffAmount(e.target.value)} placeholder={writeOffSummary ? `max ${safeINR(writeOffSummary.outstanding)}` : "1000"} disabled={writeOffPending} />
             <Input label="Date" type="date" value={writeOffDate} onChange={(e) => setWriteOffDate(e.target.value)} disabled={writeOffPending} />
-            <Textarea label="Reason *" required value={writeOffReason} onChange={(e) => setWriteOffReason(e.target.value)} placeholder="Worker left, advance unrecoverable…" disabled={writeOffPending} />
-            <Select label="Site / Project — optional attribution" value={writeOffSite} onChange={(e) => setWriteOffSite(e.target.value)} disabled={writeOffPending}>
-              <option value="">No site — GENERAL</option>
+            <Textarea label="Reason" required value={writeOffReason} onChange={(e) => setWriteOffReason(e.target.value)} placeholder="Worker left, advance unrecoverable…" disabled={writeOffPending} />
+            <Select label="Site (optional)" value={writeOffSite} onChange={(e) => setWriteOffSite(e.target.value)} disabled={writeOffPending}>
+              <option value="">No site</option>
               {writeOffSites.map((s) => (<option key={s._id} value={s._id}>{s.name}</option>))}
             </Select>
 
             {writeOffError && <p role="alert" className="text-sm text-danger">{writeOffError}</p>}
             {writeOffSuccess && (
-              <p role="status" className="text-sm font-medium text-success">✓ {safeINR(writeOffSuccess.amount)} written off — Remaining outstanding: {safeINR(writeOffSuccess.remaining)}</p>
+              <p role="status" className="text-sm font-medium text-success">{safeINR(writeOffSuccess.amount)} written off — Remaining: {safeINR(writeOffSuccess.remaining)}</p>
             )}
 
             <div className="flex justify-end gap-2">
@@ -499,35 +521,119 @@ function AdvanceFormModal({
   }
 
   return (
-    <Modal open onClose={onClose} title={initial ? "Edit Advance" : "Add Advance"} size="lg">
+    <Modal
+      open
+      onClose={onClose}
+      title={initial ? "Edit Advance" : "Add Advance"}
+      size="lg"
+    >
       <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
         {!initial && (
-          <Select label="Worker *" required value={labourId} onChange={(e) => setLabourId(e.target.value)}>
+          <Select
+            label="Worker"
+            required
+            value={labourId}
+            onChange={(e) => setLabourId(e.target.value)}
+          >
             <option value="">Select worker…</option>
-            {labourOptions.map((l) => (<option key={l._id} value={l._id}>{l.name} · {l.skill}</option>))}
+            {labourOptions.map((l) => (
+              <option key={l._id} value={l._id}>
+                {l.name} · {l.skill}
+              </option>
+            ))}
           </Select>
         )}
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Date *" required type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          <Input label="Amount (₹) *" required type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="5000" />
+          <Input
+            label="Date"
+            required
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+          <Input
+            label="Amount (₹)"
+            required
+            type="number"
+            min={1}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="5000"
+          />
         </div>
-        <Select label="Site (optional — attribution only)" value={siteId} onChange={(e) => setSiteId(e.target.value)}>
-          <option value="">No site — outstanding belongs to labour</option>
-          {sites.map((s) => (<option key={s._id} value={s._id}>{s.name}</option>))}
+        <Select
+          label="Site (optional)"
+          value={siteId}
+          onChange={(e) => setSiteId(e.target.value)}
+        >
+          <option value="">No site</option>
+          {sites.map((s) => (
+            <option key={s._id} value={s._id}>
+              {s.name}
+            </option>
+          ))}
         </Select>
-        <p className="text-xs text-text-muted">Project derived from site; advances are recoverable, not an expense. Site is attribution only.</p>
         <div className="grid grid-cols-2 gap-4">
-          <Select label="Payment method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-            {PAYMENT_METHODS.map((m) => (<option key={m} value={m}>{m}</option>))}
+          <Select
+            label="Payment method"
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+          >
+            {PAYMENT_METHODS.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
           </Select>
-          <Input label="Reference" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Txn / cheque no." />
+
+          {paymentMethod !== "Cash" ? (
+            <Input
+              label="Reference"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="Txn / cheque no."
+            />
+          ) : (
+            <Input
+              label="Reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Family emergency…"
+            />
+          )}
         </div>
-        <Input label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Family emergency…" />
-        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes…" />
-        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+
+        {paymentMethod !== "Cash" && (
+          <Input
+            label="Reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Family emergency…"
+          />
+        )}
+        <Textarea
+          label="Notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Notes…"
+        />
+        {error && (
+          <p role="alert" className="text-sm text-danger">
+            {error}
+          </p>
+        )}
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onClose} disabled={pending}>Cancel</Button>
-          <Button type="submit" disabled={pending}>{pending ? "Saving…" : initial ? "Save Changes" : "Add Advance"}</Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={pending}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={pending}>
+            {pending ? "Saving…" : initial ? "Save Changes" : "Add Advance"}
+          </Button>
         </div>
       </form>
     </Modal>

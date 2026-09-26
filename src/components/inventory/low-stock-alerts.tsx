@@ -1,13 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { MaterialDTO } from "@/types/inventory";
 
-/** Compact low-stock watchlist for the Stock page and dashboard. */
+/** Low-stock items as narrow compact cards. Silent when all stocked. */
 export function LowStockAlerts({ limit = 5 }: { limit?: number }) {
   const [items, setItems] = useState<MaterialDTO[] | null>(null);
 
@@ -20,40 +19,40 @@ export function LowStockAlerts({ limit = 5 }: { limit?: number }) {
       .catch(() => setItems([]));
   }, [limit]);
 
-  if (items === null) return <Skeleton className="h-28 w-full" />;
-  if (items.length === 0) {
+  if (items === null) {
     return (
-      <Card className="p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-text">Low Stock</h2>
-          <Badge tone="success">All stocked</Badge>
-        </div>
-        <p className="mt-1 text-sm text-text-muted">
-          Every material is above its minimum level.
-        </p>
-      </Card>
+      <div className="grid max-w-sm grid-cols-2 gap-2">
+        {[0, 1].map((i) => (
+          <Skeleton key={i} className="h-[68px] w-full" />
+        ))}
+      </div>
     );
   }
+  if (items.length === 0) return null;
 
   return (
-    <Card className="p-5">
-      <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-text">Low Stock</h2>
-        <Badge tone="warning">{items.length} item(s)</Badge>
+    <div className="flex max-w-sm flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-text-muted">Low stock — reorder soon</p>
+        <Badge tone="warning" className="tnum">
+          {items.length}
+        </Badge>
       </div>
-      <ul className="mt-3 divide-y divide-border">
+      <div className="grid grid-cols-2 gap-2">
         {items.map((m) => (
-          <li key={m._id} className="flex items-center justify-between py-2 text-sm">
-            <span className="font-medium text-text">{m.name}</span>
-            <span className="tnum text-text-muted">
-              {m.currentStock} / min {m.minimumStock} {m.unit}
-            </span>
-          </li>
+          <Card key={m._id} className="p-3">
+            <p className="truncate text-xs text-text-muted">{m.name}</p>
+            <p className="mt-0.5 text-lg font-semibold tnum text-warning">
+              {m.currentStock}
+              <span className="text-xs font-normal text-text-muted">
+                {" "}
+                / {m.minimumStock}
+                {m.unit ? ` ${m.unit}` : ""}
+              </span>
+            </p>
+          </Card>
         ))}
-      </ul>
-      <Link href="/dashboard/materials" className="mt-3 inline-block text-sm text-primary hover:underline">
-        Manage materials
-      </Link>
-    </Card>
+      </div>
+    </div>
   );
 }

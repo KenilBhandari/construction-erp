@@ -13,6 +13,7 @@ export function Textarea({ label, error, id, className, ...props }: TextareaProp
       {label && (
         <label htmlFor={textareaId} className="text-sm font-medium text-text">
           {label}
+          {props.required && <span className="text-danger"> *</span>}
         </label>
       )}
       <textarea

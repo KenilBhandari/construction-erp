@@ -36,7 +36,7 @@ export interface MaterialDTO {
   _id: string;
   name: string;
   category: string;
-  unit: string;
+  unit: string | null;
   currentStock: number;
   minimumStock: number;
   defaultPurchaseRate: number;
@@ -57,7 +57,7 @@ export interface StockTransactionDTO {
   date: string;
   type: TransactionType;
   quantity: number;
-  unit: string;
+  unit: string | null;
   rate: number;
   total: number;
   supplier: string | null;

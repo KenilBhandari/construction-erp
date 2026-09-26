@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/ui/page-header";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { TableSkeleton } from "@/components/ui/skeleton";
@@ -48,6 +50,7 @@ export function ExpensesList() {
   const [error, setError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ExpenseDTO | null>(null);
+  const [viewing, setViewing] = useState<ExpenseDTO | null>(null);
   const [deleting, setDeleting] = useState<ExpenseDTO | null>(null);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -121,7 +124,6 @@ export function ExpensesList() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Expenses"
-        description="Day-to-day project costs. Salary and stock purchases count automatically — don't re-enter them."
         action={
           <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
             Add Expense
@@ -129,34 +131,44 @@ export function ExpensesList() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Select aria-label="Filter by project" value={projectId} onChange={(e) => { setProjectId(e.target.value); setSiteId(""); setSites([]); resetPage(); }}>
+      <div className="grid max-w-sm grid-cols-2 gap-2">
+        <Card className="p-3">
+          <p className="text-xs text-text-muted">Total</p>
+          <p className="mt-0.5 text-lg font-semibold tnum">{data && !error ? formatINR(data.totalAmount) : "—"}</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-xs text-text-muted">Entries</p>
+          <p className="mt-0.5 text-lg font-semibold tnum">{data && !error ? data.total : "—"}</p>
+        </Card>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Select aria-label="Filter by project" className="w-44" value={projectId} onChange={(e) => { setProjectId(e.target.value); setSiteId(""); setSites([]); resetPage(); }}>
           <option value="">All projects</option>
           {projects.map((p) => (
             <option key={p._id} value={p._id}>{p.name}</option>
           ))}
         </Select>
-        <Select aria-label="Filter by site" value={siteId} onChange={(e) => { setSiteId(e.target.value); resetPage(); }}>
+        <Select aria-label="Filter by site" className="w-40" value={siteId} onChange={(e) => { setSiteId(e.target.value); resetPage(); }}>
           <option value="">{projectId ? "All sites" : "Pick project first"}</option>
           {sites.map((s) => (
             <option key={s._id} value={s._id}>{s.name}</option>
           ))}
         </Select>
-        <Select aria-label="Filter by category" value={category} onChange={(e) => { setCategory(e.target.value); resetPage(); }}>
+        <Select aria-label="Filter by category" className="w-40" value={category} onChange={(e) => { setCategory(e.target.value); resetPage(); }}>
           <option value="">All categories</option>
           {EXPENSE_CATEGORIES.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </Select>
-        <Input label="From" type="date" value={from} onChange={(e) => { setFrom(e.target.value); resetPage(); }} />
-        <Input label="To" type="date" value={to} onChange={(e) => { setTo(e.target.value); resetPage(); }} />
+        <Input aria-label="From date" type="date" className="w-36" value={from} onChange={(e) => { setFrom(e.target.value); resetPage(); }} />
+        <Input aria-label="To date" type="date" className="w-36" value={to} onChange={(e) => { setTo(e.target.value); resetPage(); }} />
+        {(projectId || siteId || category || from || to) && (
+          <Button variant="outline" size="sm" onClick={() => { setProjectId(""); setSiteId(""); setSites([]); setCategory(""); setFrom(""); setTo(""); resetPage(); }}>
+            Clear
+          </Button>
+        )}
       </div>
-
-      {data && !loading && !error && (
-        <p className="text-sm text-text-muted tnum">
-          {data.total} expense(s) · {formatINR(data.totalAmount)} total
-        </p>
-      )}
 
       {loading && <TableSkeleton rows={6} />}
       {error && (
@@ -168,7 +180,6 @@ export function ExpensesList() {
       {!loading && !error && data && data.data.length === 0 && (
         <EmptyState
           title="No expenses yet"
-          description="Record transport, equipment, contractor and other site costs."
           action={
             <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
               Add Expense
@@ -187,47 +198,48 @@ export function ExpensesList() {
                 <TH>Project / Site</TH>
                 <TH>Category</TH>
                 <TH numeric>Amount</TH>
-                <TH>Actions</TH>
+                <TH className="text-right">Actions</TH>
               </TR>
             </THead>
             <tbody>
-              {data.data.map((e) => (
-                <TR key={e._id}>
+              {data.data.map((e) => {
+                const site = siteName(e);
+                return (
+                <TR key={e._id} className="cursor-pointer hover:bg-background/70" onClick={() => setViewing(e)}>
                   <TD className="tnum">{formatDateShort(e.date)}</TD>
-                  <TD>
-                    <span className="font-medium">{e.description}</span>
-                    <p className="text-xs text-text-muted">
-                      {[e.vendor, e.paymentMethod].filter(Boolean).join(" · ")}
-                    </p>
-                  </TD>
-                  <TD>
-                    {projectName(e)}
-                    <p className="text-xs text-text-muted">{siteName(e)}</p>
+                  <TD className="max-w-[220px] truncate font-medium text-primary" title={e.description}>{e.description}</TD>
+                  <TD className="max-w-[200px] truncate" title={site === "—" ? projectName(e) : `${projectName(e)} · ${site}`}>
+                    {projectName(e)}{site === "—" ? "" : ` · ${site}`}
                   </TD>
                   <TD>
                     <Badge tone="neutral">{e.category}</Badge>
                   </TD>
                   <TD numeric>{formatINR(e.amount)}</TD>
                   <TD>
-                    <div className="flex gap-2">
+                    <div className="flex items-center justify-end gap-1" onClick={(ev) => ev.stopPropagation()}>
                       <button
                         type="button"
+                        aria-label="Edit expense"
+                        title="Edit"
                         onClick={() => { setEditing(e); setFormOpen(true); }}
-                        className="text-sm text-text-muted hover:underline"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
                       >
-                        Edit
+                        <Pencil className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
+                        aria-label="Delete expense"
+                        title="Delete"
                         onClick={() => { setDeleting(e); setDeleteError(null); }}
-                        className="text-sm text-danger hover:underline"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger"
                       >
-                        Delete
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </TD>
                 </TR>
-              ))}
+                );
+              })}
             </tbody>
           </Table>
 
@@ -258,12 +270,41 @@ export function ExpensesList() {
         />
       )}
 
+      {viewing && (
+        <Modal open={!!viewing} onClose={() => setViewing(null)} title="Expense Details" size="lg">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="text-base font-semibold">{viewing.description}</p>
+              <p className="text-sm font-semibold tnum">{formatINR(viewing.amount)}</p>
+            </div>
+            <p className="-mt-3 text-xs text-text-muted tnum">
+              {formatDateShort(viewing.date)}
+              {viewing.paymentMethod ? ` · ${viewing.paymentMethod}` : ""}
+              {viewing.reference ? ` · ${viewing.reference}` : ""}
+            </p>
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <dt className="text-xs text-text-muted">Project / Site</dt>
+                <dd className="mt-0.5 font-medium">
+                  {projectName(viewing)}{siteName(viewing) === "—" ? "" : ` · ${siteName(viewing)}`}
+                </dd>
+              </div>
+              <div><dt className="text-xs text-text-muted">Category</dt><dd className="mt-0.5">{viewing.category}</dd></div>
+              <div><dt className="text-xs text-text-muted">Vendor</dt><dd className="mt-0.5">{viewing.vendor ?? "—"}</dd></div>
+              <div><dt className="text-xs text-text-muted">Payment Method</dt><dd className="mt-0.5">{viewing.paymentMethod}</dd></div>
+              {viewing.reference && <div><dt className="text-xs text-text-muted">Reference</dt><dd className="mt-0.5 tnum">{viewing.reference}</dd></div>}
+              {viewing.notes && <div className="col-span-2"><dt className="text-xs text-text-muted">Notes</dt><dd className="mt-0.5 text-sm">{viewing.notes}</dd></div>}
+            </dl>
+          </div>
+        </Modal>
+      )}
+
       <ConfirmDialog
         open={deleting !== null}
         onClose={() => setDeleting(null)}
         onConfirm={handleDelete}
         title="Delete this expense?"
-        description={deleteError ?? "Project expense totals update automatically."}
+        description={deleteError ?? `Deletes ${deleting?.description ?? "this expense"} permanently.`}
         pending={deletePending}
       />
     </div>
@@ -300,6 +341,9 @@ function ExpenseFormModal({
   const [sites, setSites] = useState<SiteDTO[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const initialSiteObj = initial && initial.site && typeof initial.site === "object" ? initial.site : null;
+  const lockedSiteOption = initialSiteObj && !sites.some((s) => s._id === initialSiteObj._id) ? initialSiteObj : null;
 
   useEffect(() => {
     if (!projectId) return;
@@ -364,6 +408,9 @@ function ExpenseFormModal({
           </Select>
           <Select label="Site (optional)" value={siteId} onChange={(e) => setSiteId(e.target.value)}>
             <option value="">{projectId ? "No site" : "Pick project first"}</option>
+            {lockedSiteOption && (
+              <option value={lockedSiteOption._id}>{lockedSiteOption.name}</option>
+            )}
             {sites.map((s) => (
               <option key={s._id} value={s._id}>{s.name}</option>
             ))}
@@ -391,9 +438,6 @@ function ExpenseFormModal({
           <Input label="Reference" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Bill / txn no." />
         </div>
         <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-        <p className="text-xs leading-5 text-text-muted">
-          Salary and stock purchases already count toward project cost — log only other spending here.
-        </p>
         {error && (
           <p role="alert" className="text-sm text-danger">{error}</p>
         )}

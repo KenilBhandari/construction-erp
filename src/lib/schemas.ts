@@ -179,7 +179,10 @@ export const advanceUpdateSchema = z.object({
 export const materialCreateSchema = z.object({
   name: z.string().trim().min(2, "Material name is required.").max(120),
   category: z.string().trim().min(2, "Category is required.").max(60),
-  unit: z.enum(STOCK_UNITS),
+  unit: z.preprocess(
+    (v) => (v === "" || v === null ? undefined : v),
+    z.enum(STOCK_UNITS).optional(),
+  ),
   minimumStock: z.coerce.number().min(0).default(0),
   defaultPurchaseRate: z.coerce.number().min(0).default(0),
   openingStock: z.coerce.number().min(0).default(0),
@@ -189,7 +192,10 @@ export const materialCreateSchema = z.object({
 export const materialUpdateSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
   category: z.string().trim().min(2).max(60).optional(),
-  unit: z.enum(STOCK_UNITS).optional(),
+  unit: z.preprocess(
+    (v) => (v === "" ? null : v),
+    z.enum(STOCK_UNITS).nullable().optional(),
+  ),
   minimumStock: z.coerce.number().min(0).optional(),
   defaultPurchaseRate: z.coerce.number().min(0).optional(),
   notes: optionalText.optional(),

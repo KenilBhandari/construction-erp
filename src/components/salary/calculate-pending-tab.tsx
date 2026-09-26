@@ -11,6 +11,7 @@ import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/ui/modal";
 import { formatDateShort, safeINR, toDateInputValue, toSafeNumber } from "@/lib/utils";
+import { CreditCardPlus, Pencil, RefreshCw, X } from "lucide-react";
 import type { SalaryDTO, SalaryStatus } from "@/types/salary";
 import { salaryLabourName } from "@/types/salary";
 import type { LabourDTO } from "@/types/labour";
@@ -37,13 +38,6 @@ const STATUS_LABEL: Record<SalaryStatus, string> = {
   paid: "Paid",
 };
 
-function mondayOfThisWeek(): string {
-  const now = new Date();
-  const day = (now.getDay() + 6) % 7;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - day);
-  return toDateInputValue(monday);
-}
 function firstOfMonth(): string {
   const now = new Date();
   return toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -51,7 +45,7 @@ function firstOfMonth(): string {
 
 export function CalculatePendingTab() {
   const [calcLabour, setCalcLabour] = useState("");
-  const [calcStart, setCalcStart] = useState(() => mondayOfThisWeek());
+  const [calcStart, setCalcStart] = useState(() => firstOfMonth());
   const [calcEnd, setCalcEnd] = useState(() => toDateInputValue());
   const [calcRecovery, setCalcRecovery] = useState("0");
   const [calcDeductions, setCalcDeductions] = useState("0");
@@ -229,20 +223,6 @@ export function CalculatePendingTab() {
     <div className="flex flex-col gap-6">
       <Card className="p-5">
         <h2 className="text-base font-semibold text-text">Calculate Salary</h2>
-        <p className="mt-1 text-sm text-text-muted">
-          Attendance/OT → Labour earnings → Salary settlement → Salary payment{" "}
-          <span className="mx-1 text-border">·</span> Advance → Recovery{" "}
-          <em>or</em> Write-off — separate ledgers, never double-counted.
-        </p>
-        <p className="mt-1 text-xs text-text-muted">
-          Formula:{" "}
-          <span className="font-medium text-text">
-            gross (present × daily + half × 0.5 + OT)
-          </span>{" "}
-          − recovery − deductions ={" "}
-          <span className="font-semibold">net payable</span>. Recovery is per
-          settlement; advances never auto-deduct.
-        </p>
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Select
@@ -253,7 +233,7 @@ export function CalculatePendingTab() {
             <option value="">Select worker…</option>
             {labour.map((l) => (
               <option key={l._id} value={l._id}>
-                {l.name} · {l.skill} · {safeINR(l.dailyRate)}/d
+                {l.name} - {l.skill}
               </option>
             ))}
           </Select>
@@ -295,7 +275,7 @@ export function CalculatePendingTab() {
         {lastResult && (
           <div className="mt-4 rounded-lg border border-border bg-background p-4">
             <h3 className="text-sm font-semibold text-text">
-              Last calculation — {salaryLabourName(lastResult)} ·{" "}
+              {salaryLabourName(lastResult)} ·{" "}
               {formatDateShort(lastResult.periodStart)} –{" "}
               {formatDateShort(lastResult.periodEnd)}
             </h3>
@@ -305,129 +285,58 @@ export function CalculatePendingTab() {
                 <dd className="mt-0.5 font-semibold tnum">
                   {safeINR(lastResult.gross)}
                 </dd>
-                <dd className="text-xs text-text-muted">
-                  {lastResult.presentDays} present · {lastResult.halfDays} half
-                </dd>
+              
               </div>
               <div>
                 <dt className="text-text-muted">Overtime</dt>
                 <dd className="mt-0.5 font-semibold tnum">
                   {safeINR(lastResult.overtimeAmount)}
                 </dd>
-                <dd className="text-xs text-text-muted">
-                  {lastResult.overtimeHours} hrs · records{" "}
-                  {safeINR(lastResult.overtimeRecordsAmount)}
-                </dd>
+             
               </div>
               <div>
-                <dt className="text-text-muted">Gross (labour earnings)</dt>
+                <dt className="text-text-muted">Gross</dt>
                 <dd className="mt-0.5 font-semibold tnum">
                   {safeINR(
                     toSafeNumber(lastResult.gross) +
                       toSafeNumber(lastResult.overtimeAmount),
                   )}
                 </dd>
-                <dd className="text-xs text-text-muted">
-                  Site cost before deductions
-                </dd>
+             
               </div>
               <div>
                 <dt className="text-text-muted">Net payable</dt>
                 <dd className="mt-0.5 font-semibold tnum text-primary">
                   {safeINR(lastResult.net)}
                 </dd>
-                <dd className="text-xs text-text-muted">
-                  Paid {safeINR(lastResult.paidAmount)} · Remaining{" "}
-                  {safeINR(lastResult.remainingAmount)}
-                </dd>
+               
               </div>
             </dl>
-            <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm sm:grid-cols-3">
-              <div>
-                <dt className="text-text-muted">
-                  Advance outstanding (before)
-                </dt>
-                <dd className="font-medium tnum">{safeINR(lastOutstanding)}</dd>
-              </div>
-              <div>
-                <dt className="text-text-muted">Recovery this settlement</dt>
-                <dd
-                  className={`font-semibold tnum ${toSafeNumber(lastResult.advanceRecovery) > 0 ? "text-warning" : ""}`}
-                >
-                  {safeINR(lastResult.advanceRecovery)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-text-muted">Remaining advance (after)</dt>
-                <dd className="font-semibold tnum">
-                  {safeINR(
-                    lastOutstanding !== null
-                      ? Math.max(
-                          0,
-                          toSafeNumber(lastOutstanding) -
-                            toSafeNumber(lastResult.advanceRecovery),
-                        )
-                      : null,
-                  )}
-                </dd>
-              </div>
-            </dl>
-            <p className="mt-2 text-xs text-text-muted">
-              Other deductions {safeINR(lastResult.deductions)} · Recovery
-              reduces <em>advance outstanding + salary payable</em>, not site
-              labour cost.
-            </p>
-            {lastResult.earningsBreakdown &&
-              lastResult.earningsBreakdown.length > 1 && (
-                <div className="mt-3">
-                  <p className="text-xs font-medium text-text">
-                    Multi-site breakdown ({lastResult.earningsBreakdown.length}{" "}
-                    sites)
-                  </p>
-                  <div className="mt-1 overflow-x-auto rounded border border-border">
-                    <table className="w-full text-xs">
-                      <thead className="bg-background">
-                        <tr>
-                          <th className="px-2 py-1 text-left font-medium text-text-muted">
-                            Site
-                          </th>
-                          <th className="px-2 py-1 text-left font-medium text-text-muted">
-                            Gross
-                          </th>
-                          <th className="px-2 py-1 text-left font-medium text-text-muted">
-                            OT
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {lastResult.earningsBreakdown.map((b, idx) => {
-                          const siteName =
-                            b.siteName ??
-                            (b.site &&
-                            typeof b.site === "object" &&
-                            "name" in b.site
-                              ? (b.site as { name: string }).name
-                              : null) ??
-                            "Unassigned";
-                          return (
-                            <tr key={idx} className="border-t border-border">
-                              <td className="px-2 py-1 tnum">
-                                {siteName} {b.presentDays}P/{b.halfDays}H
-                              </td>
-                              <td className="px-2 py-1 tnum">
-                                {safeINR(b.gross)}
-                              </td>
-                              <td className="px-2 py-1 tnum">
-                                {safeINR(b.overtimeAmount)}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+            {(() => {
+              const before = toSafeNumber(lastOutstanding, 0);
+              const rec = toSafeNumber(lastResult.advanceRecovery, 0);
+              const after = lastOutstanding !== null ? Math.max(0, before - rec) : 0;
+              const showAdvance = before > 0 || rec > 0 || after > 0;
+              return showAdvance ? (
+                <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm sm:grid-cols-3">
+                  <div>
+                    <dt className="text-text-muted">Advance outstanding (before)</dt>
+                    <dd className="font-medium tnum">{safeINR(lastOutstanding)}</dd>
                   </div>
-                </div>
-              )}
+                  <div>
+                    <dt className="text-text-muted">Recovery this settlement</dt>
+                    <dd className={`font-semibold tnum ${rec > 0 ? "text-warning" : ""}`}>
+                      {safeINR(lastResult.advanceRecovery)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-text-muted">Remaining advance (after)</dt>
+                    <dd className="font-semibold tnum">{safeINR(after)}</dd>
+                  </div>
+                </dl>
+              ) : null;
+            })()}
+         
             <div className="mt-3 flex gap-2">
               <Button size="sm" onClick={() => setViewing(lastResult._id)}>
                 View details
@@ -446,7 +355,7 @@ export function CalculatePendingTab() {
         )}
       </Card>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="flex flex-col gap-3 sm:flex-row max-w-xs">
         <div className="flex-1">
           <Select
             aria-label="Filter by worker"
@@ -464,9 +373,6 @@ export function CalculatePendingTab() {
             ))}
           </Select>
         </div>
-        <p className="self-center text-sm text-text-muted">
-          Pending settlements only — frozen after first payment.
-        </p>
       </div>
 
       {loading && <TableSkeleton rows={6} />}
@@ -481,7 +387,7 @@ export function CalculatePendingTab() {
       {!loading && !error && data && data.data.length === 0 && (
         <EmptyState
           title="No pending settlements"
-          description="Calculate a worker's pay for a week or month to create a pending settlement. Multi-site work appears as one settlement with a breakdown."
+          description="Calculate a worker's pay for a week or month to create a pending settlement."
         />
       )}
       {!loading && !error && data && data.data.length > 0 && (
@@ -496,10 +402,8 @@ export function CalculatePendingTab() {
                   <TH numeric>Recovery</TH>
                   <TH numeric>Ded.</TH>
                   <TH numeric>Net</TH>
-                  <TH numeric>Paid</TH>
-                  <TH numeric>Remaining</TH>
                   <TH>Status</TH>
-                  <TH>Actions</TH>
+                  <TH className="text-right">Actions</TH>
                 </TR>
               </THead>
               <tbody>
@@ -509,17 +413,14 @@ export function CalculatePendingTab() {
                       toSafeNumber(s.net) - toSafeNumber(s.paidAmount),
                   );
                   return (
-                    <TR key={s._id}>
+                    <TR key={s._id} className="cursor-pointer hover:bg-background/70" onClick={() => setViewing(s._id)}>
                       <TD>
                         <span className="font-medium">
                           {salaryLabourName(s)}
                         </span>
                         <p className="text-xs text-text-muted tnum">
                           {formatDateShort(s.periodStart)} –{" "}
-                          {formatDateShort(s.periodEnd)}{" "}
-                          {s.earningsBreakdown && s.earningsBreakdown.length > 1
-                            ? `· ${s.earningsBreakdown.length} sites`
-                            : ""}
+                          {formatDateShort(s.periodEnd)}
                         </p>
                       </TD>
                       <TD numeric>
@@ -534,16 +435,12 @@ export function CalculatePendingTab() {
                       <TD numeric>{safeINR(s.advanceRecovery)}</TD>
                       <TD numeric>{safeINR(s.deductions)}</TD>
                       <TD numeric>
-                        <span className="font-semibold">{safeINR(s.net)}</span>
-                      </TD>
-                      <TD numeric>{safeINR(s.paidAmount)}</TD>
-                      <TD numeric>
                         <span
                           className={
-                            remaining > 0 ? "font-semibold text-warning" : ""
+                            remaining > 0 ? "font-semibold text-warning" : "font-semibold"
                           }
                         >
-                          {safeINR(remaining)}
+                          {safeINR(s.net)}
                         </span>
                       </TD>
                       <TD>
@@ -552,46 +449,47 @@ export function CalculatePendingTab() {
                         </Badge>
                       </TD>
                       <TD>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setViewing(s._id)}
-                            className="text-sm text-text-muted hover:underline"
-                          >
-                            View
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRecalculate(s)}
-                            className="text-sm text-text-muted hover:underline"
-                          >
-                            Recalc
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditing(s)}
-                            className="text-sm text-text-muted hover:underline"
-                          >
-                            Edit
-                          </button>
+                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                           {remaining > 0 && (
                             <button
                               type="button"
+                              aria-label="Pay"
+                              title="Pay"
                               onClick={() => setPaying(s)}
-                              className="text-sm font-medium text-primary hover:underline"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-primary hover:bg-primary/10"
                             >
-                              Pay
+                              <CreditCardPlus className="h-4 w-4" />
                             </button>
                           )}
                           <button
                             type="button"
+                            aria-label="Recalculate"
+                            title="Recalculate"
+                            onClick={() => handleRecalculate(s)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Edit settlement"
+                            title="Edit"
+                            onClick={() => setEditing(s)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Delete settlement"
+                            title="Delete"
                             onClick={() => {
                               setDeleting(s);
                               setDeleteError(null);
                             }}
-                            className="text-sm text-danger hover:underline"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger"
                           >
-                            Delete
+                            <X className="h-4 w-4" />
                           </button>
                         </div>
                       </TD>

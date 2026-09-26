@@ -5,7 +5,7 @@ const MaterialSchema = new Schema(
     name: { type: String, required: true, trim: true },
     // Free text with UI suggestions so new categories work (§22).
     category: { type: String, required: true, trim: true, index: true },
-    unit: { type: String, required: true, trim: true },
+    unit: { type: String, default: null, trim: true },
     // Maintained by stock transactions — never edited directly.
     currentStock: { type: Number, required: true, default: 0 },
     minimumStock: { type: Number, required: true, min: 0, default: 0 },
