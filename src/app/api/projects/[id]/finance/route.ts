@@ -14,7 +14,12 @@ export async function GET(
     const { id } = await params;
     objectIdSchema.parse(id);
     await connectDB();
-    return ok(await getProjectFinance(id));
+    const url = new URL(_req.url);
+    const from = url.searchParams.get("from")?.trim() || undefined;
+    const to = url.searchParams.get("to")?.trim() || undefined;
+    const site = url.searchParams.get("site")?.trim() || undefined;
+    const scoped = from || to || site ? { from, to, site } : undefined;
+    return ok(await getProjectFinance(id, scoped));
   } catch (err) {
     return fail(err);
   }

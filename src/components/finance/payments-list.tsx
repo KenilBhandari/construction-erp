@@ -114,16 +114,10 @@ export function PaymentsList() {
         }
       />
 
-      <div className="grid max-w-sm grid-cols-2 gap-2">
-        <Card className="p-3">
-          <p className="text-xs text-text-muted">Received</p>
-          <p className="mt-0.5 text-lg font-semibold tnum">{data && !error ? formatINR(data.totalReceived) : "—"}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs text-text-muted">Entries</p>
-          <p className="mt-0.5 text-lg font-semibold tnum">{data && !error ? data.total : "—"}</p>
-        </Card>
-      </div>
+      <Card className="w-44 p-3">
+        <p className="text-xs text-text-muted">Received</p>
+        <p className="mt-0.5 text-lg font-semibold tnum">{data && !error ? formatINR(data.totalReceived) : "—"}</p>
+      </Card>
 
       <div className="flex flex-wrap items-center gap-2">
         <Select aria-label="Filter by project" className="w-44" value={projectId} onChange={(e) => { setProjectId(e.target.value); resetPage(); }}>
@@ -211,7 +205,7 @@ export function PaymentsList() {
           </Table>
 
           <div className="flex items-center justify-between text-sm text-text-muted">
-            <p className="tnum">Page {data.page} of {totalPages}</p>
+            <p className="tnum">{data.total} entries · Page {data.page} of {totalPages}</p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
                 Previous

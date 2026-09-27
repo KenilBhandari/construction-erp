@@ -49,3 +49,23 @@ body {
   background: var(--color-border);
   border-radius: 4px;
 }
+
+/* Reports print: chrome off, content only */
+@media print {
+  aside,
+  header,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  body {
+    background: #fff;
+  }
+  tr {
+    break-inside: avoid;
+  }
+}

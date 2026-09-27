@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/ui/page-header";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { TableSkeleton } from "@/components/ui/skeleton";
@@ -168,6 +169,13 @@ export function TransactionsList({
 
       {headerSuffix}
 
+      {types.includes("purchase") && (
+        <Card className="w-44 p-3">
+          <p className="text-xs text-text-muted">Total</p>
+          <p className="mt-0.5 text-lg font-semibold tnum">{data && !error ? formatINR(data.totalAmount) : "—"}</p>
+        </Card>
+      )}
+
       <div className={`grid grid-cols-2 items-end gap-3 ${showTypeColumn ? "lg:grid-cols-[1.4fr_1fr_0.9fr_1fr_1fr_auto]" : "lg:grid-cols-[1.4fr_1fr_1fr_1fr_auto]"}`}>
         <Select aria-label="Filter by material" value={materialId} onChange={(e) => { setMaterialId(e.target.value); resetPage(); }}>
           <option value="">All materials</option>
@@ -285,7 +293,7 @@ export function TransactionsList({
           </Table>
 
           <div className="flex items-center justify-between text-sm text-text-muted">
-            <p className="tnum">{data.total} entries{types.includes("purchase") && ` · ${formatINR(data.totalAmount)} total`} · Page {data.page} of {totalPages}</p>
+            <p className="tnum">{data.total} entries · Page {data.page} of {totalPages}</p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
                 Previous

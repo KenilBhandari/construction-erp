@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.9.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.47.0",
     "mongoose": "^9.10.1",

@@ -6,7 +6,18 @@ import { Overtime } from "@/models/Overtime";
 import { Expense } from "@/models/Expense";
 import { ClientPayment } from "@/models/ClientPayment";
 import { calculatePendingPayment, calculateProjectProfit } from "@/lib/calculations";
+import { dayRange } from "@/lib/utils";
 import type { ProjectFinance } from "@/types/finance";
+
+/** Optional scope for date/site-filtered finance. Absent scope = lifetime, all sites (legacy behavior). */
+export interface FinanceScope {
+  /** yyyy-mm-dd, inclusive from 00:00:00 UTC. */
+  from?: string;
+  /** yyyy-mm-dd, inclusive through 23:59:59.999 UTC (via dayRange). */
+  to?: string;
+  /** Site ObjectId string — restrict to one site. */
+  site?: string;
+}
 
 /**
  * Single formula for project money — derived from underlying records (§28):
@@ -15,20 +26,33 @@ import type { ProjectFinance } from "@/types/finance";
  *                  records + all manual expenses
  *
  * Labour cost uses historical Attendance.cost (snapshot), not current Labour rates.
+ * Labour cost is Attendance.cost + Overtime.amount — never Salary.site/project,
+ * which is attribution-only display (salary.ts preserves the primary breakdown entry).
  */
-export async function getProjectFinance(projectId: string): Promise<ProjectFinance> {
+export async function getProjectFinance(projectId: string, scope?: FinanceScope): Promise<ProjectFinance> {
   const project = await Project.findById(projectId).lean();
   if (!project) throw new Error("Project not found.");
   const pid = new Types.ObjectId(projectId);
 
+  // Scoped $match additions. Empty when no scope → queries identical to legacy behavior.
+  const dateMatch: Record<string, unknown> = {};
+  if (scope?.from || scope?.to) {
+    const { start, end } = dayRange(scope.from ?? scope.to as string, scope.to ?? scope.from as string);
+    dateMatch.date = { $gte: start, $lte: end };
+  }
+  const siteMatch: Record<string, unknown> = {};
+  if (scope?.site && Types.ObjectId.isValid(scope.site)) {
+    siteMatch.site = new Types.ObjectId(scope.site);
+  }
+
   const [purchaseAgg, attendanceAgg, overtimeAgg, expenseAgg, paymentAgg] =
     await Promise.all([
       StockTransaction.aggregate([
-        { $match: { project: pid, type: "purchase" } },
+        { $match: { project: pid, type: "purchase", ...dateMatch, ...siteMatch } },
         { $group: { _id: null, amount: { $sum: "$total" } } },
       ]),
       Attendance.aggregate([
-        { $match: { project: pid } },
+        { $match: { project: pid, ...dateMatch, ...siteMatch } },
         {
           $group: {
             _id: null,
@@ -39,15 +63,16 @@ export async function getProjectFinance(projectId: string): Promise<ProjectFinan
         },
       ]),
       Overtime.aggregate([
-        { $match: { project: pid } },
+        { $match: { project: pid, ...dateMatch, ...siteMatch } },
         { $group: { _id: null, amount: { $sum: "$amount" } } },
       ]),
       Expense.aggregate([
-        { $match: { project: pid } },
+        { $match: { project: pid, ...dateMatch, ...siteMatch } },
         { $group: { _id: null, amount: { $sum: "$amount" } } },
       ]),
       ClientPayment.aggregate([
-        { $match: { project: pid } },
+        // ClientPayment has no site — site scope does not apply to money in.
+        { $match: { project: pid, ...dateMatch } },
         { $group: { _id: null, amount: { $sum: "$amount" } } },
       ]),
     ]);
