@@ -413,7 +413,7 @@ function ExpenseFormModal({
         <div className="grid grid-cols-2 gap-4">
           <Input label="Date" required type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           <Select label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
-            {EXPENSE_CATEGORIES.map((c) => (
+            {EXPENSE_CATEGORIES.filter((c) => c !== "WRITE_OFF").map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
           </Select>

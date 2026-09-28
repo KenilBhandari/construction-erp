@@ -9,7 +9,7 @@ import { StockTransaction } from "@/models/StockTransaction";
 import { Expense } from "@/models/Expense";
 import { ClientPayment } from "@/models/ClientPayment";
 import { getProjectFinance } from "@/lib/finance";
-import { formatDateShort } from "@/lib/utils";
+import { getBulkAdvanceSummaries } from "@/lib/advances";
 
 export interface DashboardSummary {
   activeProjects: number;
@@ -27,17 +27,25 @@ export interface DashboardSummary {
   };
   todayPurchases: number;
   todayExpenses: number;
+  /** Active labour with no attendance marked today. */
+  unmarkedToday: number;
   pendingLabourPayments: number;
   monthExpenses: number;
   receivedTotal: number;
   outstandingTotal: number;
+  /** Σ contract values — the denominator behind received + outstanding. */
+  contractsTotal: number;
   profitTotal: number;
+  /** Σ recorded costs behind the margin card (purchases + attendance + overtime + manual). */
+  recordedCostsTotal: number;
   labourCostTotal: number;
   labourCostAssigned: number;
   labourCostUnassigned: number;
+  /** Overtime slice — Total = Assigned + Unassigned + Overtime, always. */
+  labourCostOvertime: number;
   lowStockCount: number;
   lowStock: { _id: string; name: string; currentStock: number; minimumStock: number; unit: string | null }[];
-  recentActivity: { at: Date; text: string }[];
+  recentActivity: { at: Date; eventDate?: Date; kind: "attendance" | "purchase" | "payment" | "expense"; text: string }[];
   monthlyExpenses: { month: string; amount: number }[];
   projects: {
     _id: string;
@@ -128,6 +136,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     attendanceUnassignedAgg,
     overtimeTotalAgg,
     manualTotalAgg,
+    markedTodayAgg,
     lowStock,
     activeProjectDocs,
   ] = await Promise.all([
@@ -188,6 +197,11 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     ]),
     Overtime.aggregate([{ $group: { _id: null, amount: { $sum: "$amount" } } }]),
     Expense.aggregate([{ $group: { _id: null, amount: { $sum: "$amount" } } }]),
+    Attendance.aggregate([
+      { $match: { date: todayFilter } },
+      { $group: { _id: "$labour" } },
+      { $group: { _id: null, count: { $sum: 1 } } },
+    ]),
     Material.find({ $expr: { $lte: ["$currentStock", "$minimumStock"] } })
       .sort({ currentStock: 1 })
       .limit(5)
@@ -241,23 +255,51 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
         .lean(),
     ]);
 
-  const activity: { at: Date; text: string }[] = [
+  // Remaining advance per worker for write-offs in the activity window —
+  // one batched lookup, never N queries. Internal category never leaks.
+  const writeOffLabourIds = [
+    ...new Set(
+      recentExpenses
+        .filter((e) => e.category === "WRITE_OFF" && e.labour)
+        .map((e) => String(e.labour)),
+    ),
+  ];
+  const advanceLeft = writeOffLabourIds.length > 0
+    ? await getBulkAdvanceSummaries(writeOffLabourIds)
+    : new Map();
+
+  const activity: DashboardSummary["recentActivity"] = [
     ...recentAttendance.map((a) => ({
       at: a.createdAt,
-      text: `${nameOf(a.labour)} marked ${a.status} at ${nameOf(a.site)} · ${formatDateShort(a.date)}`,
+      eventDate: a.date,
+      kind: "attendance" as const,
+      text: `${nameOf(a.labour)} marked ${a.status} at ${nameOf(a.site)}`,
     })),
     ...recentPurchases.map((p) => ({
       at: p.createdAt,
+      kind: "purchase" as const,
       text: `${nameOf(p.material)} purchase ₹${p.total.toLocaleString("en-IN")} at ${nameOf(p.site)}`,
     })),
     ...recentPayments.map((p) => ({
       at: p.createdAt,
+      kind: "payment" as const,
       text: `Client payment ₹${p.amount.toLocaleString("en-IN")} received (${nameOf(p.project)})`,
     })),
-    ...recentExpenses.map((e) => ({
-      at: e.createdAt,
-      text: `${e.category} expense ₹${e.amount.toLocaleString("en-IN")} — ${e.description}`,
-    })),
+    ...recentExpenses.map((e) => {
+      if (e.category === "WRITE_OFF") {
+        const left = e.labour ? (advanceLeft.get(String(e.labour))?.outstanding ?? null) : null;
+        return {
+          at: e.createdAt,
+          kind: "expense" as const,
+          text: `Labour advance written off · ₹${e.amount.toLocaleString("en-IN")}${left !== null ? ` · Remaining advance ₹${left.toLocaleString("en-IN")}` : ""}`,
+        };
+      }
+      return {
+        at: e.createdAt,
+        kind: "expense" as const,
+        text: `${e.category} expense ₹${e.amount.toLocaleString("en-IN")} — ${e.description}`,
+      };
+    }),
   ]
     .sort((a, b) => b.at.getTime() - a.at.getTime())
     .slice(0, 8);
@@ -302,15 +344,19 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     },
     todayPurchases: todayPurchaseAgg[0]?.amount ?? 0,
     todayExpenses: todayExpenseAgg[0]?.amount ?? 0,
+    unmarkedToday: Math.max(0, activeLabour - (markedTodayAgg[0]?.count ?? 0)),
     pendingLabourPayments: Math.round(salaryPayableAgg[0]?.balance ?? 0),
     monthExpenses:
       Math.round(monthManualAgg[0]?.amount ?? 0) + Math.round(monthPurchaseAgg[0]?.amount ?? 0),
     receivedTotal: received,
     outstandingTotal: contracts - received,
+    contractsTotal: contracts,
     profitTotal: contracts - allCosts,
+    recordedCostsTotal: Math.round(allCosts),
     labourCostTotal: totalLabourCost,
     labourCostAssigned: assignedLabour,
     labourCostUnassigned: unassignedLabour,
+    labourCostOvertime: Math.round(overtimeTotalAgg[0]?.amount ?? 0),
     lowStockCount: lowStock.length,
     lowStock: lowStock.map((m) => ({
       _id: String(m._id),

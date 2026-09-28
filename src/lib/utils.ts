@@ -17,6 +17,19 @@ export function formatINR(amount: number): string {
   }).format(n);
 }
 
+/** Compact Indian currency for hero cards: 5053343 -> ₹50.53L, 29800 -> ₹29.80K, 25000000 -> ₹2.50Cr */
+export function formatCompactINR(amount: number): string {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return "—";
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  const trim = (v: number) => String(Math.round(v * 100) / 100);
+  if (abs >= 1e7) return `${sign}₹${trim(abs / 1e7)}Cr`;
+  if (abs >= 1e5) return `${sign}₹${trim(abs / 1e5)}L`;
+  if (abs >= 1e3) return `${sign}₹${trim(abs / 1e3)}K`;
+  return formatINR(n);
+}
+
 /** Safe numeric display — never NaN/undefined */
 export function safeINR(value: unknown, fallback = "—"): string {
   const n = typeof value === "number" ? value : Number(value);

@@ -79,6 +79,12 @@ export async function POST(req: Request) {
     await connectDB();
     const body = expenseCreateSchema.parse(await req.json());
 
+    // Write-offs are created only through the write-off flow (outstanding
+    // guards + attribution) — never as manual expenses.
+    if (body.category === "WRITE_OFF") {
+      return fail(new Error("Write-offs must be created from the worker's advance section, not as a manual expense."), 422);
+    }
+
     if (body.project) {
       const exists = await Project.exists({ _id: body.project });
       if (!exists) return fail(new Error("Selected project not found."), 404);

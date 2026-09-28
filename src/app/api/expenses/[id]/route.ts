@@ -44,6 +44,17 @@ export async function PATCH(
     const id = await getId(params);
     await connectDB();
     const body = expenseUpdateSchema.parse(await req.json());
+    // WRITE_OFF is owned by the write-off flow — it can neither be set nor
+    // removed through manual expense edits (advance math depends on it).
+    if (body.category === "WRITE_OFF") {
+      return fail(new Error("Write-offs must be created from the worker's advance section, not as a manual expense."), 422);
+    }
+    if (body.category !== undefined) {
+      const existing = await Expense.findById(id).select("category").lean();
+      if (existing?.category === "WRITE_OFF") {
+        return fail(new Error("Write-off entries cannot be recategorized — this would corrupt advance balances."), 422);
+      }
+    }
     if (body.project) {
       const exists = await Project.exists({ _id: body.project });
       if (!exists) return fail(new Error("Selected project not found."), 404);

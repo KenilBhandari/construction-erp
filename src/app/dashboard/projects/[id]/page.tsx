@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
@@ -123,9 +124,9 @@ export default async function ProjectDetailPage({
         <p className="text-xs text-text-muted">Project Period</p>
 
         {hasStart && hasEnd ? (
-          <p className="mt-1.5 text-sm font-medium text-text">
+          <p className="mt-1.5 inline-flex items-center gap-2 text-sm font-medium text-text">
             {formatDMY(project.startDate as string | Date)}
-            <span className="mx-2 text-text-muted">→</span>
+            <ArrowRight className="h-3.5 w-3.5 text-text-muted" />
             {formatDMY(project.expectedEndDate as string | Date)}
           </p>
         ) : hasStart ? (
