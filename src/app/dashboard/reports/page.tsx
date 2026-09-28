@@ -12,18 +12,6 @@ interface ReportCard {
 
 const CARDS: ReportCard[] = [
   {
-    href: "/dashboard/reports/project",
-    group: "Projects",
-    title: "Project Financials",
-    description: "Cost, profit, payments and historical project performance.",
-  },
-  {
-    href: "/dashboard/reports/site",
-    group: "Sites",
-    title: "Site Performance",
-    description: "Labour, materials, expenses and site cost history.",
-  },
-  {
     href: "/dashboard/reports/labour",
     group: "Labour",
     title: "Labour & Attendance",
@@ -47,28 +35,13 @@ const CARDS: ReportCard[] = [
     title: "Expenses",
     description: "Expense history and breakdowns.",
   },
-  {
-    href: "/dashboard/reports/payments",
-    group: "Finance",
-    title: "Client Payments",
-    description: "Payment history and receivables.",
-  },
-  {
-    href: "/dashboard/reports/cashflow",
-    group: "Finance",
-    title: "Cash Flow",
-    description: "Historical money in and out.",
-  },
 ];
 
 /** Reports landing — pick what to investigate, then scope and run. */
 export default function ReportsLanding() {
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Reports"
-        description="Historical business reports from your recorded data. Select a report to begin."
-      />
+      <PageHeader title="Reports" />
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {CARDS.map((c) => {
           const body = (

@@ -3,7 +3,7 @@ import { Overtime } from "@/models/Overtime";
 import { StockTransaction } from "@/models/StockTransaction";
 import { Expense } from "@/models/Expense";
 import { dateMatch, idMatch, type ReportScope } from "@/lib/reports/scope";
-import { REPORT_PAGE_SIZE } from "@/lib/reports/project-runner";
+import { REPORT_PAGE_SIZE } from "@/lib/reports/scope";
 
 const nameOf = (ref: unknown): string =>
   ref && typeof ref === "object" && "name" in ref ? String((ref as { name: unknown }).name) : "—";

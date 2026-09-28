@@ -13,7 +13,7 @@ import { Expense } from "@/models/Expense";
 import { SalaryAdjustment } from "@/models/SalaryAdjustment";
 import { saveOvertime, updateOvertime } from "@/lib/overtime";
 import { computeAndSaveSalary } from "@/lib/salary";
-import { getLabourReportDetail, getAttendanceAnalysis } from "@/lib/reports";
+import { getLabourReportDetail } from "@/lib/reports";
 import { toDayDate } from "@/lib/utils";
 
 let mongod: MongoMemoryServer;
@@ -96,8 +96,6 @@ describe("single OT writer + canonical OT hours", () => {
     // 4 (legacy field) + 2.5 (record) — same sources as the money path.
     expect(detail.attendance.otHours).toBe(6.5);
     expect(detail.cost.overtime).toBe(250);
-    const analysis = await getAttendanceAnalysis({});
-    expect(analysis[0].otHours).toBe(6.5);
     // Row-sum-equals-total invariant: every history row carries its day's OT.
     const { getAttendanceRecords } = await import("@/lib/reports");
     const history = await getAttendanceRecords({ labourId: lid });

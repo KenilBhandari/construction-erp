@@ -2,26 +2,17 @@ import { createElement } from "react";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { connectDB } from "@/lib/mongodb";
 import { fail, requireAuth } from "@/lib/api";
-import { Site } from "@/models/Site";
 import { Labour } from "@/models/Labour";
 import { getBulkAdvanceSummaries } from "@/lib/advances";
 import {
-  getProjectReport,
-  getSiteReport,
   getLabourReportDetail,
   getMaterialReport,
   getExpenseRunnerReport,
-  getPaymentRunnerReport,
-  getCashFlow,
   getSalaryAnalysis,
   getAdvanceReport,
-  ProjectPdf,
-  SitePdf,
   LabourPdf,
   MaterialsPdf,
   ExpensesPdf,
-  PaymentsPdf,
-  CashFlowPdf,
   SalaryPdf,
 } from "@/lib/reports";
 
@@ -38,13 +29,9 @@ export async function GET(
   try {
     const { type } = await params;
     if (
-      type !== "project" &&
-      type !== "site" &&
       type !== "labour" &&
       type !== "materials" &&
       type !== "expenses" &&
-      type !== "payments" &&
-      type !== "cashflow" &&
       type !== "salary"
     ) {
       return fail(new Error("Unknown report type."), 404);
@@ -87,36 +74,6 @@ export async function GET(
       });
     }
 
-    if (type === "project") {
-      if (!projectId) return fail(new Error("Project is required."), 422);
-      const report = await getProjectReport({ projectId, from, to, siteId, pageSize: PDF_PAGE_SIZE });
-      let siteName: string | undefined;
-      if (siteId) siteName = (await Site.findById(siteId).select("name").lean())?.name as string | undefined;
-      const buffer = await renderToBuffer(
-        createElement(ProjectPdf, { report, scope: { from, to, siteName, generatedAt } }) as unknown as Parameters<typeof renderToBuffer>[0],
-      );
-      return new Response(new Uint8Array(buffer), {
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="project-financials-${projectId.slice(-6)}.pdf"`,
-        },
-      });
-    }
-
-    if (type === "site") {
-      if (!siteId) return fail(new Error("Site is required."), 422);
-      const report = await getSiteReport({ siteId, from, to, pageSize: PDF_PAGE_SIZE });
-      const buffer = await renderToBuffer(
-        createElement(SitePdf, { report, scope: { from, to, generatedAt } }) as unknown as Parameters<typeof renderToBuffer>[0],
-      );
-      return new Response(new Uint8Array(buffer), {
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="site-performance-${siteId.slice(-6)}.pdf"`,
-        },
-      });
-    }
-
     if (type === "labour") {
       if (!labourId) return fail(new Error("Worker is required."), 422);
       const report = await getLabourReportDetail({
@@ -134,32 +91,6 @@ export async function GET(
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="labour-attendance-${labourId.slice(-6)}.pdf"`,
-        },
-      });
-    }
-
-    if (type === "payments") {
-      const report = await getPaymentRunnerReport({ projectId, from, to, pageSize: PDF_PAGE_SIZE });
-      const buffer = await renderToBuffer(
-        createElement(PaymentsPdf, { report, scope: { from, to, generatedAt } }) as unknown as Parameters<typeof renderToBuffer>[0],
-      );
-      return new Response(new Uint8Array(buffer), {
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="client-payments-${generatedAt}.pdf"`,
-        },
-      });
-    }
-
-    if (type === "cashflow") {
-      const months = await getCashFlow({ projectId, from, to });
-      const buffer = await renderToBuffer(
-        createElement(CashFlowPdf, { months, scope: { from, to, generatedAt } }) as unknown as Parameters<typeof renderToBuffer>[0],
-      );
-      return new Response(new Uint8Array(buffer), {
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="cash-flow-${generatedAt}.pdf"`,
         },
       });
     }

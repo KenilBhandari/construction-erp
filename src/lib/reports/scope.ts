@@ -37,6 +37,9 @@ export function idMatch(field: string, id?: string): Record<string, unknown> {
   return { [field]: new Types.ObjectId(id) };
 }
 
+/** Page size for report transaction-history pagination. Single constant, never per-report. */
+export const REPORT_PAGE_SIZE = 100;
+
 /** Human-readable active scope, e.g. "Patel Residence · Tower B · 1–27 Sep 2026". */
 export function scopeLabel(parts: { project?: string; site?: string; from?: string; to?: string }): string {
   const out: string[] = [];

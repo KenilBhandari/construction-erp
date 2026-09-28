@@ -439,21 +439,21 @@ describe("Advances", () => {
     await Attendance.create({ labour: labour._id, date: day("2026-01-06"), status: "present", site: siteA._id, project: siteA.project, cost: 600, dailyRateSnapshot: 600 });
     await Attendance.create({ labour: labour._id, date: day("2026-01-07"), status: "present", site: siteA._id, project: siteA.project, cost: 600, dailyRateSnapshot: 600 });
     await computeAndSaveSalary({ labourId: String(labour._id), periodStart: "2026-01-01", periodEnd: "2026-01-31", advanceRecovery: 1000 });
-    await Expense.create({ date: day("2026-01-20"), category: "LABOUR_ADVANCE_WRITE_OFF", description: "write off", amount: 2000, labour: labour._id });
+    await Expense.create({ date: day("2026-01-20"), category: "WRITE_OFF", description: "write off", amount: 2000, labour: labour._id });
     const s = await getLabourAdvanceSummary(String(labour._id));
     expect(s.outstanding).toBe(0);
   });
   it("40. Partial write-off", async () => {
     const { labour } = await createSetup();
     await LabourAdvance.create({ labour: labour._id, date: day("2026-01-05"), amount: 3000 });
-    await Expense.create({ date: day("2026-01-06"), category: "LABOUR_ADVANCE_WRITE_OFF", description: "partial", amount: 1000, labour: labour._id });
+    await Expense.create({ date: day("2026-01-06"), category: "WRITE_OFF", description: "partial", amount: 1000, labour: labour._id });
     const s = await getLabourAdvanceSummary(String(labour._id));
     expect(s.outstanding).toBe(2000);
   });
   it("41. Write-off greater than outstanding rejected (guard)", async () => {
     const { labour } = await createSetup();
     await LabourAdvance.create({ labour: labour._id, date: day("2026-01-05"), amount: 1000 });
-    await Expense.create({ date: day("2026-01-06"), category: "LABOUR_ADVANCE_WRITE_OFF", description: "wo", amount: 500, labour: labour._id });
+    await Expense.create({ date: day("2026-01-06"), category: "WRITE_OFF", description: "wo", amount: 500, labour: labour._id });
     const s = await getLabourAdvanceSummary(String(labour._id));
     // outstanding 500, trying to write off 1000 should be rejected by API logic — we simulate check
     expect(s.outstanding).toBe(500);
@@ -475,14 +475,14 @@ describe("Advances", () => {
     const { labour } = await createSetup();
     await LabourAdvance.create({ labour: labour._id, date: day("2026-01-05"), amount: 3000 });
     const key = "writeoff-key-1";
-    await Expense.create({ date: day("2026-01-06"), category: "LABOUR_ADVANCE_WRITE_OFF", description: "wo", amount: 1000, labour: labour._id, idempotencyKey: key });
-    await expect(Expense.create({ date: day("2026-01-06"), category: "LABOUR_ADVANCE_WRITE_OFF", description: "wo", amount: 1000, labour: labour._id, idempotencyKey: key })).rejects.toThrow();
+    await Expense.create({ date: day("2026-01-06"), category: "WRITE_OFF", description: "wo", amount: 1000, labour: labour._id, idempotencyKey: key });
+    await expect(Expense.create({ date: day("2026-01-06"), category: "WRITE_OFF", description: "wo", amount: 1000, labour: labour._id, idempotencyKey: key })).rejects.toThrow();
     expect(await Expense.countDocuments({ labour: labour._id })).toBe(1);
   });
   it("44. Outstanding never negative", async () => {
     const { labour } = await createSetup();
     await LabourAdvance.create({ labour: labour._id, date: day("2026-01-05"), amount: 1000 });
-    await Expense.create({ date: day("2026-01-06"), category: "LABOUR_ADVANCE_WRITE_OFF", description: "wo", amount: 1000, labour: labour._id });
+    await Expense.create({ date: day("2026-01-06"), category: "WRITE_OFF", description: "wo", amount: 1000, labour: labour._id });
     const s = await getLabourAdvanceSummary(String(labour._id));
     expect(s.outstanding).toBe(0);
     expect(s.outstanding).toBeGreaterThanOrEqual(0);
@@ -517,7 +517,7 @@ describe("Integration", () => {
     await LabourAdvance.create({ labour: labour._id, date: day("2026-01-01"), amount: 3000 });
     await Attendance.create({ labour: labour._id, date: day("2026-01-05"), status: "present", site: siteA._id, project: siteA.project, cost: 600, dailyRateSnapshot: 600 });
     const before = await Attendance.aggregate([{ $match: { site: siteA._id } }, { $group: { _id: null, cost: { $sum: "$cost" } } }]);
-    await Expense.create({ date: day("2026-01-06"), category: "LABOUR_ADVANCE_WRITE_OFF", description: "wo", amount: 1000, labour: labour._id });
+    await Expense.create({ date: day("2026-01-06"), category: "WRITE_OFF", description: "wo", amount: 1000, labour: labour._id });
     const after = await Attendance.aggregate([{ $match: { site: siteA._id } }, { $group: { _id: null, cost: { $sum: "$cost" } } }]);
     expect(before[0]?.cost).toBe(600);
     expect(after[0]?.cost).toBe(600);

@@ -8,7 +8,7 @@ export const EXPENSE_CATEGORIES = [
   "Contractor",
   "Miscellaneous",
   "Other",
-  "LABOUR_ADVANCE_WRITE_OFF",
+  "WRITE_OFF",
 ] as const;
 
 export const EXPENSE_TYPES = ["PROJECT", "GENERAL", "PERSONAL"] as const;

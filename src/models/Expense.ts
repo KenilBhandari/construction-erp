@@ -6,7 +6,7 @@ import mongoose, { Schema, type InferSchemaType } from "mongoose";
  * don't re-enter them here (the form says so too).
  *
  * Write-offs (§9-11) are stored as expenses with category
- * LABOUR_ADVANCE_WRITE_OFF + expenseType for project/general/personal
+ * WRITE_OFF + expenseType for project/general/personal
  * attribution and traceability via labour/labourAdvance.
  */
 const ExpenseSchema = new Schema(

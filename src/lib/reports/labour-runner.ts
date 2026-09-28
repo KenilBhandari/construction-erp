@@ -5,7 +5,7 @@ import { dateMatch, idMatch, type ReportScope } from "@/lib/reports/scope";
 import { getSalaryAnalysis } from "@/lib/reports/salary";
 import { getBulkAdvanceSummaries } from "@/lib/advances";
 import { getAttendanceRecords, type AttendanceRecord } from "@/lib/reports/records";
-import { REPORT_PAGE_SIZE } from "@/lib/reports/project-runner";
+import { REPORT_PAGE_SIZE } from "@/lib/reports/scope";
 
 export interface LabourReportDetail {
   header: { labourId: string; name: string; skill: string };

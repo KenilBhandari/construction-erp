@@ -6,15 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 
-export type RunnerType =
-  | "project"
-  | "site"
-  | "labour"
-  | "materials"
-  | "expenses"
-  | "payments"
-  | "cashflow"
-  | "salary";
+export type RunnerType = "labour" | "materials" | "expenses" | "salary";
+
+// Project/site scoping lives only on materials + expenses. Labour and salary
+// reports scope by worker + period.
+const PROJECT_SCOPED: RunnerType[] = ["materials", "expenses"];
 
 export interface ScopeOption {
   _id: string;
@@ -142,8 +138,9 @@ export function ReportScopeForm({
 
   function run() {
     const params = new URLSearchParams();
-    if (type !== "site" && type !== "salary" && projectId) params.set("project", projectId);
-    if (type !== "project" && type !== "payments" && type !== "cashflow" && siteId) params.set("site", siteId);
+    const scoped = PROJECT_SCOPED.includes(type);
+    if (scoped && projectId) params.set("project", projectId);
+    if (scoped && siteId) params.set("site", siteId);
     if ((type === "labour" || type === "salary") && labourId) params.set("worker", labourId);
     if (type === "materials" && materialId) params.set("material", materialId);
     if (type === "expenses" && category) params.set("category", category);
@@ -165,12 +162,11 @@ export function ReportScopeForm({
   const siteOptions = projectId ? projectSites : sites;
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        {type !== "site" && type !== "salary" && (
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {PROJECT_SCOPED.includes(type) && (
           <Select
-            aria-label="Select project"
-            className="w-44"
+            label="Project"
             value={projectId}
             onChange={(e) => {
               const pid = e.target.value;
@@ -185,7 +181,7 @@ export function ReportScopeForm({
               }
             }}
           >
-            <option value="">{type === "project" ? "Select project" : "All projects"}</option>
+            <option value="">All projects</option>
             {projects.map((p) => (
               <option key={p._id} value={p._id}>
                 {p.name}
@@ -193,15 +189,14 @@ export function ReportScopeForm({
             ))}
           </Select>
         )}
-        {(type === "site" || type === "labour" || type === "materials" || type === "expenses") && (
+        {PROJECT_SCOPED.includes(type) && (
           <Select
-            aria-label="Select site"
-            className="w-40"
+            label="Site"
             value={siteId}
             onChange={(e) => setSiteId(e.target.value)}
           >
-            <option value="">{type === "site" ? "Select site" : projectId ? "All sites" : "Pick project first"}</option>
-            {(type === "site" ? sites : siteOptions).map((s) => (
+            <option value="">{projectId ? "All sites" : "Pick project first"}</option>
+            {siteOptions.map((s) => (
               <option key={s._id} value={s._id}>
                 {s.name}
               </option>
@@ -210,8 +205,7 @@ export function ReportScopeForm({
         )}
         {(type === "labour" || type === "salary") && (
           <Select
-            aria-label="Select worker"
-            className="w-40"
+            label="Worker"
             value={labourId}
             onChange={(e) => setLabourId(e.target.value)}
           >
@@ -225,8 +219,7 @@ export function ReportScopeForm({
         )}
         {type === "materials" && (
           <Select
-            aria-label="Select material"
-            className="w-44"
+            label="Material"
             value={materialId}
             onChange={(e) => setMaterialId(e.target.value)}
           >
@@ -240,8 +233,7 @@ export function ReportScopeForm({
         )}
         {type === "expenses" && (
           <Select
-            aria-label="Select category"
-            className="w-40"
+            label="Category"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
           >
@@ -254,13 +246,12 @@ export function ReportScopeForm({
           </Select>
         )}
         <Select
-          aria-label="Period preset"
-          className="w-40"
+          label="Period"
           value={preset}
           onChange={(e) => applyPreset(e.target.value as Preset, projectId)}
         >
           {PRESETS.map((p) => (
-            <option key={p.value} value={p.value} disabled={p.value === "lifetime" && type !== "project" && !projectId}>
+            <option key={p.value} value={p.value} disabled={p.value === "lifetime" && PROJECT_SCOPED.includes(type) && !projectId}>
               {p.label}
             </option>
           ))}
@@ -268,28 +259,25 @@ export function ReportScopeForm({
         {preset === "custom" && (
           <>
             <Input
-              aria-label="From date"
+              label="From"
               type="date"
-              className="w-36"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
             />
             <Input
-              aria-label="To date"
+              label="To"
               type="date"
-              className="w-36"
               value={to}
               onChange={(e) => setTo(e.target.value)}
             />
           </>
         )}
+      </div>
+      <div>
         <Button size="sm" onClick={() => run()}>
           Run Report
         </Button>
       </div>
-      {preset === "lifetime" && !from && (
-        <p className="text-xs text-text-muted">Project has no start date recorded — running lifetime (all records).</p>
-      )}
     </div>
   );
 }

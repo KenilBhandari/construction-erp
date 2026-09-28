@@ -17,36 +17,18 @@
  *    so row sums always equal header totals. No API path writes the
  *    attendance field anymore; it survives only for pre-existing data.
  *
- * 2. Global profit ≠ Σ project profits unless the General bucket is included.
- *    Records with null project (general manual expenses, unassigned labour,
- *    unattributed purchases) are surfaced explicitly via getUnattributedCosts.
- *    Invariant: global = Σ named projects + General.
- *
- * 3. Date bounds reuse dayRange: `from` = 00:00:00 UTC, `to` = through
+ * 2. Date bounds reuse dayRange: `from` = 00:00:00 UTC, `to` = through
  *    23:59:59.999 UTC. No per-report date math.
  *
- * 4. Estimated Stock Value = currentStock × valuation rate, where the rate is
- *    defaultPurchaseRate, else the most recent recorded purchase rate, else
- *    unavailable (₹0). Never labelled "Stock Value" — no FIFO/average-cost
- *    implication. The rate source travels in the DTO.
+ * 3. Project/site dropdowns exist only on materials + expenses. Labour and
+ *    salary reports scope by worker + period.
  *
- * 5. Purchase-vs-consumption variance is shown only when the data model
- *    supports the comparison: lifetime flows with NO project/site filter
- *    (stock is global per material). Scoped views show flows, never variance.
- *
- * 6. Cash Flow is historical movement only — never "Forecast". Receivables
- *    carry no aging buckets (no due-date field exists).
- *
- * 7. Report formulas never silently differ from Dashboard formulas for the
+ * 4. Report formulas never silently differ from Dashboard formulas for the
  *    same concept. If the audit finds the canonical calc wrong, fix the
  *    canonical calc first, then let every consumer inherit the fix.
  */
 export const REPORT_DEFINITIONS = {
-  profit: "Contract Value − Recorded Project Costs (purchases + attendance labour + overtime + manual expenses)",
-  pending: "Contract Value − Recorded Client Payments",
   labourCost: "Attendance snapshot cost + Overtime record amounts",
   advanceOutstanding: "Total Given − Total Recovered (Salary.advanceRecovery) − Total Written Off",
   salaryBalance: "Σ Salary.net − Σ Salary.paidAmount",
-  estimatedStockValue: "Current Stock × valuation rate (default rate → last purchase rate → unavailable)",
-  cashFlow: "Historical ClientPayment inflow vs SalaryPayment + purchase + Expense outflow",
 } as const;

@@ -11,7 +11,7 @@ import { Expense } from "@/models/Expense";
  * All figures derived from source transactions:
  *  - LabourAdvance.amount           (money actually given)
  *  - Salary.advanceRecovery         (explicit recovery per settlement)
- *  - Expense LABOUR_ADVANCE_WRITE_OFF (unrecoverable → expense)
+ *  - Expense WRITE_OFF (unrecoverable → expense)
  *
  * Outstanding belongs to the labour, not a site/project. Site/project on
  * advances/expenses is attribution only.
@@ -48,7 +48,7 @@ export async function getLabourAdvanceSummary(labourId: string): Promise<LabourA
       },
     ]),
     Expense.aggregate([
-      { $match: { labour: pid, category: "LABOUR_ADVANCE_WRITE_OFF" } },
+      { $match: { labour: pid, category: "WRITE_OFF" } },
       { $group: { _id: null, amount: { $sum: "$amount" } } },
     ]),
   ]);
@@ -99,7 +99,7 @@ export async function getBulkAdvanceSummaries(
       },
     ]),
     Expense.aggregate([
-      { $match: { labour: { $in: oids }, category: "LABOUR_ADVANCE_WRITE_OFF" } },
+      { $match: { labour: { $in: oids }, category: "WRITE_OFF" } },
       { $group: { _id: "$labour", amount: { $sum: "$amount" } } },
     ]),
   ]);
@@ -146,7 +146,7 @@ export async function getGlobalAdvanceTotals(): Promise<Omit<LabourAdvanceSummar
       },
     ]),
     Expense.aggregate([
-      { $match: { category: "LABOUR_ADVANCE_WRITE_OFF" } },
+      { $match: { category: "WRITE_OFF" } },
       { $group: { _id: null, amount: { $sum: "$amount" } } },
     ]),
   ]);

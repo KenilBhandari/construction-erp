@@ -97,7 +97,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         project: projectOid,
         site: siteOid,
         date: expenseDate,
-        category: "LABOUR_ADVANCE_WRITE_OFF",
+        category: "WRITE_OFF",
         description,
         amount: body.amount,
         vendor: null,
@@ -144,13 +144,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const labour = await Labour.exists({ _id: labourId });
     if (!labour) return fail(new Error("Worker not found."), 404);
     const [data, totals] = await Promise.all([
-      Expense.find({ labour: new Types.ObjectId(labourId), category: "LABOUR_ADVANCE_WRITE_OFF" })
+      Expense.find({ labour: new Types.ObjectId(labourId), category: "WRITE_OFF" })
         .populate("project", "name")
         .populate("site", "name")
         .sort({ date: -1, createdAt: -1 })
         .lean(),
       Expense.aggregate([
-        { $match: { labour: new Types.ObjectId(labourId), category: "LABOUR_ADVANCE_WRITE_OFF" } },
+        { $match: { labour: new Types.ObjectId(labourId), category: "WRITE_OFF" } },
         { $group: { _id: null, amount: { $sum: "$amount" } } },
       ]),
     ]);

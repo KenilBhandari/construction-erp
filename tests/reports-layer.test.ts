@@ -15,25 +15,9 @@ import { LabourAdvance } from "@/models/LabourAdvance";
 import { toDayDate } from "@/lib/utils";
 import { getProjectFinance } from "@/lib/finance";
 import {
-  getProjectPerformance,
-  getReceivables,
-  getUnattributedCosts,
-  getSitePerformance,
-  getAttendanceAnalysis,
-  getSiteLabourCost,
-  getOvertimeReport,
-  getMaterialMovement,
-  getStockValuation,
-  getPurchaseConsumption,
-  getCashFlow,
-  getExpenseAnalysis,
   getAdvanceReport,
   getSalaryAnalysis,
   scopeLabel,
-  getMonthlyCostTrend,
-  getPaymentRecords,
-  getProjectReport,
-  getSiteReport,
   getLabourReportDetail,
   getAttendanceRecords,
   getExpenseRecords,
@@ -41,7 +25,6 @@ import {
   getOvertimeRecords,
   getMaterialReport,
   getExpenseRunnerReport,
-  getPaymentRunnerReport,
 } from "@/lib/reports";
 
 let mongod: MongoMemoryServer;
@@ -134,81 +117,8 @@ describe("reports layer — canonical consumption + locked rules", () => {
     expect(scoped.manualExpenses).toBe(500);
   });
 
-  it("global = Σ projects + General bucket", async () => {
-    const { project } = await seed();
-    await Expense.create({
-      project: null, date: toDayDate("2026-09-11"),
-      category: "Other", description: "General", amount: 1000, paymentMethod: "Cash",
-    });
-    const [perf, general] = await Promise.all([getProjectPerformance(), getUnattributedCosts()]);
-    const namedTotal = perf.reduce((s, p) => s + p.totalExpense, 0);
-    expect(namedTotal + general.total).toBe(35000 + 600 + 200 + 2000 + 1000);
-    expect(general.manualExpenses).toBe(1000);
-  });
-
-  it("site performance + site labour cost with Unassigned bucket", async () => {
-    const { site } = await seed();
-    const sites = await getSitePerformance();
-    expect(sites).toHaveLength(1);
-    expect(sites[0].name).toBe("S1");
-    expect(sites[0].projectName).toBe("P1");
-    expect(sites[0].labourCost).toBe(800);
-    expect(sites[0].materialCost).toBe(35000);
-    expect(sites[0].totalCost).toBe(800 + 35000 + 2000);
-    const labour = await getSiteLabourCost();
-    expect(labour.find((r) => r.siteId === String(site._id))?.total).toBe(800);
-  });
-
-  it("attendance analysis + overtime reconciliation surface drift honestly", async () => {
+  it("advance lifetime outstanding; empty salary when no settlements", async () => {
     await seed();
-    const att = await getAttendanceAnalysis();
-    expect(att[0].present).toBe(1);
-    expect(att[0].name).toBe("Ramesh");
-    const ot = await getOvertimeReport();
-    expect(ot.totalCost).toBe(200);
-    // No salary settlement exists → salary side is 0, drift = full 200. Honest, not hidden.
-    expect(ot.reconciliation.overtimeRecords).toBe(200);
-    expect(ot.reconciliation.salaryRecords).toBe(0);
-    expect(ot.reconciliation.drift).toBe(200);
-  });
-
-  it("material movement, valuation source, and conditional variance", async () => {
-    await seed();
-    const [movement, valuation, recon] = await Promise.all([
-      getMaterialMovement(),
-      getStockValuation(),
-      getPurchaseConsumption(),
-    ]);
-    expect(movement[0].purchased).toBe(100);
-    expect(movement[0].consumed).toBe(30);
-    expect(valuation[0].rateSource).toBe("default-rate");
-    expect(valuation[0].estimatedValue).toBe(70 * 350);
-    // Unscoped → variance allowed: 70 actual vs 100−30 expected = 0.
-    expect(recon[0].variance).toBe(0);
-    const scopedRecon = await getPurchaseConsumption({ projectId: String((await Project.findOne().lean())!._id) });
-    // Scoped → variance null, never manufactured.
-    expect(scopedRecon[0].variance).toBeNull();
-  });
-
-  it("cash flow splits outflow heads; receivables carry no aging", async () => {
-    await seed();
-    const flow = await getCashFlow({ from: "2026-09-01", to: "2026-09-30" });
-    const sep = flow.find((m) => m.month.includes("Sep"));
-    expect(sep?.inflow).toBe(40000);
-    expect(sep?.purchaseOutflow).toBe(35000);
-    expect(sep?.expenseOutflow).toBe(2000);
-    expect(sep?.net).toBe(40000 - 35000 - 2000);
-    const recv = await getReceivables();
-    expect(recv[0].outstanding).toBe(60000);
-    expect(recv[0]).not.toHaveProperty("overdue");
-  });
-
-  it("expense analysis shares sum to total; advance lifetime outstanding", async () => {
-    await seed();
-    const analysis = await getExpenseAnalysis();
-    expect(analysis.total).toBe(2000);
-    expect(analysis.byCategory[0].share).toBe(100);
-    expect(analysis.bySite[0].label).toBe("S1");
     const advances = await getAdvanceReport();
     expect(advances.rows[0].outstanding).toBe(5000);
     expect(advances.totals.outstanding).toBe(5000);
@@ -219,48 +129,6 @@ describe("reports layer — canonical consumption + locked rules", () => {
   it("scopeLabel renders the active population", () => {
     expect(scopeLabel({ project: "P1", site: "S1", from: "2026-09-01", to: "2026-09-27" }))
       .toContain("P1 · S1 · ");
-  });
-
-  it("monthly cost trend splits heads and zero-fills scoped months", async () => {
-    await seed();
-    const trend = await getMonthlyCostTrend({ from: "2026-09-01", to: "2026-09-30" });
-    expect(trend).toHaveLength(1);
-    expect(trend[0].labour).toBe(800); // 600 attendance + 200 overtime
-    expect(trend[0].materials).toBe(35000);
-    expect(trend[0].expenses).toBe(2000);
-    expect(trend[0].total).toBe(800 + 35000 + 2000);
-    const wide = await getMonthlyCostTrend({ from: "2026-08-01", to: "2026-09-30" });
-    expect(wide).toHaveLength(2);
-    expect(wide[0].total).toBe(0); // August zero-filled, not dropped
-  });
-
-  it("project runner composes summary + breakdown + trend + sites + payments", async () => {
-    const { project } = await seed();
-    const report = await getProjectReport({ projectId: String(project._id) });
-    expect(report.header.name).toBe("P1");
-    expect(report.summary.cost).toBe(35000 + 600 + 200 + 2000);
-    expect(report.summary.received).toBe(40000);
-    expect(report.summary.outstanding).toBe(60000);
-    expect(report.costBreakdown).toMatchObject({ labour: 600, materials: 35000, overtime: 200, expenses: 2000 });
-    expect(report.siteBreakdown).toHaveLength(1);
-    expect(report.siteBreakdown[0].totalCost).toBe(600 + 200 + 35000 + 2000);
-    expect(report.payments.total).toBe(1);
-    expect(report.trend.length).toBeGreaterThan(0);
-    // Scoped runner matches scoped canonical finance.
-    const scoped = await getProjectReport({ projectId: String(project._id), from: "2026-09-01", to: "2026-09-30" });
-    expect(scoped.summary.cost).toBe(report.summary.cost);
-  });
-
-  it("site runner totals + worker/material/expense detail", async () => {
-    const { site } = await seed();
-    const report = await getSiteReport({ siteId: String(site._id) });
-    expect(report.header.projectName).toBe("P1");
-    expect(report.totals).toMatchObject({ labour: 800, materials: 35000, expenses: 2000 });
-    expect(report.totals.total).toBe(800 + 35000 + 2000);
-    expect(report.labourByWorker[0]).toMatchObject({ name: "Ramesh", present: 1 });
-    expect(report.materialsByMaterial[0]).toMatchObject({ purchased: 100, consumed: 30 });
-    expect(report.expenseHistory.total).toBe(1);
-    expect(report.trend.length).toBeGreaterThan(0);
   });
 
   it("labour runner: earnings from records, salary paid/outstanding, advance position", async () => {
@@ -310,37 +178,18 @@ describe("reports layer — canonical consumption + locked rules", () => {
     expect(report.history.rows[0]).toMatchObject({ description: "Truck", siteName: "S1" });
   });
 
-  it("payments runner: project trio, all-projects split, scoped honesty", async () => {
-    const { project } = await seed();
-    const pid = String(project._id);
-    const one = await getPaymentRunnerReport({ projectId: pid });
-    expect(one.header.projectName).toBe("P1");
-    expect(one.summary).toMatchObject({ contract: 100000, received: 40000, outstanding: 60000, count: 1 });
-    expect(one.history.rows[0].projectName).toBe("P1");
-    // Date-scoped: received + count stand, lifetime figures go null.
-    const scoped = await getPaymentRunnerReport({ projectId: pid, from: "2026-09-01", to: "2026-09-30" });
-    expect(scoped.summary.received).toBe(40000);
-    expect(scoped.summary.contract).toBeNull();
-    expect(scoped.summary.outstanding).toBeNull();
-    const all = await getPaymentRunnerReport({});
-    expect(all.summary).toMatchObject({ contract: 100000, received: 40000, outstanding: 60000 });
-    expect(all.byProject).toHaveLength(1);
-  });
-
   it("record fetchers paginate (100/page) with totals", async () => {
     const { project } = await seed();
     const pid = String(project._id);
-    const [att, exp, stock, ot, pay] = await Promise.all([
+    const [att, exp, stock, ot] = await Promise.all([
       getAttendanceRecords({ projectId: pid }),
       getExpenseRecords({ projectId: pid }),
       getStockRecords({ projectId: pid }),
       getOvertimeRecords({ projectId: pid }),
-      getPaymentRecords({ projectId: pid }),
     ]);
     expect(att.total).toBe(1);
     expect(exp.rows[0].category).toBe("Transport");
     expect(stock.total).toBe(2);
     expect(ot.rows[0].cost).toBe(200);
-    expect(pay.rows[0].amount).toBe(40000);
   });
 });

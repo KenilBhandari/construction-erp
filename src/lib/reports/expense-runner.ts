@@ -1,6 +1,6 @@
 import { Expense } from "@/models/Expense";
 import { dateMatch, idMatch, type ReportScope } from "@/lib/reports/scope";
-import { REPORT_PAGE_SIZE } from "@/lib/reports/project-runner";
+import { REPORT_PAGE_SIZE } from "@/lib/reports/scope";
 import { getExpenseRecords, type ExpenseRecord } from "@/lib/reports/records";
 
 export interface ExpenseRunnerReport {

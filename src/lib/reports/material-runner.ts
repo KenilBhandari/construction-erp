@@ -3,7 +3,7 @@ import { StockTransaction } from "@/models/StockTransaction";
 import { stockEffect } from "@/lib/stock";
 import { toDayDate } from "@/lib/utils";
 import { dateMatch, idMatch, type ReportScope } from "@/lib/reports/scope";
-import { REPORT_PAGE_SIZE } from "@/lib/reports/project-runner";
+import { REPORT_PAGE_SIZE } from "@/lib/reports/scope";
 import { getStockRecords, type StockRecord } from "@/lib/reports/records";
 
 export interface MaterialTrendMonth {
