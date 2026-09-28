@@ -23,32 +23,42 @@ export interface AttendanceRow {
 export async function getAttendanceAnalysis(
   scope?: ReportScope & { labourId?: string },
 ): Promise<AttendanceRow[]> {
-  const rows = await Attendance.aggregate([
-    {
-      $match: {
-        ...dateMatch(scope),
-        ...idMatch("project", scope?.projectId),
-        ...idMatch("site", scope?.siteId),
-        ...idMatch("labour", scope?.labourId),
+  const match = {
+    ...dateMatch(scope),
+    ...idMatch("project", scope?.projectId),
+    ...idMatch("site", scope?.siteId),
+    ...idMatch("labour", scope?.labourId),
+  };
+  // Day counts from Attendance; OT hours = legacy field + Overtime records (same as money).
+  const [rows, otRows] = await Promise.all([
+    Attendance.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: "$labour",
+          present: { $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] } },
+          half: { $sum: { $cond: [{ $eq: ["$status", "half-day"] }, 1, 0] } },
+          absent: { $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] } },
+          leave: { $sum: { $cond: [{ $eq: ["$status", "leave"] }, 1, 0] } },
+          attOt: { $sum: { $ifNull: ["$overtimeHours", 0] } },
+        },
       },
-    },
-    {
-      $group: {
-        _id: "$labour",
-        present: { $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] } },
-        half: { $sum: { $cond: [{ $eq: ["$status", "half-day"] }, 1, 0] } },
-        absent: { $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] } },
-        leave: { $sum: { $cond: [{ $eq: ["$status", "leave"] }, 1, 0] } },
-        otHours: { $sum: { $ifNull: ["$overtimeHours", 0] } },
+      {
+        $lookup: { from: Labour.collection.name, localField: "_id", foreignField: "_id", as: "lab" },
       },
-    },
-    {
-      $lookup: { from: Labour.collection.name, localField: "_id", foreignField: "_id", as: "lab" },
-    },
-    { $unwind: { path: "$lab", preserveNullAndEmptyArrays: true } },
-    { $sort: { present: -1 } },
+      { $unwind: { path: "$lab", preserveNullAndEmptyArrays: true } },
+      { $sort: { present: -1 } },
+    ]),
+    Overtime.aggregate([
+      { $match: match },
+      { $group: { _id: "$labour", hours: { $sum: "$hours" } } },
+    ]),
   ]);
-  return (rows as Array<{ _id: Types.ObjectId; present: number; half: number; absent: number; leave: number; otHours: number; lab?: { name?: string } }>).map(
+  const otByLabour = new Map<string, number>();
+  for (const r of otRows as Array<{ _id: Types.ObjectId; hours: number }>) {
+    otByLabour.set(String(r._id), r.hours ?? 0);
+  }
+  return (rows as Array<{ _id: Types.ObjectId; present: number; half: number; absent: number; leave: number; attOt: number; lab?: { name?: string } }>).map(
     (r) => ({
       labourId: String(r._id),
       name: r.lab?.name ?? "—",
@@ -56,7 +66,7 @@ export async function getAttendanceAnalysis(
       half: r.half,
       absent: r.absent,
       leave: r.leave,
-      otHours: Math.round((r.otHours ?? 0) * 10) / 10,
+      otHours: Math.round(((r.attOt ?? 0) + (otByLabour.get(String(r._id)) ?? 0)) * 10) / 10,
     }),
   );
 }

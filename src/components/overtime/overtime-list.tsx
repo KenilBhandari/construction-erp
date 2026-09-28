@@ -3,14 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
-import { Modal, ConfirmDialog } from "@/components/ui/modal";
+import { ConfirmDialog } from "@/components/ui/modal";
+import { AttendanceOtModal } from "@/components/attendance/attendance-ot-modal";
 import { formatDateShort, formatINR, toDateInputValue } from "@/lib/utils";
 import { Pencil, Trash2 } from "lucide-react";
 import type { OvertimeDTO } from "@/types/attendance";
@@ -42,6 +41,7 @@ export function OvertimeList({ externalRefreshKey }: { externalRefreshKey?: numb
   const [projects, setProjects] = useState<ProjectDTO[]>([]);
   const [sites, setSites] = useState<SiteDTO[]>([]);
   const [labour, setLabour] = useState<LabourDTO[]>([]);
+  const [allSites, setAllSites] = useState<SiteDTO[]>([]);
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +62,12 @@ export function OvertimeList({ externalRefreshKey }: { externalRefreshKey?: numb
       .then(async (r) => r.json())
       .then((j) => {
         if (Array.isArray(j.data)) setLabour(j.data);
+      })
+      .catch(() => {});
+    fetch("/api/sites?limit=100")
+      .then(async (r) => r.json())
+      .then((j) => {
+        if (Array.isArray(j.data)) setAllSites(j.data);
       })
       .catch(() => {});
   }, []);
@@ -247,10 +253,24 @@ export function OvertimeList({ externalRefreshKey }: { externalRefreshKey?: numb
       )}
 
       {formOpen && (
-        <OvertimeFormModal
+        <AttendanceOtModal
           key={editing?._id ?? "new"}
-          initial={editing}
-          labourOptions={labour}
+          open
+          labour={(() => {
+            const ref = editing?.labour;
+            const id = typeof ref === "object" && ref !== null ? ref._id : "";
+            const found = labour.find((l) => l._id === id);
+            return {
+              _id: id,
+              name: typeof ref === "object" && ref !== null ? ref.name : (found?.name ?? ""),
+              hourlyRate: found?.hourlyRate ?? 0,
+            };
+          })()}
+          date={editing ? new Date(editing.date).toISOString().slice(0, 10) : toDateInputValue()}
+          sites={allSites}
+          suggestedSiteId={null}
+          existing={editing}
+          labourOptions={labour.map((l) => ({ _id: l._id, name: l.name, hourlyRate: l.hourlyRate }))}
           onClose={() => setFormOpen(false)}
           onSaved={() => {
             setFormOpen(false);
@@ -268,133 +288,5 @@ export function OvertimeList({ externalRefreshKey }: { externalRefreshKey?: numb
         pending={deletePending}
       />
     </div>
-  );
-}
-
-function OvertimeFormModal({
-  initial,
-  labourOptions,
-  onClose,
-  onSaved,
-}: {
-  initial: OvertimeDTO | null;
-  labourOptions: LabourDTO[];
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [labourId, setLabourId] = useState(
-    initial ? (typeof initial.labour === "string" ? initial.labour : initial.labour._id) : "",
-  );
-  const [siteId, setSiteId] = useState(
-    initial ? (typeof initial.site === "string" ? initial.site : initial.site._id) : "",
-  );
-  const [date, setDate] = useState(
-    initial ? new Date(initial.date).toISOString().slice(0, 10) : toDateInputValue(),
-  );
-  const [hours, setHours] = useState(initial ? String(initial.hours) : "");
-  const [rate, setRate] = useState(initial ? String(initial.rate) : "");
-  const [notes, setNotes] = useState(initial?.notes ?? "");
-  const [sites, setSites] = useState<SiteDTO[]>([]);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const selectedLabour = labourOptions.find((l) => l._id === labourId);
-  const rateNum = rate === "" ? (selectedLabour?.hourlyRate ?? 0) : Number(rate);
-  const hoursNum = Number(hours);
-  const previewAmount = !isNaN(hoursNum) && !isNaN(rateNum) && hoursNum > 0 ? Math.round(hoursNum * rateNum) : 0;
-
-  useEffect(() => {
-    fetch("/api/sites?limit=100")
-      .then(async (r) => r.json())
-      .then((j) => {
-        if (Array.isArray(j.data)) setSites(j.data);
-      })
-      .catch(() => {});
-  }, []);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!labourId || !siteId || !date || hours === "") {
-      setError("Worker, site, date and hours are required.");
-      return;
-    }
-    if (pending) return;
-    setPending(true);
-    setError(null);
-    try {
-      const payload: Record<string, unknown> = {
-        hours: Number(hours),
-        rate: rate === "" ? null : Number(rate),
-        notes: notes.trim() === "" ? null : notes.trim(),
-        ...(initial ? { site: siteId } : { labour: labourId, site: siteId, date }),
-      };
-      const url = initial ? `/api/overtime/${initial._id}` : "/api/overtime";
-      const res = await fetch(url, {
-        method: initial ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Save failed.");
-      onSaved();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return (
-    <Modal open onClose={onClose} title={initial ? "Edit Overtime" : "Add Overtime"}>
-      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-        <Select label="Worker" required value={labourId} onChange={(e) => setLabourId(e.target.value)} disabled={!!initial}>
-          <option value="">Select worker…</option>
-          {labourOptions.map((l) => (
-            <option key={l._id} value={l._id}>{l.name} · {l.skill}</option>
-          ))}
-        </Select>
-        <Select label="Site" required value={siteId} onChange={(e) => setSiteId(e.target.value)} disabled={pending}>
-          <option value="">Select site…</option>
-          {sites.map((s) => (
-            <option key={s._id} value={s._id}>{s.name}</option>
-          ))}
-        </Select>
-        <Input label="Date" required type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={!!initial} />
-        <Input
-          label="Hours"
-          required
-          type="number"
-          max={24}
-          step="any"
-          value={hours}
-          onChange={(e) => setHours(e.target.value)}
-          placeholder="2"
-          disabled={pending}
-        />
-        <Input
-          label={`Rate (₹/hr)${selectedLabour ? ` — default ${formatINR(selectedLabour.hourlyRate)}` : ""}`}
-          type="number"
-          min={0}
-          step="any"
-          value={rate}
-          onChange={(e) => setRate(e.target.value)}
-          placeholder="Leave blank for worker's hourly rate"
-          disabled={pending}
-        />
-        {hoursNum > 0 && (
-          <p className="rounded bg-background px-3 py-2 text-sm font-medium">Amount = {hoursNum} × {formatINR(rateNum)} = {formatINR(previewAmount)}</p>
-        )}
-        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reason…" disabled={pending} />
-        {error && (
-          <p role="alert" className="whitespace-pre-wrap text-sm text-danger">{error}</p>
-        )}
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onClose} disabled={pending}>Cancel</Button>
-          <Button type="submit" disabled={pending}>
-            {pending ? "Saving…" : initial ? "Save Changes" : "Add Overtime"}
-          </Button>
-        </div>
-      </form>
-    </Modal>
   );
 }

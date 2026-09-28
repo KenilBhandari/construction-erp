@@ -17,13 +17,29 @@ interface Props {
   sites: { _id: string; name: string }[];
   suggestedSiteId: string | null;
   existing?: { _id: string; hours: number; rate: number; notes: string | null; site?: string | { _id: string; name: string } | null } | null;
+  /**
+   * Free-form mode (Overtime tab): worker + date become selectable instead of
+   * fixed. Save path is identical — the single upsert endpoint.
+   */
+  labourOptions?: { _id: string; name: string; hourlyRate: number }[];
 }
 
-export function AttendanceOtModal({ open, onClose, onSaved, labour, date, sites, suggestedSiteId, existing }: Props) {
+export function AttendanceOtModal({ open, onClose, onSaved, labour, date, sites, suggestedSiteId, existing, labourOptions }: Props) {
+  const freeForm = Array.isArray(labourOptions);
   const existingSiteId = (() => {
     if (!existing?.site) return null;
     return typeof existing.site === "string" ? existing.site : (existing.site as { _id: string })._id;
   })();
+  const existingLabourId = (() => {
+    const l = (existing as unknown as { labour?: string | { _id: string } } | null)?.labour;
+    if (!l) return labour._id;
+    return typeof l === "string" ? l : l._id;
+  })();
+  const existingDate = (existing as unknown as { date?: string | Date } | null)?.date
+    ? new Date((existing as unknown as { date: string | Date }).date).toISOString().slice(0, 10)
+    : date;
+  const [freeLabourId, setFreeLabourId] = useState(existingLabourId);
+  const [freeDate, setFreeDate] = useState(existingDate);
   const [siteId, setSiteId] = useState(() => existingSiteId ?? suggestedSiteId ?? "");
   const [hours, setHours] = useState(existing ? String(existing.hours) : "");
   const [rate, setRate] = useState(existing ? String(existing.rate) : "");
@@ -31,12 +47,21 @@ export function AttendanceOtModal({ open, onClose, onSaved, labour, date, sites,
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const activeLabour = freeForm
+    ? (labourOptions?.find((l) => l._id === freeLabourId) ?? { _id: freeLabourId, name: "", hourlyRate: labour.hourlyRate })
+    : labour;
+  const activeDate = freeForm ? freeDate : date;
+
   useEffect(() => {
     if (open) {
       const sId = (() => {
         if (existing?.site) return typeof existing.site === "string" ? existing.site : (existing.site as { _id: string })._id;
         return suggestedSiteId ?? "";
       })();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFreeLabourId(existingLabourId);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFreeDate(existingDate);
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSiteId(sId);
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -48,7 +73,7 @@ export function AttendanceOtModal({ open, onClose, onSaved, labour, date, sites,
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(null);
     }
-  }, [open, existing, suggestedSiteId]);
+  }, [open, existing, suggestedSiteId, existingLabourId, existingDate]);
 
   // Keep siteId in sync if suggested changes and not editing
   useEffect(() => {
@@ -58,12 +83,22 @@ export function AttendanceOtModal({ open, onClose, onSaved, labour, date, sites,
     }
   }, [suggestedSiteId, existing, open, siteId]);
 
-  const rateNum = rate === "" ? labour.hourlyRate : Number(rate);
+  const rateNum = rate === "" ? activeLabour.hourlyRate : Number(rate);
   const hoursNum = Number(hours);
   const amount = !isNaN(hoursNum) && !isNaN(rateNum) && hoursNum > 0 ? Math.round(hoursNum * rateNum) : 0;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // Single write path for every OT save — create-or-update the labour+day record.
+    const lid = freeForm ? freeLabourId : labour._id;
+    if (!lid) {
+      setError("Worker is required.");
+      return;
+    }
+    if (!activeDate) {
+      setError("Date is required.");
+      return;
+    }
     if (!siteId) {
       setError("Site is required.");
       return;
@@ -76,11 +111,13 @@ export function AttendanceOtModal({ open, onClose, onSaved, labour, date, sites,
     setPending(true);
     setError(null);
     try {
+      // Strict create on add (duplicate day → "already exists", no silent overwrite);
+      // by-id edit on existing. One modal, canonical service underneath both.
       const payload: Record<string, unknown> = {
         hours: hoursNum,
         rate: rate === "" ? null : Number(rate),
         notes: notes.trim() === "" ? null : notes.trim(),
-        ...(existing ? { site: siteId } : { labour: labour._id, site: siteId, date }),
+        ...(existing ? { site: siteId } : { labour: lid, site: siteId, date: activeDate }),
       };
       const url = existing ? `/api/overtime/${existing._id}` : "/api/overtime";
       const res = await fetch(url, {
@@ -103,10 +140,22 @@ export function AttendanceOtModal({ open, onClose, onSaved, labour, date, sites,
   return (
     <Modal open={open} onClose={onClose} title={existing ? "Edit Overtime" : "Add Overtime"}>
       <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-        <div className="rounded-md bg-background p-3 text-sm">
-          <p className="font-medium text-text">{labour.name}</p>
-          <p className="text-text-muted">{date} {(siteId || suggestedSiteId) ? `· ${sites.find(s => s._id === (siteId || suggestedSiteId))?.name ?? ""}` : ""}</p>
-        </div>
+        {freeForm ? (
+          <>
+            <Select label="Worker" required value={freeLabourId} onChange={(e) => setFreeLabourId(e.target.value)} disabled={pending}>
+              <option value="">Select worker…</option>
+              {labourOptions?.map((l) => (
+                <option key={l._id} value={l._id}>{l.name}</option>
+              ))}
+            </Select>
+            <Input label="Date" required type="date" value={freeDate} onChange={(e) => setFreeDate(e.target.value)} disabled={pending} />
+          </>
+        ) : (
+          <div className="rounded-md bg-background p-3 text-sm">
+            <p className="font-medium text-text">{labour.name}</p>
+            <p className="text-text-muted">{date} {(siteId || suggestedSiteId) ? `· ${sites.find(s => s._id === (siteId || suggestedSiteId))?.name ?? ""}` : ""}</p>
+          </div>
+        )}
 
         <Select label="Site" required value={siteId} onChange={(e) => setSiteId(e.target.value)} disabled={pending}>
           <option value="">Select site…</option>
@@ -126,7 +175,7 @@ export function AttendanceOtModal({ open, onClose, onSaved, labour, date, sites,
           placeholder="2.0"
         />
         <Input
-          label={`OT Rate (₹/hr) — default ${formatINR(labour.hourlyRate)}`}
+          label={`OT Rate (₹/hr) — default ${formatINR(activeLabour.hourlyRate)}`}
           type="number"
           min={0}
           value={rate}

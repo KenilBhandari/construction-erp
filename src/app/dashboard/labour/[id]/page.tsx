@@ -5,6 +5,7 @@ import { formatDateShort, formatINR } from "@/lib/utils";
 import { Labour } from "@/models/Labour";
 import { LabourAssignment } from "@/models/LabourAssignment";
 import { Attendance } from "@/models/Attendance";
+import { Overtime } from "@/models/Overtime";
 import { Salary } from "@/models/Salary";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -32,7 +33,7 @@ export default async function LabourDetailPage({
   const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
   const labourFilter = { labour: new Types.ObjectId(id) };
   const monthFilter = { labour: new Types.ObjectId(id), date: { $gte: monthStart, $lte: monthEnd } };
-  const [assignments, attendanceAgg, salaryAgg] = await Promise.all([
+  const [assignments, attendanceAgg, monthOtAgg, salaryAgg] = await Promise.all([
     LabourAssignment.find({ labour: id })
       .populate("site", "name")
       .sort({ from: -1, _id: -1 })
@@ -40,7 +41,11 @@ export default async function LabourDetailPage({
       .lean(),
     Attendance.aggregate([
       { $match: monthFilter },
-      { $group: { _id: "$status", days: { $sum: 1 }, ot: { $sum: "$overtimeHours" } } },
+      { $group: { _id: "$status", days: { $sum: 1 }, ot: { $sum: { $ifNull: ["$overtimeHours", 0] } } } },
+    ]),
+    Overtime.aggregate([
+      { $match: monthFilter },
+      { $group: { _id: null, ot: { $sum: "$hours" } } },
     ]),
     Salary.aggregate([
       { $match: labourFilter },
@@ -61,6 +66,7 @@ export default async function LabourDetailPage({
     attByStatus[row._id] = row.days;
     attOT += row.ot ?? 0;
   }
+  attOT = Math.round((attOT + ((monthOtAgg as Array<{ ot: number }>)[0]?.ot ?? 0)) * 10) / 10;
   const salaryTotals = salaryAgg[0] as
     | { periods: number; net: number; paid: number }
     | undefined;

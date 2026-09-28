@@ -84,7 +84,6 @@ export async function GET(req: Request) {
               site: att.site,
               project: att.project,
               notes: att.notes,
-              overtimeHours: att.overtimeHours ?? 0,
             }
           : null,
         suggestedSite,

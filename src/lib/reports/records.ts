@@ -30,7 +30,7 @@ export async function getAttendanceRecords(
     ...idMatch("site", scope?.siteId),
     ...idMatch("labour", scope?.labourId),
   };
-  const [rows, total] = await Promise.all([
+  const [rows, total, otRows] = await Promise.all([
     Attendance.find(match)
       .populate("labour", "name")
       .populate("project", "name")
@@ -40,17 +40,32 @@ export async function getAttendanceRecords(
       .limit(pageSize)
       .lean(),
     Attendance.countDocuments(match),
+    // OT hours = legacy attendance field + the day's Overtime record —
+    // identical sources to the money path, so rows always agree with totals.
+    Overtime.find(match)
+      .select("labour date hours")
+      .lean(),
   ]);
+  const otByDay = new Map<string, number>();
+  for (const o of otRows as Array<{ labour: unknown; date: Date; hours: number }>) {
+    const key = `${String(o.labour)}:${new Date(o.date).getTime()}`;
+    otByDay.set(key, (otByDay.get(key) ?? 0) + (o.hours ?? 0));
+  }
   return {
-    rows: rows.map((a) => ({
-      _id: String(a._id),
-      date: a.date as Date,
-      workerName: nameOf(a.labour),
-      projectName: nameOf(a.project),
-      siteName: nameOf(a.site),
-      status: a.status as string,
-      otHours: (a.overtimeHours as number | undefined) ?? 0,
-    })),
+    rows: rows.map((a) => {
+      const key = `${String((a.labour as { _id?: unknown })?._id ?? a.labour)}:${new Date(a.date as Date).getTime()}`;
+      const otHours =
+        Math.round((((a.overtimeHours as number | undefined) ?? 0) + (otByDay.get(key) ?? 0)) * 10) / 10;
+      return {
+        _id: String(a._id),
+        date: a.date as Date,
+        workerName: nameOf(a.labour),
+        projectName: nameOf(a.project),
+        siteName: nameOf(a.site),
+        status: a.status as string,
+        otHours,
+      };
+    }),
     total,
   };
 }

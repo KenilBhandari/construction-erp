@@ -10,6 +10,13 @@
  *    display-only (salary.ts preserves the primary breakdown entry) and will
  *    not reconcile. Salary is summed per worker / per period only.
  *
+ * 1b. All OT writes go through lib/overtime.saveOvertime (upsert endpoint +
+ *    strict create + by-id edit are wrappers) into Overtime records. OT hours
+ *    everywhere = legacy Attendance.overtimeHours + Σ Overtime.hours —
+ *    identical sources to the money path (attendanceOT + overtimeRecords),
+ *    so row sums always equal header totals. No API path writes the
+ *    attendance field anymore; it survives only for pre-existing data.
+ *
  * 2. Global profit ≠ Σ project profits unless the General bucket is included.
  *    Records with null project (general manual expenses, unassigned labour,
  *    unattributed purchases) are surfaced explicitly via getUnattributedCosts.

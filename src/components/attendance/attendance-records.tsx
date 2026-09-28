@@ -49,6 +49,7 @@ export function AttendanceRecords({ initialLabourId = "" }: { initialLabourId?: 
   const [sites, setSites] = useState<SiteDTO[]>([]);
   const [labour, setLabour] = useState<LabourDTO[]>([]);
   const [data, setData] = useState<ListResponse | null>(null);
+  const [otByDay, setOtByDay] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<AttendanceDTO | null>(null);
@@ -88,12 +89,33 @@ export function AttendanceRecords({ initialLabourId = "" }: { initialLabourId?: 
     if (siteId) params.set("site", siteId);
     if (labourId) params.set("labour", labourId);
     if (status) params.set("status", status);
-    fetch(`/api/attendance?${params}`)
-      .then(async (res) => {
+    const otParams = new URLSearchParams({ limit: "500" });
+    if (from) otParams.set("from", from);
+    if (to) otParams.set("to", to);
+    if (projectId) otParams.set("project", projectId);
+    if (siteId) otParams.set("site", siteId);
+    if (labourId) otParams.set("labour", labourId);
+    Promise.all([
+      fetch(`/api/attendance?${params}`).then(async (res) => {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "Failed to load records.");
         if (!json || !Array.isArray(json.data)) throw new Error("Invalid attendance response.");
+        return json;
+      }),
+      fetch(`/api/overtime?${otParams}`).then(async (res) => {
+        if (!res.ok) return { data: [] };
+        return res.json();
+      }),
+    ])
+      .then(([json, otJson]) => {
         setData(json);
+        const map = new Map<string, number>();
+        for (const o of (otJson.data ?? []) as Array<{ labour: string | { _id: string }; date: string; hours: number }>) {
+          const lid = typeof o.labour === "string" ? o.labour : o.labour._id;
+          const key = `${lid}:${new Date(o.date).toISOString().slice(0, 10)}`;
+          map.set(key, (map.get(key) ?? 0) + (o.hours ?? 0));
+        }
+        setOtByDay(map);
         setError(null);
       })
       .catch((err: Error) => setError(err.message))
@@ -204,7 +226,11 @@ export function AttendanceRecords({ initialLabourId = "" }: { initialLabourId?: 
               </TR>
             </THead>
             <tbody>
-              {data.data.map((r) => (
+              {data.data.map((r) => {
+                const lid = typeof r.labour === "string" ? r.labour : (r.labour as { _id: string })._id;
+                const key = `${lid}:${new Date(r.date).toISOString().slice(0, 10)}`;
+                const ot = Math.round(((r.overtimeHours ?? 0) + (otByDay.get(key) ?? 0)) * 10) / 10;
+                return (
                 <TR key={r._id}>
                   <TD className="tnum">{formatDateShort(r.date)}</TD>
                   <TD className="font-medium">{nameOf(r.labour)}</TD>
@@ -224,7 +250,7 @@ export function AttendanceRecords({ initialLabourId = "" }: { initialLabourId?: 
                       </select>
                     </div>
                   </TD>
-                  <TD numeric>{r.overtimeHours}</TD>
+                  <TD numeric>{ot || "—"}</TD>
                   <TD>
                     <button
                       type="button"
@@ -235,7 +261,8 @@ export function AttendanceRecords({ initialLabourId = "" }: { initialLabourId?: 
                     </button>
                   </TD>
                 </TR>
-              ))}
+                );
+              })}
             </tbody>
           </Table>
 

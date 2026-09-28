@@ -115,7 +115,7 @@ export function LabourAttendanceHistory({ labourId }: { labourId: string }) {
               const siteLabel = siteNameOf(r.site);
               const isUnspecified = siteLabel === "—";
               const dateKey = new Date(r.date).toISOString().slice(0,10);
-              const otHours = r.overtimeHours || otByDate.get(dateKey) || 0;
+              const otHours = Math.round(((r.overtimeHours ?? 0) + (otByDate.get(dateKey) ?? 0)) * 10) / 10;
               return (
                 <TR key={r._id}>
                   <TD className="tnum">{formatDateShort(r.date)}</TD>

@@ -114,6 +114,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     totalLabour,
     activeLabour,
     todayAgg,
+    todayOtAgg,
     todayPurchaseAgg,
     todayExpenseAgg,
     salaryPayableAgg,
@@ -140,9 +141,13 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
         $group: {
           _id: "$status",
           count: { $sum: 1 },
-          ot: { $sum: "$overtimeHours" },
+          ot: { $sum: { $ifNull: ["$overtimeHours", 0] } },
         },
       },
+    ]),
+    Overtime.aggregate([
+      { $match: { date: todayFilter } },
+      { $group: { _id: null, ot: { $sum: "$hours" } } },
     ]),
     StockTransaction.aggregate([
       { $match: { type: "purchase", date: todayFilter } },
@@ -288,7 +293,12 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       half,
       leave,
       total: present + absent + half + leave,
-      overtimeHours: Object.values(byStatus).reduce((s, r) => s + (r.ot ?? 0), 0),
+      overtimeHours:
+        Math.round(
+          (Object.values(byStatus).reduce((s, r) => s + (r.ot ?? 0), 0) +
+            ((todayOtAgg as Array<{ ot: number }>)[0]?.ot ?? 0)) *
+            10,
+        ) / 10,
     },
     todayPurchases: todayPurchaseAgg[0]?.amount ?? 0,
     todayExpenses: todayExpenseAgg[0]?.amount ?? 0,

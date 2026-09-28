@@ -19,7 +19,6 @@ interface RowMark {
   name: string;
   skill: string;
   status: AttendanceStatus | null;
-  overtimeHours: string;
 }
 
 const STATUS_BUTTONS: { value: AttendanceStatus; label: string; active: string }[] = [
@@ -79,11 +78,11 @@ export function MarkAttendance() {
     ])
       .then(([labourJson, attJson]) => {
         const labour: LabourDTO[] = Array.isArray(labourJson.data) ? labourJson.data : [];
-        const existing: Record<string, { status: AttendanceStatus; overtimeHours: number }> = {};
+        const existing: Record<string, { status: AttendanceStatus }> = {};
         if (Array.isArray(attJson.data)) {
           for (const a of attJson.data) {
             const lid = typeof a.labour === "string" ? a.labour : (a.labour as { _id: string })._id;
-            existing[lid] = { status: a.status, overtimeHours: a.overtimeHours ?? 0 };
+            existing[lid] = { status: a.status };
           }
         }
         setRows(
@@ -92,7 +91,6 @@ export function MarkAttendance() {
             name: l.name,
             skill: l.skill,
             status: existing[l._id]?.status ?? "present",
-            overtimeHours: String(existing[l._id]?.overtimeHours ?? ""),
           })),
         );
         setMessage(null);
@@ -127,10 +125,6 @@ export function MarkAttendance() {
     setRows((rs) => (rs ?? []).map((r) => (r.labourId === labourId ? { ...r, status } : r)));
   }
 
-  function setRowOT(labourId: string, value: string) {
-    setRows((rs) => (rs ?? []).map((r) => (r.labourId === labourId ? { ...r, overtimeHours: value } : r)));
-  }
-
   function markAll(status: AttendanceStatus | null) {
     setRows((rs) => (rs ?? []).map((r) => ({ ...r, status })));
   }
@@ -144,13 +138,8 @@ export function MarkAttendance() {
       .map((r) => ({
         labour: r.labourId,
         status: r.status as AttendanceStatus,
-        overtimeHours: r.overtimeHours === "" ? 0 : Number(r.overtimeHours),
         notes: null,
       }));
-    if (records.some((r) => Number.isNaN(r.overtimeHours) || r.overtimeHours < 0)) {
-      setMessage({ kind: "error", text: "Overtime hours must be 0 or more." });
-      return;
-    }
     if (records.length === 0) {
       setMessage({ kind: "error", text: "Mark at least one worker before saving." });
       return;
@@ -227,6 +216,7 @@ export function MarkAttendance() {
               {marked} / {rows.length} marked · {date}
             </span>
           </div>
+          <p className="text-xs text-text-muted">Overtime is recorded separately — use the Overtime tab or the day detail.</p>
 
           <Card className="divide-y divide-border">
             {rows.map((r) => (
@@ -249,16 +239,6 @@ export function MarkAttendance() {
                       {b.label}
                     </button>
                   ))}
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.5}
-                    value={r.overtimeHours}
-                    onChange={(e) => setRowOT(r.labourId, e.target.value)}
-                    placeholder="OT hrs"
-                    aria-label={`Overtime hours for ${r.name}`}
-                    className="w-20 rounded-md border border-border bg-surface px-2 py-1 text-xs tnum text-text placeholder:text-text-muted focus:border-primary focus:outline-none"
-                  />
                 </div>
               </div>
             ))}

@@ -1,14 +1,10 @@
-import { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import { fail, ok, requireAuth, idempotencyKeyFrom } from "@/lib/api";
 import { objectIdSchema, paginationSchema } from "@/lib/validation";
 import { overtimeCreateSchema } from "@/lib/schemas";
 import { toDayDate, dayRange } from "@/lib/utils";
-import { calculateOvertimeAmount } from "@/lib/calculations";
-import { recomputeSalariesFor, handleAttendanceChangeForReconciliation } from "@/lib/salary";
+import { saveOvertime } from "@/lib/overtime";
 import { Overtime } from "@/models/Overtime";
-import { Labour } from "@/models/Labour";
-import { Site } from "@/models/Site";
 
 export async function GET(req: Request) {
   const { error } = await requireAuth();
@@ -82,59 +78,22 @@ export async function POST(req: Request) {
     await connectDB();
     const body = overtimeCreateSchema.parse(await req.json());
     const headerKey = idempotencyKeyFrom(req);
-    if (headerKey) {
-      const existing = await Overtime.findOne({ idempotencyKey: headerKey }).lean();
-      if (existing) return ok(existing, { status: 200 });
-    }
-
-    const [labour, site] = await Promise.all([
-      Labour.findById(body.labour).select("hourlyRate").lean(),
-      Site.findById(body.site).select("project").lean(),
-    ]);
-    if (!labour) return fail(new Error("Worker not found."), 404);
-    if (!site?.project) return fail(new Error("Selected site not found."), 404);
-
-    const day = toDayDate(body.date);
-    const existingOt = await Overtime.findOne({ labour: new Types.ObjectId(body.labour), date: day }).lean();
-    if (existingOt) return fail(new Error("Overtime already exists for this worker on this date. Edit the existing record instead."), 409);
-
-    const rate = body.rate ?? labour.hourlyRate;
-    const amount = Math.round(calculateOvertimeAmount(body.hours, rate));
-
-    let created;
     try {
-      created = await Overtime.create({
-        labour: new Types.ObjectId(body.labour),
-        site: new Types.ObjectId(body.site),
-        project: site.project,
-        date: day,
+      const { record } = await saveOvertime({
+        labour: body.labour,
+        site: body.site,
+        date: body.date,
         hours: body.hours,
-        rate,
-        amount,
-        notes: body.notes ?? null,
+        rate: body.rate,
+        notes: body.notes,
         idempotencyKey: headerKey ?? undefined,
       });
-    } catch (e: unknown) {
-      const msg = (e as { code?: number; message?: string })?.message ?? "";
-      const code = (e as { code?: number })?.code;
-      if (code === 11000 || msg.includes("duplicate key") || msg.includes("E11000")) {
-        if (headerKey) {
-          const again = await Overtime.findOne({ idempotencyKey: headerKey }).lean();
-          if (again) return ok(again);
-        }
-        return fail(new Error("Overtime already exists for this worker on this date. Edit the existing record instead."), 409);
-      }
+      return ok(record, { status: 201 });
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg.includes("already exists")) return fail(e, 409);
       throw e;
     }
-
-    try {
-      await recomputeSalariesFor([body.labour], created.date);
-      await handleAttendanceChangeForReconciliation([body.labour], created.date);
-    } catch (err) {
-      console.warn("[overtime] salary recompute skipped:", (err as Error).message);
-    }
-
-    return ok(created, { status: 201 });
   } catch (err) {
     return fail(err, 422);
   }

@@ -250,6 +250,7 @@ export async function computeAndSaveSalary(input: ComputeInput) {
     else if (a.status === "absent") absentDays++;
     else leaveDays++;
 
+    // Hours counter sums both OT sources — identical to the money path below.
     overtimeHours += a.overtimeHours ?? 0;
     const cost = typeof a.cost === "number" ? a.cost : attendanceCostFor(a.status, a.dailyRateSnapshot ?? labour.dailyRate);
     gross += cost;
@@ -279,9 +280,12 @@ export async function computeAndSaveSalary(input: ComputeInput) {
   const overtimeRecordsAmount = (overtimeAgg[0]?.amount as number | undefined) ?? 0;
   const overtimeAmount = attendanceOT + overtimeRecordsAmount;
 
-  // Distribute overtimeRecordsAmount to breakdown: group Overtime by site/project
-  const overtimeDocs = await Overtime.find({ ...labourFilter, date: dateFilter }).select("site project amount").lean();
-  for (const o of overtimeDocs as unknown as Array<{ site: Types.ObjectId; project: Types.ObjectId; amount: number }>) {
+  // Distribute overtimeRecordsAmount to breakdown: group Overtime by site/project.
+  // Settlement overtimeHours sums both OT sources (legacy attendance field +
+  // Overtime records) — identical to the money path, so hours never disagree.
+  const overtimeDocs = await Overtime.find({ ...labourFilter, date: dateFilter }).select("site project amount hours").lean();
+  for (const o of overtimeDocs as unknown as Array<{ site: Types.ObjectId; project: Types.ObjectId; amount: number; hours: number }>) {
+    overtimeHours += o.hours ?? 0;
     const key = breakdownKey(o.site, o.project);
     const entry = breakdownMap.get(key) ?? { site: o.site, project: o.project, siteName: null, projectName: null, presentDays: 0, halfDays: 0, gross: 0, overtimeAmount: 0 };
     entry.overtimeAmount += o.amount;

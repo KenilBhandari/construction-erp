@@ -49,7 +49,7 @@ export async function getLabourReportDetail(
           half: { $sum: { $cond: [{ $eq: ["$status", "half-day"] }, 1, 0] } },
           absent: { $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] } },
           leave: { $sum: { $cond: [{ $eq: ["$status", "leave"] }, 1, 0] } },
-          otHours: { $sum: { $ifNull: ["$overtimeHours", 0] } },
+          attOt: { $sum: { $ifNull: ["$overtimeHours", 0] } },
           earned: { $sum: { $ifNull: ["$cost", 0] } },
         },
       },
@@ -69,9 +69,11 @@ export async function getLabourReportDetail(
     getAttendanceRecords(scope, scope.page ?? 1, scope.pageSize ?? REPORT_PAGE_SIZE),
   ]);
 
-  const att = attAgg[0] ?? { present: 0, half: 0, absent: 0, leave: 0, otHours: 0, earned: 0 };
+  const att = attAgg[0] ?? { present: 0, half: 0, absent: 0, leave: 0, attOt: 0, earned: 0 };
   const earned = Math.round(att.earned ?? 0);
   const overtime = (otAgg[0]?.amount as number | undefined) ?? 0;
+  // OT hours = legacy attendance field + Overtime records — identical sources to
+  // the money path, so the header total always equals the history row sum.
   const paid = salaryRows.reduce((s, r) => s + r.paid, 0);
   const salaryOutstanding = salaryRows.reduce((s, r) => s + r.outstanding, 0);
 
@@ -86,7 +88,8 @@ export async function getLabourReportDetail(
       half: att.half ?? 0,
       absent: att.absent ?? 0,
       leave: att.leave ?? 0,
-      otHours: Math.round(((att.otHours as number) ?? 0) * 10) / 10,
+      otHours:
+        Math.round((((att.attOt as number | undefined) ?? 0) + ((otAgg[0]?.hours as number | undefined) ?? 0)) * 10) / 10,
     },
     cost: { earned, overtime, total: earned + overtime },
     salary: { paid, outstanding: salaryOutstanding },
