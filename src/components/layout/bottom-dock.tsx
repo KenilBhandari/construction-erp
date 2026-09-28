@@ -3,111 +3,82 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Ellipsis } from "lucide-react";
-import { DOCK_ITEMS, MORE_HREFS, isActive } from "./nav-data";
-import { MoreSheet } from "./more-sheet";
+import { NAV_AREAS, activeArea } from "./nav-data";
+import { useGlide } from "./use-glide";
 import { cn } from "@/lib/utils";
 
 export function BottomDock() {
   const pathname = usePathname();
-  const [moreOpen, setMoreOpen] = useState(false);
+  const area = activeArea(pathname);
 
-  const moreActive =
-    !moreOpen && MORE_HREFS.some((href) => isActive(pathname, href));
+  // Optimistic focus: glide the instant a slot is tapped, without
+  // waiting for the route to render.
+  const [pressed, setPressed] = useState<{ label: string; at: string } | null>(
+    null,
+  );
+  const effectiveLabel =
+    pressed && pressed.at === pathname ? pressed.label : area?.label;
+  const activeIndex = Math.max(
+    0,
+    NAV_AREAS.findIndex((a) => a.label === effectiveLabel),
+  );
+  const { containerRef, setItemRef, pill } = useGlide(activeIndex);
 
   return (
-    <>
-      {/* Invisible tap-outside layer — no dim, no blur: the sheet stays minimal */}
-      {moreOpen && (
-        <button
-          type="button"
-          aria-label="Close all sections"
-          onClick={() => setMoreOpen(false)}
-          className="fixed inset-0 z-40 cursor-default bg-transparent"
-        />
-      )}
-      <nav
-        aria-label="Primary"
-        className="dock-enter fixed bottom-4 left-1/2 z-50 w-[min(430px,calc(100vw-2rem))] -translate-x-1/2 pb-[env(safe-area-inset-bottom)]"
+    <nav
+      aria-label="Primary"
+      className="dock-enter fixed bottom-4 left-1/2 z-50 w-[min(460px,calc(100vw-2rem))] -translate-x-1/2 pb-[env(safe-area-inset-bottom)]"
+    >
+      <div
+        ref={containerRef}
+        className="glass-dock relative flex items-stretch justify-around rounded-full p-1.5"
       >
-        <div className="relative">
-          <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} />
-          <div className="glass-pill flex items-center justify-around rounded-full px-3 py-2 sm:px-4">
-          {DOCK_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(pathname, item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className="relative flex min-w-0 flex-col items-center gap-[3px] rounded-full px-3 py-1.5 transition-transform duration-150 active:scale-90 sm:px-4"
-              >
-                {active && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-0 rounded-full border border-primary/20 bg-primary-light"
-                  />
-                )}
-                <Icon
-                  className={cn(
-                    "relative z-10 h-5 w-5 transition-colors duration-150",
-                    active ? "text-primary" : "text-text-muted",
-                  )}
-                  strokeWidth={active ? 2.25 : 1.75}
-                />
-                <span
-                  className={cn(
-                    "relative z-10 text-[10px] font-medium transition-colors duration-150",
-                    active ? "text-primary" : "text-text-muted",
-                  )}
-                >
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
+        {/* Module pill: solid orange, glides between slots */}
+        <span
+          aria-hidden="true"
+          className="glide-pill dock-pill pointer-events-none absolute left-0 top-0 rounded-full"
+          style={{
+            transform: `translate(${pill.x}px, ${pill.y}px)`,
+            width: pill.w,
+            height: pill.h,
+            opacity: pill.ready && effectiveLabel !== undefined ? 1 : 0,
+            transition: pill.animate ? undefined : "none",
+          }}
+        />
 
-          <button
-            type="button"
-            onClick={() => setMoreOpen((v) => !v)}
-            aria-expanded={moreOpen}
-            aria-label="All sections"
-            className="relative flex min-w-0 cursor-pointer flex-col items-center gap-[3px] rounded-full px-3 py-1.5 transition-transform duration-150 active:scale-90 sm:px-4"
-          >
-            {moreOpen && (
-              <span
-                aria-hidden="true"
-                className="absolute inset-0 rounded-full border border-primary/20 bg-primary-light"
-              />
-            )}
-            <span className="relative z-10">
-              <Ellipsis
-                className={cn(
-                  "h-5 w-5 transition-colors duration-150",
-                  moreOpen || moreActive ? "text-primary" : "text-text-muted",
-                )}
-                strokeWidth={moreOpen || moreActive ? 2.25 : 1.75}
-              />
-              {moreActive && (
-                <span
-                  aria-hidden="true"
-                  className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary"
-                />
-              )}
-            </span>
-            <span
-              className={cn(
-                "relative z-10 text-[10px] font-medium transition-colors duration-150",
-                moreOpen || moreActive ? "text-primary" : "text-text-muted",
-              )}
+        {NAV_AREAS.map((item, i) => {
+          const Icon = item.icon;
+          const isCurrent = item.label === effectiveLabel;
+          return (
+            <Link
+              key={item.label}
+              ref={setItemRef(i)}
+              href={item.href}
+              onClick={() => setPressed({ label: item.label, at: pathname })}
+              aria-current={isCurrent ? "page" : undefined}
+              className="relative z-10 flex min-w-0 flex-1 flex-col items-center gap-[3px] rounded-full px-1 py-1.5 outline-none transition-transform duration-150 active:scale-95 focus-visible:ring-2 focus-visible:ring-primary/60"
             >
-              More
-            </span>
-          </button>
-          </div>
-        </div>
-      </nav>
-    </>
+              <Icon
+                className={cn(
+                  "h-[22px] w-[22px] transition-colors duration-300",
+                  isCurrent ? "text-white" : "text-text-muted",
+                )}
+                strokeWidth={isCurrent ? 2.2 : 1.8}
+              />
+              <span
+                className={cn(
+                  "max-w-full truncate text-[10px] leading-none transition-colors duration-300",
+                  isCurrent
+                    ? "font-semibold text-white"
+                    : "font-medium text-text-muted",
+                )}
+              >
+                {item.label}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
