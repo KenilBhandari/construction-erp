@@ -66,7 +66,7 @@ export function BottomDock() {
   return (
     <nav
       aria-label="Primary"
-      className="dock-enter fixed bottom-4 left-1/2 z-50 w-[min(440px,calc(100vw-1.5rem))] -translate-x-1/2 pb-[env(safe-area-inset-bottom)]"
+      className="dock-enter fixed bottom-4 left-1/2 z-50 w-[min(440px,calc(100vw-1.5rem))] -translate-x-1/2 pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       <div className="glass-dock isolate h-[58px] overflow-clip rounded-full">
         <div className={cn("dock-track flex h-full w-[200%]", inSubnav && "sub")}>
