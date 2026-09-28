@@ -34,6 +34,100 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Glass material: translucent gradient + deep blur + specular sheen.
+   The gradient and top highlight do the heavy lifting on flat
+   backgrounds; the blur shows once page content scrolls behind. */
+.glass-pill,
+.glass-panel {
+  position: relative;
+  -webkit-backdrop-filter: blur(28px) saturate(2);
+  backdrop-filter: blur(28px) saturate(2);
+}
+
+/* Specular sheen: light falling off from the top edge */
+.glass-pill::before,
+.glass-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 255, 255, 0.12) 38%,
+    rgba(255, 255, 255, 0) 55%
+  );
+  pointer-events: none;
+}
+
+.glass-pill {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.66) 0%,
+    rgba(255, 255, 255, 0.38) 55%,
+    rgba(255, 240, 232, 0.48) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow:
+    0 12px 40px rgba(28, 28, 28, 0.16),
+    inset 0 1px 1px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 2px rgba(255, 255, 255, 0.45),
+    0 0 0 1px rgba(28, 28, 28, 0.06);
+}
+
+.glass-panel {
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(255, 255, 255, 0.52) 60%,
+    rgba(255, 240, 232, 0.55) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow:
+    0 16px 48px rgba(28, 28, 28, 0.18),
+    inset 0 1px 1px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 2px rgba(255, 255, 255, 0.45),
+    0 0 0 1px rgba(28, 28, 28, 0.06);
+}
+
+/* Minimal sheet entrance: rises out of the dock */
+@keyframes sheet-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.sheet-enter {
+  animation: sheet-rise 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  transform-origin: bottom center;
+}
+
+/* Dock entrance on load */
+@keyframes dock-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.dock-enter {
+  animation: dock-rise 0.45s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-enter,
+  .dock-enter {
+    animation: none;
+  }
+}
+
 /* Restrained financial numbers: tabular, easy to scan */
 .tnum {
   font-variant-numeric: tabular-nums;
