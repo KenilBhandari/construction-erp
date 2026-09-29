@@ -10,20 +10,20 @@ function AttendanceContent() {
   const [tab, setTab] = useState<"attendance" | "overtime">("attendance");
   const [otRefreshKey, setOtRefreshKey] = useState(0);
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4 sm:gap-5">
       <PageHeader title="Attendance" />
-      <div className="flex gap-2 border-b border-border">
+      <div className="flex gap-2 overflow-x-auto border-b border-border">
         <button
           type="button"
           onClick={() => setTab("attendance")}
-          className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${tab === "attendance" ? "border-primary text-primary" : "border-transparent text-text-muted hover:text-text"}`}
+          className={`-mb-px min-h-11 shrink-0 border-b-2 px-4 py-2.5 text-[15px] font-medium sm:min-h-0 sm:py-2 sm:text-sm ${tab === "attendance" ? "border-primary text-primary" : "border-transparent text-text-muted hover:text-text"}`}
         >
           Attendance
         </button>
         <button
           type="button"
           onClick={() => setTab("overtime")}
-          className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${tab === "overtime" ? "border-primary text-primary" : "border-transparent text-text-muted hover:text-text"}`}
+          className={`-mb-px min-h-11 shrink-0 border-b-2 px-4 py-2.5 text-[15px] font-medium sm:min-h-0 sm:py-2 sm:text-sm ${tab === "overtime" ? "border-primary text-primary" : "border-transparent text-text-muted hover:text-text"}`}
         >
           Overtime
         </button>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,10 @@ export interface ComboOption {
  * Material-style dropdown: a trigger button + popup listbox with
  * keyboard navigation. Used for filters (project status, etc.).
  * Phone: h-11 trigger, 44px option rows. Desktop: h-10, compact rows.
+ * The popup is portaled to document.body with fixed positioning so it
+ * escapes overflow containers (table scroll wrappers, modals).
+ * Pass triggerClassName to shrink the trigger for dense rows — the
+ * popup menu stays full-size and thumb-friendly.
  */
 export function ComboSelect({
   label,
@@ -23,6 +28,10 @@ export function ComboSelect({
   options,
   onChange,
   className,
+  triggerClassName,
+  disabled,
+  autoOpen,
+  onClose,
 }: {
   label?: string;
   ariaLabel?: string;
@@ -32,10 +41,18 @@ export function ComboSelect({
   options: ComboOption[];
   onChange: (value: string) => void;
   className?: string;
+  triggerClassName?: string;
+  disabled?: boolean;
+  /** Open the menu on mount (edit-mode pickers that replace a locked display). */
+  autoOpen?: boolean;
+  /** Fired whenever the menu closes (pick, outside click, Escape, scroll-away). */
+  onClose?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(-1);
+  const [pos, setPos] = useState<{ top: number; left: number; minWidth: number; maxWidth: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
   const selected = options.find((o) => o.value === value);
@@ -46,21 +63,74 @@ export function ComboSelect({
     return idx >= 0 ? idx : 0;
   }
 
+  function measure(): { top: number; left: number; minWidth: number; maxWidth: number } | null {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r || typeof window === "undefined") return null;
+    const H = 232; // max-h-56 + margin; flips above the trigger when cramped
+    // Menu hugs the trigger but sizes to its content instead of forcing width.
+    const minWidth = Math.max(r.width, 120);
+    const maxWidth = Math.min(320, window.innerWidth - 16);
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - minWidth - 8));
+    const below = window.innerHeight - r.bottom;
+    const top =
+      below >= H || r.top < H ? r.bottom + 4 : Math.max(4, r.top - H);
+    return { top, left, minWidth, maxWidth };
+  }
+
   function openList() {
+    const p = measure();
+    if (p) setPos(p);
     setHighlight(selectedIndex());
     setOpen(true);
   }
 
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
+  function closeList() {
+    setOpen(false);
+    setHighlight(-1);
+    onCloseRef.current?.();
+  }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (autoOpen) openList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     function onOutside(e: MouseEvent) {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setHighlight(-1);
+        closeList();
       }
     }
     document.addEventListener("mousedown", onOutside);
     return () => document.removeEventListener("mousedown", onOutside);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    // Track the trigger while scrolling so the menu follows it;
+    // close only once it scrolls out of view.
+    const onScroll = () => {
+      const r = btnRef.current?.getBoundingClientRect();
+      if (!r || r.bottom < 0 || r.top > window.innerHeight) {
+        closeList();
+        return;
+      }
+      const p = measure();
+      if (p) setPos(p);
+    };
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", closeList);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", closeList);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (open && highlight >= 0) {
@@ -74,8 +144,7 @@ export function ComboSelect({
     const opt = options[idx];
     if (!opt) return;
     onChange(opt.value);
-    setOpen(false);
-    setHighlight(-1);
+    closeList();
   }
 
   return (
@@ -89,6 +158,8 @@ export function ComboSelect({
       <div className="relative">
         <button
           type="button"
+          ref={btnRef}
+          disabled={disabled}
           aria-label={ariaLabel ?? label}
           aria-haspopup="listbox"
           aria-expanded={open}
@@ -110,15 +181,16 @@ export function ComboSelect({
               e.preventDefault();
               pick(highlight);
             } else if (e.key === "Escape") {
-              setOpen(false);
-              setHighlight(-1);
+              closeList();
             }
           }}
           className={cn(
             "flex h-11 w-full items-center justify-between gap-2 rounded-md border border-border bg-surface pl-3.5 pr-3 text-left text-base text-text",
             "focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30",
             "sm:h-10 sm:pl-3 sm:text-sm",
+            triggerClassName,
             open && "border-primary ring-2 ring-primary/30",
+            disabled && "opacity-50",
           )}
         >
           <span className="min-w-0 truncate">{selected?.label ?? "Select…"}</span>
@@ -131,13 +203,14 @@ export function ComboSelect({
           />
         </button>
         {error && <p className="text-xs text-danger">{error}</p>}
-        {open && (
+        {open && pos && typeof document !== "undefined" && createPortal(
           <ul
             ref={listRef}
             id={listId}
             role="listbox"
             aria-label={ariaLabel ?? label}
-            className="scroll-area absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-auto rounded-md border border-border bg-surface py-1 shadow-lg"
+            style={{ position: "fixed", top: pos.top, left: pos.left, width: "max-content", minWidth: pos.minWidth, maxWidth: pos.maxWidth, zIndex: 50 }}
+            className="scroll-area max-h-56 overflow-x-hidden overflow-y-auto rounded-md border border-border bg-surface py-1 shadow-lg"
           >
             {options.map((o, idx) => {
               const isSelected = o.value === value;
@@ -162,7 +235,8 @@ export function ComboSelect({
                 </li>
               );
             })}
-          </ul>
+          </ul>,
+          document.body,
         )}
       </div>
     </div>
