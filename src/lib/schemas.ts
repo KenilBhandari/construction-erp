@@ -64,7 +64,7 @@ export const labourUpdateSchema = labourCreateSchema.partial();
 
 export const assignmentCreateSchema = z.object({
   labour: objectIdSchema,
-  site: objectIdSchema,
+  site: objectIdSchema.nullish(),
   from: optionalDate,
   notes: optionalText,
 });

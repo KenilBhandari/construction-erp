@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
@@ -71,6 +72,8 @@ export function ProjectForm({
   onSubmit: (values: ProjectFormValues) => void;
 }) {
   const [values, setValues] = useState<ProjectFormValues>(initial);
+
+  const router = useRouter();
 
   const [errors, setErrors] = useState<
     Partial<Record<keyof ProjectFormValues, string>>
@@ -285,8 +288,11 @@ export function ProjectForm({
         </p>
       )}
 
-      <div className="pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:pb-0 sm:text-left text-right sm:[&>button]:w-auto">
-        <Button type="submit" disabled={pending}>
+      <div className="flex flex-row justify-end gap-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:pb-0">
+        <Button type="button" variant="outline" onClick={() => router.back()} disabled={pending} className="h-11 sm:h-auto">
+          Cancel
+        </Button>
+        <Button type="submit" disabled={pending} className="h-11 sm:h-auto">
           {pending ? "Saving…" : submitLabel}
         </Button>
       </div>

@@ -124,11 +124,11 @@ export function LabourActions({
             autoComplete="off"
             autoFocus
           />
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => { setConfirming(null); setDeleteConfirmText(""); setError(null); }} disabled={pending}>
+          <div className="flex flex-row justify-end gap-2">
+            <Button variant="outline" onClick={() => { setConfirming(null); setDeleteConfirmText(""); setError(null); }} disabled={pending} className="h-11 sm:h-auto">
               Cancel
             </Button>
-            <Button variant="danger" onClick={handleDelete} disabled={pending || deleteConfirmText !== "DELETE"}>
+            <Button variant="danger" onClick={handleDelete} disabled={pending || deleteConfirmText !== "DELETE"} className="h-11 sm:h-auto">
               {pending ? "Please wait…" : "Delete"}
             </Button>
           </div>

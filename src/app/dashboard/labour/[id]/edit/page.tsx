@@ -70,7 +70,7 @@ export default function EditLabourPage({ params }: { params: Promise<{ id: strin
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
       <PageHeader title="Edit Labour" />
       {loading && <TableSkeleton rows={5} />}
       {loadError && (

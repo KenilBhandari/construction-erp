@@ -369,11 +369,11 @@ export default function ProjectsList() {
             onChange={(e) => setDeleteConfirmText(e.target.value)}
             autoComplete="off"
           />
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={closeDelete} disabled={deletePending} className="h-11 w-full sm:h-auto sm:w-auto">
+          <div className="flex flex-row justify-end gap-2">
+            <Button variant="outline" onClick={closeDelete} disabled={deletePending} className="h-11 sm:h-auto">
               Cancel
             </Button>
-            <Button variant="danger" onClick={handleDelete} disabled={!canDelete} className="h-11 w-full sm:h-auto sm:w-auto">
+            <Button variant="danger" onClick={handleDelete} disabled={!canDelete} className="h-11 sm:h-auto">
               {deletePending ? "Please wait…" : "Delete"}
             </Button>
           </div>

@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { ResponsiveDate } from "@/components/ui/responsive-date";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
-import { formatDateShort } from "@/lib/utils";
 import type { AttendanceStatus } from "@/types/attendance";
 
 interface AttendanceRow {
@@ -81,26 +81,26 @@ export function LabourAttendanceHistory({ labourId }: { labourId: string }) {
 
   if (loading) {
     return (
-      <Card className="p-5">
-        <h2 className="text-base font-semibold text-text">This month attendances</h2>
-        <p className="mt-3 text-sm text-text-muted">Loading...</p>
+      <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
+        <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">This month attendances</h2>
+        <p className="mt-3.5 text-sm text-text-muted sm:mt-3">Loading...</p>
       </Card>
     );
   }
   if (error) {
     return (
-      <Card className="p-5">
-        <h2 className="text-base font-semibold text-text">This month attendances</h2>
-        <p className="mt-3 text-sm text-danger">{error} <button className="underline" onClick={load}>Retry</button></p>
+      <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
+        <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">This month attendances</h2>
+        <p className="mt-3.5 text-sm text-danger sm:mt-3">{error} <button className="underline" onClick={load}>Retry</button></p>
       </Card>
     );
   }
   if (rows.length === 0) return null;
 
   return (
-    <Card className="p-5">
-      <h2 className="text-base font-semibold text-text">This month attendances</h2>
-      <div className="mt-3 max-h-[320px] overflow-auto rounded-md border border-border">
+    <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
+      <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">This month attendances</h2>
+      <div className="scroll-area mt-3.5 max-h-[320px] overflow-auto rounded-xl border border-border sm:mt-3 sm:rounded-lg">
         <Table>
           <THead>
             <TR>
@@ -118,7 +118,7 @@ export function LabourAttendanceHistory({ labourId }: { labourId: string }) {
               const otHours = Math.round(((r.overtimeHours ?? 0) + (otByDate.get(dateKey) ?? 0)) * 10) / 10;
               return (
                 <TR key={r._id}>
-                  <TD className="tnum">{formatDateShort(r.date)}</TD>
+                  <TD className="tnum"><ResponsiveDate date={r.date} /></TD>
                   <TD><Badge tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</Badge></TD>
                   <TD className={isUnspecified ? "text-text-muted italic" : ""}>{siteLabel}</TD>
                   <TD className="tnum">{otHours ? `${otHours}h` : <span className="text-text-muted">—</span>}</TD>

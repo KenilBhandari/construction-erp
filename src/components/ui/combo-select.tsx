@@ -17,6 +17,8 @@ export interface ComboOption {
 export function ComboSelect({
   label,
   ariaLabel,
+  required,
+  error,
   value,
   options,
   onChange,
@@ -24,6 +26,8 @@ export function ComboSelect({
 }: {
   label?: string;
   ariaLabel?: string;
+  required?: boolean;
+  error?: string;
   value: string;
   options: ComboOption[];
   onChange: (value: string) => void;
@@ -77,7 +81,10 @@ export function ComboSelect({
   return (
     <div className={cn("flex flex-col gap-1", className)} ref={wrapRef}>
       {label && (
-        <span className="text-sm font-medium text-text">{label}</span>
+        <span className="text-sm font-medium text-text">
+          {label}
+          {required && <span className="text-danger"> *</span>}
+        </span>
       )}
       <div className="relative">
         <button
@@ -123,6 +130,7 @@ export function ComboSelect({
             )}
           />
         </button>
+        {error && <p className="text-xs text-danger">{error}</p>}
         {open && (
           <ul
             ref={listRef}

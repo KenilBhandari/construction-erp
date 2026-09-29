@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { Modal } from "@/components/ui/modal";
-import { Select } from "@/components/ui/select";
+import { ComboSelect } from "@/components/ui/combo-select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -48,10 +48,6 @@ export function AssignSiteDialog({
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!site) {
-      setError("Select a site.");
-      return;
-    }
     setPending(true);
     setError(null);
     try {
@@ -60,7 +56,7 @@ export function AssignSiteDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           labour: labourId,
-          site,
+          site: site === "" ? null : site,
           from: from === "" ? null : from,
           notes: notes.trim() === "" ? null : notes.trim(),
         }),
@@ -76,23 +72,32 @@ export function AssignSiteDialog({
     }
   }
 
+  const unassigning = site === "";
+
   return (
     <Modal open={open} onClose={onClose} title={`Assign ${labourName}`}>
       <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-        <Select label="Site" required value={site} onChange={(e) => setSite(e.target.value)}>
-          <option value="">Select site…</option>
-          {sites.map((s) => (
-            <option key={s._id} value={s._id}>{s.name}</option>
-          ))}
-        </Select>
+        <ComboSelect
+          label="Site"
+          required
+          value={site}
+          options={[
+            { value: "", label: "Unassigned" },
+            ...sites.map((s) => ({ value: s._id, label: s.name })),
+          ]}
+          onChange={setSite}
+        />
         <Input label="From date" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reason for move…" />
         {error && (
           <p role="alert" className="text-sm text-danger">{error}</p>
         )}
-        <div className="flex justify-end">
-          <Button type="submit" disabled={pending}>
-            {pending ? "Assigning…" : "Assign Site"}
+        <div className="flex flex-row justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onClose} disabled={pending} className="h-11 sm:h-auto">
+            Cancel
+          </Button>
+          <Button type="submit" disabled={pending} className="h-11 sm:h-auto">
+            {pending ? (unassigning ? "Removing…" : "Assigning…") : (unassigning ? "Remove from Site" : "Assign Site")}
           </Button>
         </div>
       </form>

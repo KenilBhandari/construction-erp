@@ -52,6 +52,15 @@ export function formatDateShort(date: Date | string): string {
   }).format(d);
 }
 
+/** Compact numeric date for tight phone tables: "18/09/26" */
+export function formatDateCompact(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
+}
+
 /** "2026-09-18" for <input type="date"> defaults (attendance defaults to today). */
 export function toDateInputValue(date: Date = new Date()): string {
   const year = date.getFullYear();

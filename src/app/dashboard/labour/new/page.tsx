@@ -49,7 +49,7 @@ export default function NewLabourPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
       <PageHeader title="Add Labour" />
       {loadingSites ? (
         <TableSkeleton rows={4} />

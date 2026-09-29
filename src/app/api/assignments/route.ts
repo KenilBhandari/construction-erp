@@ -44,6 +44,7 @@ export async function GET(req: Request) {
 /**
  * Assign (or reassign) a labourer to a site. Closes the open assignment
  * and opens a new one; updates Labour.assignedSite. History is preserved.
+ * site: null unassigns — closes the open assignment without opening one.
  */
 export async function POST(req: Request) {
   const { error } = await requireAuth();
@@ -53,14 +54,24 @@ export async function POST(req: Request) {
     await connectDB();
     const body = assignmentCreateSchema.parse(await req.json());
 
-    const [labour, siteExists] = await Promise.all([
-      Labour.findById(body.labour),
-      Site.exists({ _id: body.site }),
-    ]);
+    const labour = await Labour.findById(body.labour);
     if (!labour) return fail(new Error("Labour not found."), 404);
-    if (!siteExists) return fail(new Error("Selected site not found."), 404);
 
     const from = body.from ?? new Date();
+
+    if (!body.site) {
+      // Unassign: close any open assignment, clear the current site.
+      await LabourAssignment.updateMany(
+        { labour: body.labour, to: null },
+        { $set: { to: from } },
+      );
+      labour.assignedSite = null;
+      await labour.save();
+      return ok({ unassigned: true }, { status: 200 });
+    }
+
+    const siteExists = await Site.exists({ _id: body.site });
+    if (!siteExists) return fail(new Error("Selected site not found."), 404);
 
     // Close any open assignment the day the new one starts.
     await LabourAssignment.updateMany(

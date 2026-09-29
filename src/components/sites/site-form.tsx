@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,10 +41,21 @@ export function SiteForm({
   onSubmit: (values: SiteFormValues) => void;
 }) {
   const [values, setValues] = useState<SiteFormValues>(initial);
-  const [errors, setErrors] = useState<Partial<Record<"name" | "project" | "progress", string>>>({});
+
+  const router = useRouter();
+  const [errors, setErrors] = useState<Partial<Record<keyof SiteFormValues, string>>>({});
 
   function set<K extends keyof SiteFormValues>(key: K, value: SiteFormValues[K]) {
     setValues((v) => ({ ...v, [key]: value }));
+
+    // Clear the field error as soon as the user edits it.
+    if (errors[key]) {
+      setErrors((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+    }
   }
 
   function handleSubmit(e: FormEvent) {
@@ -64,19 +76,28 @@ export function SiteForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 sm:gap-5">
-      <section className="border border-border bg-surface rounded-lg p-3 sm:p-5">
-        <h2 className="text-[15px] font-semibold text-text sm:text-base">Site Information</h2>
-        <div className="mt-2.5 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-4">
-          <div className="col-span-2">
-            <Input label="Site Name" name="name" required value={values.name} error={errors.name} onChange={(e) => set("name", e.target.value)} placeholder="Main Building" />
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4 sm:gap-6">
+      <section className="border border-border bg-surface rounded-xl p-4 sm:rounded-lg sm:p-5">
+        <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">
+          Site Information
+        </h2>
+        <div className="mt-3.5 grid grid-cols-2 gap-x-3 gap-y-4 sm:mt-4 sm:gap-4">
+          <div className="col-span-2 sm:col-span-1">
+            <Input
+              label="Site Name"
+              name="name"
+              required
+              value={values.name}
+              error={errors.name}
+              onChange={(e) => set("name", e.target.value)}
+              placeholder="Main Building"
+            />
           </div>
-          <div className="col-span-2">
-            <span className="mb-1 block text-[13px] font-medium text-text sm:text-sm">
-              Project <span className="text-danger">*</span>
-            </span>
+          <div className="col-span-2 sm:col-span-1">
             <ComboSelect
-              ariaLabel="Project"
+              label="Project"
+              required
+              error={errors.project}
               value={values.project}
               options={[
                 { value: "", label: "Select project…" },
@@ -84,40 +105,99 @@ export function SiteForm({
               ]}
               onChange={(v) => set("project", v)}
             />
-            {errors.project && <p className="mt-1 text-xs text-danger">{errors.project}</p>}
           </div>
-          <Input label="Location" name="location" value={values.location} onChange={(e) => set("location", e.target.value)} placeholder="Block A" />
-          <Input label="Supervisor" name="supervisor" value={values.supervisor} onChange={(e) => set("supervisor", e.target.value)} placeholder="Supervisor name" />
-          <Input label="Start Date" name="startDate" type="date" value={values.startDate} onChange={(e) => set("startDate", e.target.value)} className="px-2 text-sm sm:px-3" />
-          <Input label="Expected End Date" name="expectedEndDate" type="date" value={values.expectedEndDate} onChange={(e) => set("expectedEndDate", e.target.value)} className="px-2 text-sm sm:px-3" />
+          <div className="min-w-0">
+            <Input
+              label="Location"
+              name="location"
+              value={values.location}
+              onChange={(e) => set("location", e.target.value)}
+              placeholder="Block A"
+            />
+          </div>
+          <div className="min-w-0">
+            <Input
+              label="Supervisor"
+              name="supervisor"
+              value={values.supervisor}
+              onChange={(e) => set("supervisor", e.target.value)}
+              placeholder="Supervisor name"
+            />
+          </div>
+          <div className="min-w-0">
+            <Input
+              label="Start Date"
+              name="startDate"
+              type="date"
+              value={values.startDate}
+              onChange={(e) => set("startDate", e.target.value)}
+            />
+          </div>
+          <div className="min-w-0">
+            <Input
+              label="Exp. End Date"
+              name="expectedEndDate"
+              type="date"
+              value={values.expectedEndDate}
+              onChange={(e) => set("expectedEndDate", e.target.value)}
+            />
+          </div>
         </div>
       </section>
 
-      <section className="border border-border bg-surface rounded-lg p-3 sm:p-5">
-        <h2 className="text-[15px] font-semibold text-text sm:text-base">Status</h2>
-        <div className="mt-2.5 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-4">
-          <ComboSelect
-            label="Status"
-            value={values.status}
-            options={(SITE_STATUSES as readonly SiteStatus[]).map((s) => ({
-              value: s,
-              label: siteStatusLabel(s),
-            }))}
-            onChange={(v) => set("status", v as SiteStatus)}
-          />
-          <Input label="Progress %" name="progress" required type="number" inputMode="numeric" min={0} max={100} value={values.progress} error={errors.progress} onChange={(e) => set("progress", e.target.value)} />
-          <div className="col-span-2">
-            <Textarea label="Notes" name="notes" value={values.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Notes…" />
+      <section className="border border-border bg-surface rounded-xl p-4 sm:rounded-lg sm:p-5">
+        <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">
+          Status
+        </h2>
+        <div className="mt-3.5 grid grid-cols-2 gap-x-3 gap-y-4 sm:mt-4 sm:gap-4">
+          <div className="min-w-0">
+            <ComboSelect
+              label="Status"
+              value={values.status}
+              options={(SITE_STATUSES as readonly SiteStatus[]).map((s) => ({
+                value: s,
+                label: siteStatusLabel(s),
+              }))}
+              onChange={(v) => set("status", v as SiteStatus)}
+            />
           </div>
+          <div className="min-w-0">
+            <Input
+              label="Progress %"
+              name="progress"
+              required
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={100}
+              value={values.progress}
+              error={errors.progress}
+              onChange={(e) => set("progress", e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="mt-4">
+          <Textarea
+            label="Notes"
+            name="notes"
+            value={values.notes}
+            onChange={(e) => set("notes", e.target.value)}
+            placeholder="Notes…"
+          />
         </div>
       </section>
 
       {serverError && (
-        <p role="alert" className="text-sm text-danger">{serverError}</p>
+        <p role="alert" className="text-sm text-danger">
+          {serverError}
+        </p>
       )}
 
-      <div>
-        <Button type="submit" disabled={pending} className="h-11 w-full sm:h-auto sm:w-auto">
+      <div className="flex flex-row justify-end gap-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:pb-0">
+        <Button type="button" variant="outline" onClick={() => router.back()} disabled={pending} className="h-11 sm:h-auto">
+          Cancel
+        </Button>
+        <Button type="submit" disabled={pending} className="h-11 sm:h-auto">
           {pending ? "Saving…" : submitLabel}
         </Button>
       </div>

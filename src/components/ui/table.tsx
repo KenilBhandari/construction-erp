@@ -10,8 +10,8 @@ export function Table({
   className?: string;
 }) {
   return (
-    <div className={cn("table-scroll overflow-x-auto border border-border rounded-lg bg-surface", className)}>
-      <table className="w-full border-collapse text-sm">{children}</table>
+    <div className={cn("scroll-area table-scroll overflow-x-auto border border-border rounded-lg bg-surface", className)}>
+      <table className="w-full border-collapse text-[13px] sm:text-sm">{children}</table>
     </div>
   );
 }
@@ -32,7 +32,7 @@ export function TH({
   return (
     <th
       className={cn(
-        "sticky top-0 border-b border-border px-4 py-2.5 font-medium text-text-muted",
+        "sticky top-0 border-b border-border px-3 py-2 font-medium text-text-muted sm:px-4 sm:py-2.5",
         numeric ? "text-right" : "text-left",
         className,
       )}
@@ -63,7 +63,7 @@ export function TD({
       colSpan={colSpan}
       title={title}
       className={cn(
-        "border-b border-border px-4 py-2.5 text-text",
+        "border-b border-border px-3 py-2 text-text sm:px-4 sm:py-2.5",
         numeric && "text-right tnum",
         className,
       )}

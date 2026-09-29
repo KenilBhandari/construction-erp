@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
@@ -85,7 +86,7 @@ export default async function SiteDetailPage({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
       <PageHeader
         title={site.name}
         action={
@@ -97,7 +98,7 @@ export default async function SiteDetailPage({
         }
       />
 
-      <Card className="p-5">
+      <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Badge
             tone={
@@ -110,118 +111,135 @@ export default async function SiteDetailPage({
           >
             {site.status}
           </Badge>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-text-muted tnum">
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-2.5 sm:flex-none sm:gap-3">
+            <span className="shrink-0 text-[13px] text-text-muted tnum sm:text-sm">
               {site.progress}%
             </span>
             <ProgressBar
               value={site.progress}
-              className="w-[160px] sm:w-[220px]"
+              className="w-full max-w-[160px] sm:w-[220px] sm:max-w-none"
             />
           </div>
         </div>
-        <div className="mt-4 border-t border-border" />
-        <dl className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-          <div>
-            <dt className="text-text-muted">Project</dt>
-            <dd className="mt-1 font-medium tnum">
+
+        <div className="mt-3.5 border-t border-border sm:mt-4" />
+
+        <dl className="mt-3.5 grid grid-cols-2 gap-2.5 text-sm sm:mt-4 sm:grid-cols-4 sm:gap-4">
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Project</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-medium tnum sm:mt-1 sm:text-base">
               {project ? project.name : "—"}
             </dd>
           </div>
-          <div>
-            <dt className="text-text-muted">Supervisor</dt>
-            <dd className="mt-1 font-medium tnum">{site.supervisor ?? "—"}</dd>
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Supervisor</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-medium tnum sm:mt-1 sm:text-base">{site.supervisor ?? "—"}</dd>
           </div>
-          <div>
-            <dt className="text-text-muted">Location</dt>
-            <dd className="mt-1 font-medium tnum">{site.location ?? "—"}</dd>
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Location</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-medium tnum sm:mt-1 sm:text-base">{site.location ?? "—"}</dd>
           </div>
-          <div>
-            <dt className="text-text-muted">Current Labour</dt>
-            <dd className="mt-1 font-semibold tnum">{currentLabour.length}</dd>
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Current Labour</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-semibold tnum sm:mt-1 sm:text-base">{currentLabour.length}</dd>
           </div>
         </dl>
-        {hasStart && hasEnd ? (
-          <p className="mt-4 text-sm text-text-muted">
-            Period: {formatDMY(site.startDate as string | Date)} -{" "}
-            {formatDMY(site.expectedEndDate as string | Date)}
-          </p>
-        ) : hasStart ? (
-          <p className="mt-4 text-sm text-text-muted">
-            Start - {formatDMY(site.startDate as string | Date)}
-          </p>
-        ) : hasEnd ? (
-          <p className="mt-4 text-sm text-text-muted">
-            End - {formatDMY(site.expectedEndDate as string | Date)}
-          </p>
-        ) : null}
-        {hasNotes ? (
-          <p className="mt-3 text-sm leading-6 text-text">
-            <span className="text-text-muted">Notes - </span>
-            {site.notes}
-          </p>
+        {(hasStart || hasEnd || hasNotes) ? (
+        <div className="mt-4 border-t border-border pt-4 sm:mt-6 sm:pt-5">
+          {(hasStart || hasEnd) ? (
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-6">
+            <div className="col-span-2 min-w-0 sm:col-span-1">
+              <p className="text-xs text-text-muted">Site Period</p>
+              {hasStart && hasEnd ? (
+                <p className="mt-1 inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-medium text-text">
+                  {formatDMY(site.startDate as string | Date)}
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-text-muted" />
+                  {formatDMY(site.expectedEndDate as string | Date)}
+                </p>
+              ) : hasStart ? (
+                <p className="mt-1 text-sm font-medium text-text">
+                  From {formatDMY(site.startDate as string | Date)}
+                </p>
+              ) : (
+                <p className="mt-1 text-sm font-medium text-text">
+                  Until {formatDMY(site.expectedEndDate as string | Date)}
+                </p>
+              )}
+            </div>
+          </div>
+          ) : null}
+
+          {hasNotes ? (
+            <div className="mt-4 border-t border-border pt-4 sm:mt-6 sm:pt-5">
+              <p className="text-xs text-text-muted">Notes</p>
+              <p className="mt-1.5 max-w-3xl text-sm leading-6 text-text">
+                {site.notes}
+              </p>
+            </div>
+          ) : null}
+        </div>
         ) : null}
       </Card>
 
-      <Card className="p-5">
-        <h2 className="text-base font-semibold text-text">Site Costs</h2>
-        <dl className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-          <div>
-            <dt className="text-text-muted">Material Purchases</dt>
-            <dd className="mt-1 font-medium tnum">
+      <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
+        <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">Site Costs</h2>
+        <dl className="mt-3.5 grid grid-cols-2 gap-2.5 text-sm sm:mt-4 sm:grid-cols-4 sm:gap-4">
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Material Purchases</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-medium tnum sm:mt-1 sm:text-base">
               {formatINR(materialExpense)}
             </dd>
           </div>
-          <div>
-            <dt className="text-text-muted">Labour Cost</dt>
-            <dd className="mt-1 font-medium tnum">
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Labour Cost</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-medium tnum sm:mt-1 sm:text-base">
               {formatINR(labourExpense)}
             </dd>
           </div>
-          <div>
-            <dt className="text-text-muted">Overtime</dt>
-            <dd className="mt-1 font-medium tnum">
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Overtime</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-medium tnum sm:mt-1 sm:text-base">
               {formatINR(overtimeAmount)}
             </dd>
           </div>
-          <div>
-            <dt className="text-text-muted">Other Expenses</dt>
-            <dd className="mt-1 font-medium tnum">
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Other Expenses</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-medium tnum sm:mt-1 sm:text-base">
               {formatINR(manualExpenses)}
             </dd>
           </div>
           <div className="col-span-2 sm:col-span-4 border-t border-border pt-3">
-            <dt className="text-text-muted">Total Site Cost</dt>
-            <dd className="mt-1 font-semibold tnum text-base">
+            <dt className="text-xs text-text-muted sm:text-sm">Total Site Cost</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-semibold tnum sm:mt-1 sm:text-base">
               {formatINR(totalExpense)}
             </dd>
           </div>
         </dl>
       </Card>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card className="p-5">
-          <h2 className="text-base font-semibold text-text">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
+        <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
+          <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">
             Current Labour ({currentLabour.length})
           </h2>
 
           {currentLabour.length === 0 ? (
-            <div className="mt-3">
+            <div className="mt-3.5 sm:mt-3">
               <EmptyState
                 title="No labour assigned"
                 description="Assign labour to this site to track attendance and costs."
               />
             </div>
           ) : (
-            <div className="mt-4 max-h-[320px] overflow-y-auto rounded-md border border-border divide-y divide-border scrollbar-none">
+            <div className="scroll-area mt-3.5 max-h-[320px] overflow-y-auto rounded-xl border border-border divide-y divide-border sm:mt-3 sm:rounded-lg">
               {currentLabour.map((l) => (
                 <Link
                   key={String(l._id)}
                   href={`/dashboard/labour/${String(l._id)}`}
-                  className="flex items-center justify-between gap-4 px-3.5 py-2.5 text-sm  hover:bg-background/70"
+                  className="flex items-center justify-between gap-4 px-3.5 py-2.5 text-sm hover:bg-background/70"
                 >
                   <span className="min-w-0 truncate">
-                    <span className="font-medium text-text">{l.name}</span>
+                    <span className="font-medium text-primary">{l.name}</span>
                     <span className="text-text-muted"> · {l.skill}</span>
                   </span>
 
@@ -234,17 +252,17 @@ export default async function SiteDetailPage({
           )}
         </Card>
 
-        <Card className="p-5">
-          <h2 className="text-base font-semibold text-text">
+        <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
+          <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">
             Recent Purchases
           </h2>
 
           {recentStock.length === 0 ? (
-            <p className="mt-4 text-sm text-text-muted">
+            <p className="mt-3.5 text-sm text-text-muted sm:mt-3">
               No purchases for this site yet.
             </p>
           ) : (
-            <div className="mt-4 max-h-[320px] overflow-y-auto rounded-md border border-border divide-y divide-border scrollbar-none">
+            <div className="scroll-area mt-3.5 max-h-[320px] overflow-y-auto rounded-xl border border-border divide-y divide-border sm:mt-3 sm:rounded-lg">
               {recentStock.map((t) => (
                 <div
                   key={String(t._id)}

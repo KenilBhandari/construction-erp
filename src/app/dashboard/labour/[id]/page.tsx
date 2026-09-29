@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
-import { formatDateShort, formatINR } from "@/lib/utils";
+import { formatINR } from "@/lib/utils";
 import { Labour } from "@/models/Labour";
 import { LabourAssignment } from "@/models/LabourAssignment";
 import { Attendance } from "@/models/Attendance";
@@ -10,9 +11,10 @@ import { Salary } from "@/models/Salary";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { ResponsiveDate } from "@/components/ui/responsive-date";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { LabourActions } from "@/components/labour/labour-actions";
-import { LabourWriteOffSection } from "@/components/labour/labour-write-off";
+import { LabourAdvanceSection, LabourSalaryRecordsSection, LabourWriteOffsSection } from "@/components/labour/labour-write-off";
 import { LabourAttendanceHistory } from "@/components/labour/labour-attendance-history";
 
 export default async function LabourDetailPage({
@@ -83,7 +85,7 @@ export default async function LabourDetailPage({
   const hasNotes = !!labour.notes?.trim();
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
       <PageHeader
         title={labour.name}
         action={
@@ -96,35 +98,35 @@ export default async function LabourDetailPage({
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch">
-        <Card className="p-5 flex flex-col h-full">
-          <h2 className="text-base font-semibold text-text">Basic Information</h2>
-          <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <dt className="text-text-muted">Phone</dt>
-              <dd className="mt-0.5 font-medium tnum">{labour.phone}</dd>
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 lg:items-stretch">
+        <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5 flex flex-col h-full">
+          <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">Basic Information</h2>
+          <dl className="mt-3.5 grid grid-cols-2 gap-2.5 text-sm sm:mt-4 sm:gap-4">
+            <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+              <dt className="text-xs text-text-muted sm:text-sm">Phone</dt>
+              <dd className="mt-0.5 truncate text-[15px] font-medium tnum sm:mt-1 sm:text-base">{labour.phone}</dd>
             </div>
-            <div>
-              <dt className="text-text-muted">Skill</dt>
-              <dd className="mt-0.5 font-medium">{labour.skill}</dd>
+            <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+              <dt className="text-xs text-text-muted sm:text-sm">Skill</dt>
+              <dd className="mt-0.5 truncate text-[15px] font-medium sm:mt-1 sm:text-base">{labour.skill}</dd>
             </div>
-            <div>
-              <dt className="text-text-muted">Daily Rate</dt>
-              <dd className="mt-0.5 font-medium tnum">{formatINR(labour.dailyRate)}</dd>
+            <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+              <dt className="text-xs text-text-muted sm:text-sm">Daily Rate</dt>
+              <dd className="mt-0.5 truncate text-[15px] font-medium tnum sm:mt-1 sm:text-base">{formatINR(labour.dailyRate)}</dd>
             </div>
-            <div>
-              <dt className="text-text-muted">OT Hourly Rate</dt>
-              <dd className="mt-0.5 font-medium tnum">{formatINR(labour.hourlyRate)}</dd>
+            <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+              <dt className="text-xs text-text-muted sm:text-sm">OT Hourly Rate</dt>
+              <dd className="mt-0.5 truncate text-[15px] font-medium tnum sm:mt-1 sm:text-base">{formatINR(labour.hourlyRate)}</dd>
             </div>
-            <div>
-              <dt className="text-text-muted">Joining Date</dt>
-              <dd className={`mt-0.5 font-medium ${labour.joiningDate ? "" : "text-text-muted italic"}`}>
-                {labour.joiningDate ? formatDateShort(labour.joiningDate) : "—"}
+            <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+              <dt className="text-xs text-text-muted sm:text-sm">Joining Date</dt>
+              <dd className={`mt-0.5 truncate text-[15px] font-medium tnum sm:mt-1 sm:text-base ${labour.joiningDate ? "" : "text-text-muted italic"}`}>
+                {labour.joiningDate ? <ResponsiveDate date={labour.joiningDate} /> : "—"}
               </dd>
             </div>
-            <div>
-              <dt className="text-text-muted">Status</dt>
-              <dd className="mt-0.5">
+            <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+              <dt className="text-xs text-text-muted sm:text-sm">Status</dt>
+              <dd className="mt-1 sm:mt-1.5">
                 <Badge tone={labour.status === "active" ? "success" : "neutral"}>
                   {labour.status === "active" ? "Active" : "Inactive"}
                 </Badge>
@@ -132,74 +134,81 @@ export default async function LabourDetailPage({
             </div>
           </dl>
           {hasNotes && (
-            <p className="mt-3 text-sm leading-6 text-text">
-              <span className="text-text-muted">Notes: </span>{labour.notes!.trim()}
-            </p>
+            <div className="mt-4 border-t border-border pt-4 sm:mt-6 sm:pt-5">
+              <p className="text-xs text-text-muted">Notes</p>
+              <p className="mt-1.5 max-w-3xl text-sm leading-6 text-text">
+                {labour.notes!.trim()}
+              </p>
+            </div>
           )}
         </Card>
 
-        <Card className="p-4 flex flex-col h-full">
-          <h2 className="text-sm font-semibold text-text">Current Site</h2>
-          <p className="mt-2 text-sm">
-            {siteName ? (
-              <span className="font-medium text-text">{siteName}</span>
+        <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5 flex flex-col h-full">
+          <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">Current Site</h2>
+          <p className="mt-1.5 truncate text-sm">
+            {siteName && siteId ? (
+              <Link href={`/dashboard/sites/${siteId}`} className="font-medium text-primary hover:underline">{siteName}</Link>
             ) : (
-              <span className="text-text-muted italic">—</span>
+              <span className="text-text-muted italic">Unassigned</span>
             )}
           </p>
-          <h2 className="mt-4 text-sm font-semibold text-text">Attendance this month</h2>
-          <dl className="mt-2 grid grid-cols-4 gap-2 text-xs">
-            <div>
-              <dt className="text-text-muted">Present</dt>
-              <dd className="mt-0.5 font-semibold tnum text-sm">{attByStatus.present ?? 0}</dd>
+          <h2 className="mt-4 text-[15px] font-semibold tracking-tight text-text sm:mt-6 sm:text-base sm:tracking-normal">Attendance this month</h2>
+          <dl className="mt-3.5 grid grid-cols-4 gap-2.5 text-xs sm:mt-4 sm:gap-4 sm:text-sm">
+            <div className="min-w-0 rounded-lg bg-background px-2.5 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
+              <dt className="truncate text-text-muted">Present</dt>
+              <dd className="mt-0.5 truncate font-semibold tnum text-sm sm:mt-1 sm:text-base">{attByStatus.present ?? 0}</dd>
             </div>
-            <div>
-              <dt className="text-text-muted">Half Day</dt>
-              <dd className="mt-0.5 font-semibold tnum text-sm">{attByStatus["half-day"] ?? 0}</dd>
+            <div className="min-w-0 rounded-lg bg-background px-2.5 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
+              <dt className="truncate text-text-muted">Half Day</dt>
+              <dd className="mt-0.5 truncate font-semibold tnum text-sm sm:mt-1 sm:text-base">{attByStatus["half-day"] ?? 0}</dd>
             </div>
-            <div>
-              <dt className="text-text-muted">Absent</dt>
-              <dd className="mt-0.5 font-semibold tnum text-sm">{attByStatus.absent ?? 0}</dd>
+            <div className="min-w-0 rounded-lg bg-background px-2.5 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
+              <dt className="truncate text-text-muted">Absent</dt>
+              <dd className="mt-0.5 truncate font-semibold tnum text-sm sm:mt-1 sm:text-base">{attByStatus.absent ?? 0}</dd>
             </div>
-            <div>
-              <dt className="text-text-muted">OT hours</dt>
-              <dd className="mt-0.5 font-semibold tnum text-sm">{attOT}</dd>
+            <div className="min-w-0 rounded-lg bg-background px-2.5 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
+              <dt className="truncate text-text-muted">OT hours</dt>
+              <dd className="mt-0.5 truncate font-semibold tnum text-sm sm:mt-1 sm:text-base">{attOT}</dd>
             </div>
           </dl>
-          <h2 className="mt-4 text-sm font-semibold text-text">Salary Summary</h2>
+          <h2 className="mt-4 text-[15px] font-semibold tracking-tight text-text sm:mt-6 sm:text-base sm:tracking-normal">Salary Summary</h2>
           {salaryTotals ? (
-            <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
-              <div>
-                <dt className="text-text-muted">To Pay</dt>
-                <dd className="mt-0.5 font-semibold tnum text-sm">{formatINR(salaryTotals.net)}</dd>
+            <dl className="mt-3.5 grid grid-cols-3 gap-2.5 text-xs sm:mt-4 sm:gap-4 sm:text-sm">
+              <div className="min-w-0 rounded-lg bg-background px-2.5 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
+                <dt className="truncate text-text-muted">To Pay</dt>
+                <dd className="mt-0.5 truncate font-semibold tnum text-sm sm:mt-1 sm:text-base">{formatINR(salaryTotals.net)}</dd>
               </div>
-              <div>
-                <dt className="text-text-muted">Paid</dt>
-                <dd className="mt-0.5 font-semibold tnum text-sm">{formatINR(salaryTotals.paid)}</dd>
+              <div className="min-w-0 rounded-lg bg-background px-2.5 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
+                <dt className="truncate text-text-muted">Paid</dt>
+                <dd className="mt-0.5 truncate font-semibold tnum text-sm sm:mt-1 sm:text-base">{formatINR(salaryTotals.paid)}</dd>
               </div>
-              <div>
-                <dt className="text-text-muted">Remaining balance</dt>
-                <dd className="mt-0.5 font-semibold tnum text-sm">
+              <div className="min-w-0 rounded-lg bg-background px-2.5 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
+                <dt className="truncate text-text-muted">Balance</dt>
+                <dd className="mt-0.5 truncate font-semibold tnum text-sm sm:mt-1 sm:text-base">
                   {formatINR(salaryTotals.net - salaryTotals.paid)}
                 </dd>
               </div>
             </dl>
           ) : (
-            <p className="mt-1 text-xs leading-6 text-text-muted">
+            <p className="mt-1.5 text-xs leading-6 text-text-muted sm:text-sm">
               No salary calculated yet.
             </p>
           )}
         </Card>
       </div>
 
-      <LabourWriteOffSection labourId={lid} />
+      <LabourAdvanceSection labourId={lid} />
+
+      <LabourSalaryRecordsSection labourId={lid} />
 
       <LabourAttendanceHistory labourId={lid} />
 
+      <LabourWriteOffsSection labourId={lid} />
+
       {assignments.length > 0 && (
-        <Card className="p-5">
-          <h2 className="text-base font-semibold text-text">Assignment History</h2>
-          <div className="mt-3 max-h-[320px] overflow-auto rounded-md border border-border">
+        <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
+          <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">Assignment History</h2>
+          <div className="scroll-area mt-3.5 max-h-[320px] overflow-auto rounded-xl border border-border sm:mt-3 sm:rounded-lg">
             <Table>
               <THead>
                 <TR>
@@ -220,8 +229,8 @@ export default async function LabourDetailPage({
                   return (
                     <TR key={String(a._id)}>
                       <TD className={isUnspecSite ? "font-medium text-text-muted italic" : "font-medium"}>{siteName}</TD>
-                      <TD>{formatDateShort(a.from)}</TD>
-                      <TD className={isUnspecTo ? "text-text-muted italic" : ""}>{a.to ? formatDateShort(a.to) : "—"}</TD>
+                      <TD><ResponsiveDate date={a.from} /></TD>
+                      <TD className={isUnspecTo ? "text-text-muted italic" : ""}>{a.to ? <ResponsiveDate date={a.to} /> : "—"}</TD>
                       <TD>
                         {a.to ? (
                           <Badge tone="neutral">Closed</Badge>
