@@ -116,3 +116,34 @@ body {
   .dock-panel,
   .glide-pill { transition: none !important; }
 }
+
+/* ---------- Sandboxed card lists: thin scrollbar, visible on demand, auto-hides ----------
+   Touch devices use native overlay scrollbars (auto-hide by default).
+   Desktop reveals a 4px bar on hover / keyboard focus, hides otherwise. */
+.scroll-area {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.scroll-area::-webkit-scrollbar {
+  width: 4px;
+}
+.scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-area::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+@media (hover: hover) {
+  .scroll-area:hover,
+  .scroll-area:focus-within,
+  .scroll-area:active {
+    scrollbar-color: var(--color-border) transparent;
+  }
+  .scroll-area:hover::-webkit-scrollbar-thumb,
+  .scroll-area:focus-within::-webkit-scrollbar-thumb,
+  .scroll-area:active::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+  }
+}

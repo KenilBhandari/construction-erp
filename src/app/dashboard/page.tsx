@@ -31,20 +31,12 @@ export default async function DashboardPage() {
   await connectDB();
   const s = await getDashboardSummary();
 
-  const maxMonth = Math.max(1, ...s.monthlyExpenses.map((m) => m.amount));
   const contracted = s.contractsTotal;
   const receivedPct =
     contracted > 0 ? Math.round((s.receivedTotal / contracted) * 100) : 0;
-  const currentMonth = s.monthlyExpenses[s.monthlyExpenses.length - 1];
-  const prevMonths = s.monthlyExpenses.slice(-4, -1).reverse();
 
+  // Note: low stock is NOT repeated here — it has its own card below.
   const attention: { text: string; href: string }[] = [];
-  if (s.lowStockCount > 0) {
-    attention.push({
-      text: `${s.lowStockCount} stock item(s) below minimum — ${s.lowStock.map((m) => m.name).join(", ")}`,
-      href: "/dashboard/stock",
-    });
-  }
   if (s.outstandingTotal > 0) {
     attention.push({ text: `${formatINR(s.outstandingTotal)} client payments pending`, href: "/dashboard/payments" });
   }
@@ -56,13 +48,13 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
       <PageHeader
         title="Dashboard"
         description="How is the construction business doing today?"
       />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Active Projects" value={String(s.activeProjects)} hint={`${s.activeSites} active sites`} />
         <StatCard
           label="Today's Labour"
@@ -81,56 +73,58 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card className="p-5">
-          <h2 className="text-base font-semibold text-text">Today&apos;s Operations</h2>
+      <div className="grid grid-cols-1 gap-4 sm:gap-4 lg:grid-cols-2">
+        <Card className="p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-[15px] font-semibold text-text sm:text-base">Today&apos;s Operations</h2>
+            {s.today.total > 0 && (
+              <Link href="/dashboard/attendance" className="inline-flex shrink-0 items-center gap-1 py-1 text-[13px] font-medium text-primary hover:underline sm:text-sm">
+                View <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            )}
+          </div>
           {s.today.total === 0 ? (
-            <p className="mt-2 text-sm text-text-muted">
+            <p className="mt-2 text-sm leading-6 text-text-muted">
               No attendance marked today yet.{" "}
-              <Link href="/dashboard/attendance" className="inline-flex items-center gap-1 text-primary hover:underline">
+              <Link href="/dashboard/attendance" className="inline-flex items-center gap-1 py-1 text-primary hover:underline">
                 Mark attendance <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </p>
           ) : (
-            <>
-              <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                <div>
-                  <dt className="text-text-muted">Present</dt>
-                  <dd className="mt-0.5 font-semibold tnum">{s.today.present}</dd>
-                </div>
-                <div>
-                  <dt className="text-text-muted">Absent</dt>
-                  <dd className="mt-0.5 font-semibold tnum">{s.today.absent}</dd>
-                </div>
-                <div>
-                  <dt className="text-text-muted">Half / Leave</dt>
-                  <dd className="mt-0.5 font-semibold tnum">{s.today.half + s.today.leave}</dd>
-                </div>
-                <div>
-                  <dt className="text-text-muted">OT hours</dt>
-                  <dd className="mt-0.5 font-semibold tnum">{s.today.overtimeHours}</dd>
-                </div>
-              </dl>
-              <Link href="/dashboard/attendance" className="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline">
-                View attendance <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </>
+            <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3 sm:mt-3 sm:grid-cols-4 sm:gap-3">
+              <div className="min-w-0">
+                <dt className="text-xs text-text-muted sm:text-[13px]">Present</dt>
+                <dd className="mt-0.5 text-[15px] font-semibold tnum sm:text-base">{s.today.present}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-xs text-text-muted sm:text-[13px]">Absent</dt>
+                <dd className="mt-0.5 text-[15px] font-semibold tnum sm:text-base">{s.today.absent}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-xs text-text-muted sm:text-[13px]">Half / Leave</dt>
+                <dd className="mt-0.5 text-[15px] font-semibold tnum sm:text-base">{s.today.half + s.today.leave}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-xs text-text-muted sm:text-[13px]">OT hours</dt>
+                <dd className="mt-0.5 text-[15px] font-semibold tnum sm:text-base">{s.today.overtimeHours}</dd>
+              </div>
+            </dl>
           )}
         </Card>
 
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-text">Needs Attention</h2>
+        <Card className="p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-[15px] font-semibold text-text sm:text-base">Needs Attention</h2>
             {attention.length > 0 && <Badge tone="warning">{attention.length}</Badge>}
           </div>
           {attention.length === 0 ? (
             <p className="mt-2 text-sm text-text-muted">All clear — nothing needs attention.</p>
           ) : (
-            <ul className="mt-3 divide-y divide-border">
+            <ul className="scroll-area mt-2 max-h-[168px] divide-y divide-border sm:max-h-[208px]">
               {attention.map((a) => (
-                <li key={a.text} className="py-1.5 text-sm">
-                  <Link href={a.href} className="inline-flex items-center gap-1 text-text hover:text-primary hover:underline">
-                    {a.text} <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+                <li key={a.text} className="py-2 text-sm leading-6">
+                  <Link href={a.href} className="inline-flex items-center gap-1.5 text-text hover:text-primary hover:underline">
+                    <span className="min-w-0">{a.text}</span> <ArrowRight className="h-3.5 w-3.5 shrink-0" />
                   </Link>
                 </li>
               ))}
@@ -139,32 +133,37 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <Card className="p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-text">Low Stock</h2>
+      <Card className="p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-[15px] font-semibold text-text sm:text-base">Low Stock</h2>
           {s.lowStockCount > 0 && <Badge tone="warning">{s.lowStockCount} item(s)</Badge>}
         </div>
         {s.lowStock.length === 0 ? (
           <p className="mt-2 text-sm text-text-muted">Every material is above minimum.</p>
         ) : (
-          <ul className="mt-3 divide-y divide-border">
+          <ul className="scroll-area mt-2 max-h-[168px] divide-y divide-border sm:max-h-[208px]">
             {s.lowStock.map((m) => (
-              <li key={m._id} className="flex items-center justify-between py-1.5 text-sm">
-                <span className="font-medium text-text">{m.name}</span>
-                <span className="tnum text-text-muted">
+              <li key={m._id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="min-w-0 truncate font-medium text-text">{m.name}</span>
+                <span className="shrink-0 text-[13px] tnum text-text-muted">
                   {m.currentStock} / min {m.minimumStock} {m.unit}
                 </span>
               </li>
             ))}
           </ul>
         )}
-        <Link href="/dashboard/stock" className="mt-3 inline-block text-sm text-primary hover:underline">
+        <Link href="/dashboard/stock" className="mt-2 inline-block py-1 text-sm text-primary hover:underline">
           Open stock
         </Link>
       </Card>
 
-      <Card className="p-5">
-        <h2 className="text-base font-semibold text-text">Project Overview</h2>
+      <Card className="p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-[15px] font-semibold text-text sm:text-base">Project Overview</h2>
+          <Link href="/dashboard/projects" className="inline-flex shrink-0 items-center gap-1 py-1 text-[13px] font-medium text-primary hover:underline sm:text-sm">
+            All <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
         {s.projects.length === 0 ? (
           <div className="mt-2">
             <EmptyState
@@ -178,25 +177,21 @@ export default async function DashboardPage() {
             />
           </div>
         ) : (
-          <ul className="mt-3 divide-y divide-border">
+          <ul className="scroll-area mt-2 max-h-[312px] divide-y divide-border sm:max-h-[384px]">
             {s.projects.map((p) => {
-              const pct = p.budget > 0 ? Math.round((p.expense / p.budget) * 100) : 0;
               return (
-                <li key={p._id} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:gap-4">
-                  <div className="min-w-0 flex-1">
-                    <Link href={`/dashboard/projects/${p._id}`} className="font-medium text-primary hover:underline">
+                <li key={p._id} className="py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <Link href={`/dashboard/projects/${p._id}`} className="min-w-0 truncate py-0.5 text-[15px] font-medium text-primary hover:underline sm:text-base">
                       {p.name}
                     </Link>
-                    <p className="truncate text-xs text-text-muted">
-                      {p.clientName} · {p.location}
-                    </p>
-                    <ProgressBar value={p.progress} className="mt-2 max-w-xs" />
+                    <Badge tone={statusTone(p.status as ProjectStatus)} className="shrink-0">{statusLabel(p.status as ProjectStatus)}</Badge>
                   </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <span className="tnum text-text-muted">
-                      {formatCompactINR(p.expense)} / {formatCompactINR(p.budget)} · {pct}% used
+                  <div className="mt-2 flex items-center gap-2.5">
+                    <ProgressBar value={p.progress} className="min-w-0 flex-1" />
+                    <span className="shrink-0 text-xs tnum text-text-muted">
+                      {formatCompactINR(p.expense)} / {formatCompactINR(p.budget)}
                     </span>
-                    <Badge tone={statusTone(p.status as ProjectStatus)}>{statusLabel(p.status as ProjectStatus)}</Badge>
                   </div>
                 </li>
               );
@@ -205,9 +200,9 @@ export default async function DashboardPage() {
         )}
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="p-5">
-          <h2 className="text-base font-semibold text-text">Client Payments</h2>
+      <div className="grid grid-cols-1 gap-4 sm:gap-4 lg:grid-cols-3">
+        <Card className="p-4 sm:p-5">
+          <h2 className="text-[15px] font-semibold text-text sm:text-base">Client Payments</h2>
           <dl className="mt-3 flex flex-col gap-1.5 text-sm">
             <div className="flex justify-between">
               <dt className="text-text-muted">Received</dt>
@@ -222,15 +217,15 @@ export default async function DashboardPage() {
               <dd className="font-medium tnum">{formatINR(contracted)}</dd>
             </div>
           </dl>
-          <div className="mt-3 flex justify-between text-sm">
+          <div className="mt-3 flex justify-between gap-2 text-sm">
             <span className="text-text-muted">Received vs pending</span>
-            <span className="tnum">{receivedPct}% received</span>
+            <span className="shrink-0 tnum">{receivedPct}% received</span>
           </div>
           <ProgressBar value={receivedPct} className="mt-2" />
         </Card>
 
-        <Card className="p-5">
-          <h2 className="text-base font-semibold text-text">Today&apos;s Spending</h2>
+        <Card className="p-4 sm:p-5">
+          <h2 className="text-[15px] font-semibold text-text sm:text-base">Today&apos;s Spending</h2>
           <dl className="mt-3 flex flex-col gap-1.5 text-sm">
             <div className="flex justify-between">
               <dt className="text-text-muted">Purchases</dt>
@@ -245,14 +240,14 @@ export default async function DashboardPage() {
               <dd className="font-semibold tnum">{formatINR(s.todayPurchases + s.todayExpenses)}</dd>
             </div>
           </dl>
-          <div className="mt-3 flex gap-4 text-sm">
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
             {s.todayPurchases > 0 && (
-              <Link href="/dashboard/purchases" className="inline-flex items-center gap-1 text-primary hover:underline">
+              <Link href="/dashboard/purchases" className="inline-flex items-center gap-1 py-1 text-primary hover:underline">
                 View purchases <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             )}
             {s.todayExpenses > 0 && (
-              <Link href="/dashboard/expenses" className="inline-flex items-center gap-1 text-primary hover:underline">
+              <Link href="/dashboard/expenses" className="inline-flex items-center gap-1 py-1 text-primary hover:underline">
                 View expenses <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             )}
@@ -262,8 +257,8 @@ export default async function DashboardPage() {
           </div>
         </Card>
 
-        <Card className="p-5">
-          <h2 className="text-base font-semibold text-text">Labour Cost</h2>
+        <Card className="p-4 sm:p-5">
+          <h2 className="text-[15px] font-semibold text-text sm:text-base">Labour Cost</h2>
           <dl className="mt-3 flex flex-col gap-1.5 text-sm">
             <div className="flex justify-between">
               <dt className="text-text-muted">Assigned to sites</dt>
@@ -285,53 +280,40 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card className="p-5">
-          <h2 className="text-base font-semibold text-text">Monthly Expenses</h2>
-          {currentMonth && (
-            <p className="mt-2 text-sm tnum">
-              <span className="font-semibold">{currentMonth.month}</span>{" "}
-              <span className="text-text-muted">{formatINR(currentMonth.amount)}</span>
-            </p>
-          )}
-          <div className="mt-2 flex h-24 items-end gap-2">
-            {s.monthlyExpenses.map((m) => (
-              <div key={m.month} className="flex flex-1 flex-col items-center gap-1">
-                <div
-                  className="w-full rounded-sm bg-primary"
-                  style={{ height: `${Math.max(4, Math.round((m.amount / maxMonth) * 88))}px` }}
-                  title={`${m.month}: ${formatINR(m.amount)}`}
-                />
-                <span className="text-[10px] text-text-muted">{m.month}</span>
-              </div>
-            ))}
+      <div className="grid grid-cols-1 gap-4 sm:gap-4 lg:grid-cols-2">
+        <Card className="p-4 sm:p-5">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="text-[15px] font-semibold text-text sm:text-base">Monthly Expenses</h2>
+            <Link href="/dashboard/reports" className="inline-flex shrink-0 items-center gap-1 py-1 text-[13px] font-medium text-primary hover:underline sm:text-sm">
+              Reports <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
-          {prevMonths.length > 0 && (
-            <ul className="mt-3 divide-y divide-border">
-              {prevMonths.map((m) => (
-                <li key={m.month} className="flex justify-between py-1.5 text-sm">
-                  <span className="text-text-muted">{m.month}</span>
-                  <span className="tnum">{formatINR(m.amount)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ul className="scroll-area mt-2 max-h-[248px] divide-y divide-border">
+            {[...s.monthlyExpenses].reverse().map((m, i) => (
+              <li key={m.month} className="flex items-center justify-between gap-2 py-2 text-sm">
+                <span className={i === 0 ? "font-medium text-text" : "text-text-muted"}>{m.month}</span>
+                <span className={`shrink-0 tnum ${i === 0 ? "font-semibold text-text" : "text-text"}`}>
+                  {formatINR(m.amount)}
+                </span>
+              </li>
+            ))}
+          </ul>
         </Card>
 
-        <Card className="p-5">
-          <h2 className="text-base font-semibold text-text">Recent Activity</h2>
+        <Card className="p-4 sm:p-5">
+          <h2 className="text-[15px] font-semibold text-text sm:text-base">Recent Activity</h2>
           {s.recentActivity.length === 0 ? (
-            <p className="mt-2 text-sm text-text-muted">
+            <p className="mt-2 text-sm leading-6 text-text-muted">
               Activity appears here once attendance, purchases, expenses and payments are recorded.
             </p>
           ) : (
-            <ul className="mt-3 flex flex-col gap-2.5">
+            <ul className="scroll-area mt-2 flex max-h-[240px] flex-col gap-2 sm:mt-3 sm:max-h-[320px] sm:gap-2.5">
               {s.recentActivity.map((a, i) => {
                 const sameDay =
                   a.eventDate &&
                   a.eventDate.toISOString().slice(0, 10) === a.at.toISOString().slice(0, 10);
                 return (
-                  <li key={i} className="text-sm leading-5 text-text">
+                  <li key={i} className={`text-sm leading-6 text-text ${i >= 5 ? "hidden sm:list-item" : ""}`}>
                     <span className="text-text-muted tnum">{dayLabel(a.at)}</span> — {a.text}
                     {a.eventDate && !sameDay && (
                       <span className="text-text-muted"> · for {formatDateShort(a.eventDate)}</span>

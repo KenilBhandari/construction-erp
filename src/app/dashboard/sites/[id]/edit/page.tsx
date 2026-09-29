@@ -82,7 +82,7 @@ export default function EditSitePage({ params }: { params: Promise<{ id: string 
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
       <PageHeader title="Edit Site" />
       {loading && <TableSkeleton rows={5} />}
       {loadError && (

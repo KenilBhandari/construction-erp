@@ -7,15 +7,17 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { ComboSelect } from "@/components/ui/combo-select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { ProgressBar } from "@/components/ui/progress-bar";
 import { Modal } from "@/components/ui/modal";
-import { formatINR } from "@/lib/utils";
+import { formatINR, formatCompactINR } from "@/lib/utils";
 import type { ProjectDTO } from "@/types/project";
 import { statusLabel, statusTone } from "./project-status";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Search, X } from "lucide-react";
 
 interface ListResponse {
   data: ProjectDTO[];
@@ -102,7 +104,7 @@ export default function ProjectsList() {
   const canDelete = deleteConfirmText === "DELETE" && !deletePending;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
       <PageHeader
         title="Projects"
         action={
@@ -112,7 +114,53 @@ export default function ProjectsList() {
         }
       />
 
-      <div className="flex flex-col gap-3 sm:flex-row">
+      {/* Phone: search + filter on one row. */}
+      <div className="flex flex-row gap-2 sm:hidden">
+        <div className="relative min-w-0 flex-1">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+          />
+          <Input
+            aria-label="Search projects"
+            placeholder="Search projects…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="pl-10 pr-10"
+          />
+          {q && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => setQ("")}
+              className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-text-muted hover:bg-background hover:text-text"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <div className="w-[132px] shrink-0">
+          <ComboSelect
+            ariaLabel="Filter by status"
+            value={status}
+            options={[
+              { value: "", label: "All" },
+              { value: "planning", label: "Planning" },
+              { value: "active", label: "Active" },
+              { value: "on-hold", label: "On Hold" },
+              { value: "completed", label: "Completed" },
+              { value: "cancelled", label: "Cancelled" },
+            ]}
+            onChange={(v) => {
+              setStatus(v);
+              setPage(1);
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Desktop: original row, untouched. */}
+      <div className="hidden sm:flex sm:flex-row sm:gap-3">
         <div className="flex-1">
           <Input
             aria-label="Search projects"
@@ -121,21 +169,24 @@ export default function ProjectsList() {
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
-        <Select
-          aria-label="Filter by status"
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">All statuses</option>
-          <option value="planning">Planning</option>
-          <option value="active">Active</option>
-          <option value="on-hold">On Hold</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-        </Select>
+        <div className="w-44 shrink-0 sm:w-48">
+          <ComboSelect
+            ariaLabel="Filter by status"
+            value={status}
+            options={[
+              { value: "", label: "All statuses" },
+              { value: "planning", label: "Planning" },
+              { value: "active", label: "Active" },
+              { value: "on-hold", label: "On Hold" },
+              { value: "completed", label: "Completed" },
+              { value: "cancelled", label: "Cancelled" },
+            ]}
+            onChange={(v) => {
+              setStatus(v);
+              setPage(1);
+            }}
+          />
+        </div>
       </div>
 
       {loading && <TableSkeleton rows={6} />}
@@ -159,6 +210,66 @@ export default function ProjectsList() {
 
       {!loading && !error && data && data.data.length > 0 && (
         <>
+          {/* Phone cards — desktop table below stays untouched. */}
+          <ul className="scroll-area flex max-h-[560px] flex-col gap-2 sm:hidden">
+            {data.data.map((p) => (
+              <li key={p._id}>
+                <Card className="cursor-pointer p-3 active:bg-background">
+                  <div
+                    className="flex flex-col gap-1.5"
+                    onClick={() => router.push(`/dashboard/projects/${p._id}`)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <Link
+                        href={`/dashboard/projects/${p._id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="min-w-0 truncate text-[15px] font-medium text-primary hover:underline"
+                      >
+                        {p.name}
+                      </Link>
+                      <Badge tone={statusTone(p.status)} className="shrink-0">
+                        {statusLabel(p.status)}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <ProgressBar value={p.progress} className="min-w-0 flex-1" />
+                      <span className="shrink-0 text-xs tnum text-text-muted">
+                        {p.progress}% · {formatCompactINR(p.budget)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="min-w-0 flex-1 truncate text-xs text-text-muted">
+                        {p.clientName} · {p.location}
+                      </p>
+                      <div className="-mr-1.5 flex shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
+                        <Link
+                          href={`/dashboard/projects/${p._id}/edit`}
+                          aria-label={`Edit ${p.name}`}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Link>
+                        <button
+                          type="button"
+                          aria-label={`Delete ${p.name}`}
+                          onClick={() => {
+                            setDeleting(p);
+                            setDeleteConfirmText("");
+                            setDeleteError(null);
+                          }}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden sm:block">
           <Table>
             <THead>
               <TR>
@@ -215,8 +326,9 @@ export default function ProjectsList() {
               ))}
             </tbody>
           </Table>
+          </div>
 
-          <div className="flex items-center justify-between text-sm text-text-muted">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted sm:text-sm">
             <p className="tnum">
               {data.total} project(s) · Page {data.page} of {totalPages}
             </p>
@@ -233,7 +345,7 @@ export default function ProjectsList() {
       )}
 
       <Modal open={deleting !== null} onClose={closeDelete} title={`Delete ${deleting?.name ?? "project"}?`}>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 sm:gap-4">
           <p className="text-sm leading-6 text-text-muted">
             This cannot be undone. Projects with sites cannot be deleted.
           </p>
@@ -256,13 +368,12 @@ export default function ProjectsList() {
             value={deleteConfirmText}
             onChange={(e) => setDeleteConfirmText(e.target.value)}
             autoComplete="off"
-            autoFocus
           />
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={closeDelete} disabled={deletePending}>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={closeDelete} disabled={deletePending} className="h-11 w-full sm:h-auto sm:w-auto">
               Cancel
             </Button>
-            <Button variant="danger" onClick={handleDelete} disabled={!canDelete}>
+            <Button variant="danger" onClick={handleDelete} disabled={!canDelete} className="h-11 w-full sm:h-auto sm:w-auto">
               {deletePending ? "Please wait…" : "Delete"}
             </Button>
           </div>

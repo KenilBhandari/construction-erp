@@ -58,7 +58,7 @@ function NewSiteContent() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
       <PageHeader title="New Site" />
       {loadingProjects ? (
         <TableSkeleton rows={4} />

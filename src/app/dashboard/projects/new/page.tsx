@@ -35,7 +35,7 @@ export default function NewProjectPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
       <PageHeader title="New Project" />
       <ProjectForm
         initial={emptyProjectForm()}

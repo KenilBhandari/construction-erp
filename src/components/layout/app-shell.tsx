@@ -21,7 +21,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-32 pt-6 sm:px-6 md:pb-6">
+        <main className="mx-auto w-full max-w-6xl flex-1 min-w-0 px-4 pb-32 pt-4 sm:px-6 sm:pt-6 md:pb-6">
           {children}
         </main>
         {/* Phone dock (below md) */}

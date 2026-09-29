@@ -37,11 +37,11 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`w-full border border-border bg-surface rounded-lg p-6 ${size === "xl" ? "max-w-3xl max-h-[90vh] overflow-y-auto" : size === "lg" ? "max-w-xl max-h-[90vh] overflow-y-auto" : "max-w-md"}`}
+        className={`scroll-area w-full border border-border bg-surface rounded-lg p-4 sm:p-6 ${size === "xl" ? "max-w-3xl max-h-[90vh] overflow-y-auto" : size === "lg" ? "max-w-xl max-h-[90vh] overflow-y-auto" : "max-h-[90vh] max-w-md overflow-y-auto"}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-semibold text-text">{title}</h2>
-        <div className="mt-3">{children}</div>
+        <h2 className="text-base font-semibold text-text sm:text-lg">{title}</h2>
+        <div className="mt-2.5 sm:mt-3">{children}</div>
       </div>
     </div>
   );

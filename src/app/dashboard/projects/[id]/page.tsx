@@ -45,7 +45,7 @@ export default async function ProjectDetailPage({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
       <PageHeader
         title={project.name}
         action={
@@ -55,206 +55,213 @@ export default async function ProjectDetailPage({
         }
       />
 
-      <Card className="p-5">
+      <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Badge tone={statusTone(project.status)}>
             {statusLabel(project.status)}
           </Badge>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-text-muted tnum">{project.progress}%</span>
-            <ProgressBar value={project.progress} className="w-[160px] sm:w-[220px]" />
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-2.5 sm:flex-none sm:gap-3">
+            <span className="shrink-0 text-[13px] text-text-muted tnum sm:text-sm">{project.progress}%</span>
+            <ProgressBar value={project.progress} className="w-full max-w-[160px] sm:w-[220px] sm:max-w-none" />
           </div>
         </div>
-        <div className="mt-4 border-t border-border" />
-        <dl className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-5">
-          <div>
-            <dt className="text-text-muted">Project Value</dt>
-            <dd className="mt-1 font-semibold tnum">
+
+        <div className="mt-3.5 border-t border-border sm:mt-4" />
+
+        <dl className="mt-3.5 grid grid-cols-2 gap-2.5 text-sm sm:mt-4 sm:grid-cols-5 sm:gap-4">
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Project Value</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-semibold tnum sm:mt-1 sm:text-base">
               {formatINR(finance.contractValue)}
             </dd>
           </div>
-          <div>
-            <dt className="text-text-muted">Project Budget</dt>
-            <dd className="mt-1 font-semibold tnum">
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Project Budget</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-semibold tnum sm:mt-1 sm:text-base">
               {formatINR(project.budget)}
             </dd>
           </div>
-          <div>
-            <dt className="text-text-muted">Spent</dt>
-            <dd className="mt-1 font-semibold tnum">
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Spent</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-semibold tnum sm:mt-1 sm:text-base">
               {formatINR(finance.totalExpense)}
             </dd>
           </div>
-
-          <div>
-            <dt className="text-text-muted">Remaining Budget</dt>
-            <dd className="mt-1 font-semibold tnum">
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Remaining Budget</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-semibold tnum sm:mt-1 sm:text-base">
               {formatINR((project.budget) - (finance.totalExpense) )}
             </dd>
           </div>
-          <div>
-            <dt className="text-text-muted">Pending from Client</dt>
-            <dd className="mt-1 font-semibold tnum">
+          <div className="col-span-2 min-w-0 sm:col-span-1 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Pending from Client</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-semibold tnum sm:mt-1 sm:text-base">
               {formatINR(finance.pending)}
             </dd>
           </div>
         </dl>
-       <div className="mt-6 border-t border-border pt-5">
-  <div
-    className={`grid grid-cols-1 gap-6 ${
-      hasStart || hasEnd ? "sm:grid-cols-3" : "sm:grid-cols-2"
-    }`}
-  >
-    <div>
-      <p className="text-xs text-text-muted">Location</p>
-      <p className="mt-1.5 text-sm font-medium text-text">
-        {project.location || "—"}
-      </p>
-    </div>
 
-    <div>
-      <p className="text-xs text-text-muted">Client</p>
-      <p className="mt-1.5 text-sm font-medium text-text">
-        {project.clientName || "—"}
-      </p>
-    </div>
+        <div className="mt-4 border-t border-border pt-4 sm:mt-6 sm:pt-5">
+          <div
+            className={`grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-6 ${
+              hasStart || hasEnd ? "sm:grid-cols-3" : "sm:grid-cols-2"
+            }`}
+          >
+            <div className="min-w-0">
+              <p className="text-xs text-text-muted">Location</p>
+              <p className="mt-1 truncate text-sm font-medium text-text">
+                {project.location || "—"}
+              </p>
+            </div>
 
-    {(hasStart || hasEnd) ? (
-      <div>
-        <p className="text-xs text-text-muted">Project Period</p>
+            <div className="min-w-0">
+              <p className="text-xs text-text-muted">Client</p>
+              <p className="mt-1 truncate text-sm font-medium text-text">
+                {project.clientName || "—"}
+              </p>
+            </div>
 
-        {hasStart && hasEnd ? (
-          <p className="mt-1.5 inline-flex items-center gap-2 text-sm font-medium text-text">
-            {formatDMY(project.startDate as string | Date)}
-            <ArrowRight className="h-3.5 w-3.5 text-text-muted" />
-            {formatDMY(project.expectedEndDate as string | Date)}
-          </p>
-        ) : hasStart ? (
-          <p className="mt-1.5 text-sm font-medium text-text">
-            From {formatDMY(project.startDate as string | Date)}
-          </p>
-        ) : (
-          <p className="mt-1.5 text-sm font-medium text-text">
-            Until {formatDMY(project.expectedEndDate as string | Date)}
-          </p>
-        )}
-      </div>
-    ) : null}
-  </div>
+            {(hasStart || hasEnd) ? (
+              <div className="col-span-2 min-w-0 sm:col-span-1">
+                <p className="text-xs text-text-muted">Project Period</p>
 
-  {hasDescription ? (
-    <div className="mt-6 border-t border-border pt-5">
-      <p className="text-xs text-text-muted">Description</p>
-      <p className="mt-1.5 max-w-3xl text-sm leading-6 text-text">
-        {project.description}
-      </p>
-    </div>
-  ) : null}
-</div>
+                {hasStart && hasEnd ? (
+                  <p className="mt-1 inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-medium text-text">
+                    {formatDMY(project.startDate as string | Date)}
+                    <ArrowRight className="h-3.5 w-3.5 shrink-0 text-text-muted" />
+                    {formatDMY(project.expectedEndDate as string | Date)}
+                  </p>
+                ) : hasStart ? (
+                  <p className="mt-1 text-sm font-medium text-text">
+                    From {formatDMY(project.startDate as string | Date)}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-sm font-medium text-text">
+                    Until {formatDMY(project.expectedEndDate as string | Date)}
+                  </p>
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          {hasDescription ? (
+            <div className="mt-4 border-t border-border pt-4 sm:mt-6 sm:pt-5">
+              <p className="text-xs text-text-muted">Description</p>
+              <p className="mt-1.5 max-w-3xl text-sm leading-6 text-text">
+                {project.description}
+              </p>
+            </div>
+          ) : null}
+        </div>
       </Card>
 
-
-      <Card className="p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-text">
+      <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">
             Profit &amp; Loss
           </h2>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <Badge tone={finance.profit >= 0 ? "success" : "danger"}>
               {finance.profit >= 0 ? "Estimated Profit" : "Estimated Loss"}
             </Badge>
 
-            <span className="text-sm text-text-muted">
+            <span className="text-xs text-text-muted sm:text-sm">
               Margin {finance.margin.toFixed(1)}%
             </span>
           </div>
         </div>
-        <dl className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
-          <div>
-            <dt className="text-text-muted">Project Budget</dt>
-            <dd className="mt-1 font-semibold tnum">
+        <dl className="mt-3.5 grid grid-cols-2 gap-2.5 text-sm sm:mt-4 sm:grid-cols-3 sm:gap-4">
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Project Budget</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-semibold tnum sm:mt-1 sm:text-base">
               {formatINR(project.budget)}
             </dd>
           </div>
-          <div>
-            <dt className="text-text-muted">Material Cost</dt>
-            <dd className="mt-1 font-medium tnum">
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Material Cost</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-medium tnum sm:mt-1 sm:text-base">
               {formatINR(finance.materialExpense)}
             </dd>
           </div>
-          <div>
-            <dt className="text-text-muted">Labour Cost</dt>
-            <dd className="mt-1 font-medium tnum">
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Labour Cost</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-medium tnum sm:mt-1 sm:text-base">
               {formatINR(finance.labourExpense)}
             </dd>
           </div>
-          <div>
-            <dt className="text-text-muted">Other Expenses</dt>
-            <dd className="mt-1 font-medium tnum">
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Other Expenses</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-medium tnum sm:mt-1 sm:text-base">
               {formatINR(finance.manualExpenses)}
             </dd>
           </div>
-          <div>
-            <dt className="text-text-muted">Total Cost</dt>
-            <dd className="mt-1 font-semibold tnum">
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Total Cost</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-semibold tnum sm:mt-1 sm:text-base">
               {formatINR(finance.totalExpense)}
             </dd>
           </div>
-
-          <div>
-            <dt className="text-text-muted">Received from Client</dt>
-            <dd className="mt-1 font-medium tnum">
+          <div className="min-w-0 rounded-lg bg-background px-3 py-2.5 sm:rounded-none sm:bg-transparent sm:p-0">
+            <dt className="text-xs text-text-muted sm:text-sm">Received from Client</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-medium tnum sm:mt-1 sm:text-base">
               {formatINR(finance.received)}
             </dd>
           </div>
         </dl>
       </Card>
 
-      <Card className="p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-text">Sites</h2>
-          <span className="text-xs text-text-muted tnum">
+      <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">
+            Sites
+          </h2>
+          <span className="shrink-0 text-xs text-text-muted tnum">
             {sites.length} site{sites.length === 1 ? "" : "s"}
           </span>
         </div>
         {sites.length === 0 ? (
-          <div className="mt-3">
+          <div className="mt-3.5 sm:mt-3">
             <EmptyState
               title="No sites yet"
               description="Add the first site (e.g. Main Building) to start assigning labour and marking attendance."
             />
           </div>
         ) : (
-          <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="scroll-area mt-3.5 grid max-h-[420px] grid-cols-1 gap-2.5 sm:mt-3 sm:max-h-none sm:grid-cols-2 sm:gap-2 sm:overflow-visible lg:grid-cols-3">
             {sites.map((s) => (
-              <Card key={String(s._id)} className="p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-text">{s.name}</p>
-                    {s.supervisor ? (
-                      <p className="mt-0.5 truncate text-xs text-text-muted">
-                        {s.supervisor}
-                      </p>
-                    ) : null}
+              <Link
+                key={String(s._id)}
+                href={`/dashboard/sites/${String(s._id)}`}
+                className="outline-none focus-visible:ring-2 focus-visible:ring-primary/60 rounded-xl sm:rounded-lg"
+              >
+                <Card className="rounded-xl p-3.5 transition-colors hover:border-primary/40 active:bg-background sm:rounded-lg sm:p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="min-w-0 truncate text-[15px] font-medium text-primary sm:text-sm">{s.name}</p>
+                    <Badge
+                      tone={
+                        s.status === "active"
+                          ? "primary"
+                          : s.status === "completed"
+                            ? "success"
+                            : "warning"
+                      }
+                      className="shrink-0"
+                    >
+                      {s.status}
+                    </Badge>
                   </div>
-                  <Badge
-                    tone={
-                      s.status === "active"
-                        ? "primary"
-                        : s.status === "completed"
-                          ? "success"
-                          : "warning"
-                    }
-                  >
-                    {s.status}
-                  </Badge>
-                </div>
-                <ProgressBar value={s.progress} className="mt-2.5" />
-                <div className="mt-2.5">
-                  <span className="text-xs text-text-muted tnum">{s.progress}% Completed</span>
-                </div>
-              </Card>
+                  {s.supervisor ? (
+                    <p className="mt-0.5 truncate text-xs text-text-muted">
+                      {s.supervisor}
+                    </p>
+                  ) : null}
+                  <div className="mt-2.5 flex items-center gap-2.5 sm:mt-2">
+                    <ProgressBar value={s.progress} className="min-w-0 flex-1" />
+                    <span className="shrink-0 text-xs tnum text-text-muted">{s.progress}%</span>
+                  </div>
+                </Card>
+              </Link>
             ))}
           </div>
         )}

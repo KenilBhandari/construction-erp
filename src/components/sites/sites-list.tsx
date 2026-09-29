@@ -6,8 +6,10 @@ import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { ComboSelect } from "@/components/ui/combo-select";
+import { ProgressBar } from "@/components/ui/progress-bar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
@@ -15,7 +17,7 @@ import { Modal } from "@/components/ui/modal";
 import type { SiteDTO } from "@/types/site";
 import { siteProjectName } from "@/types/site";
 import type { ProjectDTO } from "@/types/project";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Search, Trash2, X } from "lucide-react";
 
 interface ListResponse {
   data: SiteDTO[];
@@ -116,8 +118,19 @@ export default function SitesList() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
   const canDelete = deleteConfirmText === "DELETE" && !deletePending;
 
+  const statusOptions = [
+    { value: "", label: "All" },
+    { value: "active", label: "Active" },
+    { value: "on-hold", label: "On Hold" },
+    { value: "completed", label: "Completed" },
+  ];
+  const projectOptions = [
+    { value: "", label: "All projects" },
+    ...projects.map((p) => ({ value: p._id, label: p.name })),
+  ];
+
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
       <PageHeader
         title="Sites"
         action={
@@ -127,7 +140,57 @@ export default function SitesList() {
         }
       />
 
-      <div className="flex flex-col gap-3 sm:flex-row">
+      {/* Phone: search + status on one row, project picker below. */}
+      <div className="flex flex-col gap-2 sm:hidden">
+        <div className="flex flex-row gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+            />
+            <Input
+              aria-label="Search sites"
+              placeholder="Search sites…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="pl-10 pr-10"
+            />
+            {query && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => setQuery("")}
+                className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-text-muted hover:bg-background hover:text-text"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <div className="w-[132px] shrink-0">
+            <ComboSelect
+              ariaLabel="Filter by status"
+              value={status}
+              options={statusOptions}
+              onChange={(v) => {
+                setStatus(v);
+                setPage(1);
+              }}
+            />
+          </div>
+        </div>
+        <ComboSelect
+          ariaLabel="Filter by project"
+          value={project}
+          options={projectOptions}
+          onChange={(v) => {
+            setProject(v);
+            setPage(1);
+          }}
+        />
+      </div>
+
+      {/* Desktop: original row, untouched. */}
+      <div className="hidden sm:flex sm:flex-row sm:gap-3">
         <div className="flex-1">
           <Input
             aria-label="Search sites"
@@ -136,34 +199,33 @@ export default function SitesList() {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <Select
-          aria-label="Filter by project"
-          value={project}
-          onChange={(e) => {
-            setProject(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">All projects</option>
-          {projects.map((p) => (
-            <option key={p._id} value={p._id}>
-              {p.name}
-            </option>
-          ))}
-        </Select>
-        <Select
-          aria-label="Filter by status"
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">All statuses</option>
-          <option value="active">Active</option>
-          <option value="on-hold">On Hold</option>
-          <option value="completed">Completed</option>
-        </Select>
+        <div className="w-44 shrink-0 sm:w-48">
+          <ComboSelect
+            ariaLabel="Filter by project"
+            value={project}
+            options={projectOptions}
+            onChange={(v) => {
+              setProject(v);
+              setPage(1);
+            }}
+          />
+        </div>
+        <div className="w-44 shrink-0 sm:w-48">
+          <ComboSelect
+            ariaLabel="Filter by status"
+            value={status}
+            options={[
+              { value: "", label: "All statuses" },
+              { value: "active", label: "Active" },
+              { value: "on-hold", label: "On Hold" },
+              { value: "completed", label: "Completed" },
+            ]}
+            onChange={(v) => {
+              setStatus(v);
+              setPage(1);
+            }}
+          />
+        </div>
       </div>
 
       {loading && <TableSkeleton rows={6} />}
@@ -199,6 +261,75 @@ export default function SitesList() {
 )}
       {!loading && !error && data && data.data.length > 0 && (
         <>
+          {/* Phone cards — desktop table below stays untouched. */}
+          <ul className="scroll-area flex max-h-[560px] flex-col gap-2 sm:hidden">
+            {data.data.map((s) => (
+              <li key={s._id}>
+                <Card className="cursor-pointer p-3 active:bg-background">
+                  <div
+                    className="flex flex-col gap-1.5"
+                    onClick={() => router.push(`/dashboard/sites/${s._id}`)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <Link
+                        href={`/dashboard/sites/${s._id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="min-w-0 truncate text-[15px] font-medium text-primary hover:underline"
+                      >
+                        {s.name}
+                      </Link>
+                      <Badge
+                        tone={
+                          s.status === "active"
+                            ? "primary"
+                            : s.status === "completed"
+                              ? "success"
+                              : "warning"
+                        }
+                        className="shrink-0"
+                      >
+                        {s.status === "on-hold" ? "On Hold" : s.status === "active" ? "Active" : "Completed"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <ProgressBar value={s.progress} className="min-w-0 flex-1" />
+                      <span className="shrink-0 text-xs tnum text-text-muted">
+                        {s.progress}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="min-w-0 flex-1 truncate text-xs text-text-muted">
+                        {siteProjectName(s)}{s.supervisor ? ` · ${s.supervisor}` : ""}
+                      </p>
+                      <div className="-mr-1.5 flex shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
+                        <Link
+                          href={`/dashboard/sites/${s._id}/edit`}
+                          aria-label={`Edit ${s.name}`}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Link>
+                        <button
+                          type="button"
+                          aria-label={`Delete ${s.name}`}
+                          onClick={() => {
+                            setDeleting(s);
+                            setDeleteConfirmText("");
+                            setDeleteError(null);
+                          }}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden sm:block">
           <Table>
             <THead>
               <TR>
@@ -267,8 +398,9 @@ export default function SitesList() {
               ))}
             </tbody>
           </Table>
+          </div>
 
-          <div className="flex items-center justify-between text-sm text-text-muted">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted sm:text-sm">
             <p className="tnum">
               {data.total} site(s) · Page {data.page} of {totalPages}
             </p>
@@ -295,7 +427,7 @@ export default function SitesList() {
       )}
 
       <Modal open={deleting !== null} onClose={closeDelete} title={`Delete ${deleting?.name ?? "site"}?`}>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 sm:gap-4">
           <p className="text-sm leading-6 text-text-muted">This cannot be undone.</p>
           {deleteError && (
             <p role="alert" className="text-sm text-danger">
@@ -316,13 +448,12 @@ export default function SitesList() {
             value={deleteConfirmText}
             onChange={(e) => setDeleteConfirmText(e.target.value)}
             autoComplete="off"
-            autoFocus
           />
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={closeDelete} disabled={deletePending}>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={closeDelete} disabled={deletePending} className="h-11 w-full sm:h-auto sm:w-auto">
               Cancel
             </Button>
-            <Button variant="danger" onClick={handleDelete} disabled={!canDelete}>
+            <Button variant="danger" onClick={handleDelete} disabled={!canDelete} className="h-11 w-full sm:h-auto sm:w-auto">
               {deletePending ? "Please wait…" : "Delete"}
             </Button>
           </div>

@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { SITE_STATUSES, type SiteStatus } from "@/types/site";
@@ -59,37 +59,56 @@ export function SiteForm({
     onSubmit(values);
   }
 
+  function siteStatusLabel(s: SiteStatus): string {
+    return s === "on-hold" ? "On Hold" : s[0].toUpperCase() + s.slice(1);
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-      <section className="border border-border bg-surface rounded-lg p-5">
-        <h2 className="text-base font-semibold text-text">Site Information</h2>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input label="Site Name" name="name" required value={values.name} error={errors.name} onChange={(e) => set("name", e.target.value)} placeholder="Main Building" />
-          <Select label="Project" name="project" required value={values.project} error={errors.project} onChange={(e) => set("project", e.target.value)}>
-            <option value="">Select project…</option>
-            {projects.map((p) => (
-              <option key={p._id} value={p._id}>{p.name}</option>
-            ))}
-          </Select>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 sm:gap-5">
+      <section className="border border-border bg-surface rounded-lg p-3 sm:p-5">
+        <h2 className="text-[15px] font-semibold text-text sm:text-base">Site Information</h2>
+        <div className="mt-2.5 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-4">
+          <div className="col-span-2">
+            <Input label="Site Name" name="name" required value={values.name} error={errors.name} onChange={(e) => set("name", e.target.value)} placeholder="Main Building" />
+          </div>
+          <div className="col-span-2">
+            <span className="mb-1 block text-[13px] font-medium text-text sm:text-sm">
+              Project <span className="text-danger">*</span>
+            </span>
+            <ComboSelect
+              ariaLabel="Project"
+              value={values.project}
+              options={[
+                { value: "", label: "Select project…" },
+                ...projects.map((p) => ({ value: p._id, label: p.name })),
+              ]}
+              onChange={(v) => set("project", v)}
+            />
+            {errors.project && <p className="mt-1 text-xs text-danger">{errors.project}</p>}
+          </div>
           <Input label="Location" name="location" value={values.location} onChange={(e) => set("location", e.target.value)} placeholder="Block A" />
           <Input label="Supervisor" name="supervisor" value={values.supervisor} onChange={(e) => set("supervisor", e.target.value)} placeholder="Supervisor name" />
-          <Input label="Start Date" name="startDate" type="date" value={values.startDate} onChange={(e) => set("startDate", e.target.value)} />
-          <Input label="Expected End Date" name="expectedEndDate" type="date" value={values.expectedEndDate} onChange={(e) => set("expectedEndDate", e.target.value)} />
+          <Input label="Start Date" name="startDate" type="date" value={values.startDate} onChange={(e) => set("startDate", e.target.value)} className="px-2 text-sm sm:px-3" />
+          <Input label="Expected End Date" name="expectedEndDate" type="date" value={values.expectedEndDate} onChange={(e) => set("expectedEndDate", e.target.value)} className="px-2 text-sm sm:px-3" />
         </div>
       </section>
 
-      <section className="border border-border bg-surface rounded-lg p-5">
-        <h2 className="text-base font-semibold text-text">Status</h2>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Select label="Status" name="status" value={values.status} onChange={(e) => set("status", e.target.value as SiteStatus)}>
-            {(SITE_STATUSES as readonly SiteStatus[]).map((s) => (
-              <option key={s} value={s}>{s === "on-hold" ? "On Hold" : s[0].toUpperCase() + s.slice(1)}</option>
-            ))}
-          </Select>
-          <Input label="Progress %" name="progress" required type="number" min={0} max={100} value={values.progress} error={errors.progress} onChange={(e) => set("progress", e.target.value)} />
-        </div>
-        <div className="mt-4">
-          <Textarea label="Notes" name="notes" value={values.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Notes…" />
+      <section className="border border-border bg-surface rounded-lg p-3 sm:p-5">
+        <h2 className="text-[15px] font-semibold text-text sm:text-base">Status</h2>
+        <div className="mt-2.5 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-4">
+          <ComboSelect
+            label="Status"
+            value={values.status}
+            options={(SITE_STATUSES as readonly SiteStatus[]).map((s) => ({
+              value: s,
+              label: siteStatusLabel(s),
+            }))}
+            onChange={(v) => set("status", v as SiteStatus)}
+          />
+          <Input label="Progress %" name="progress" required type="number" inputMode="numeric" min={0} max={100} value={values.progress} error={errors.progress} onChange={(e) => set("progress", e.target.value)} />
+          <div className="col-span-2">
+            <Textarea label="Notes" name="notes" value={values.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Notes…" />
+          </div>
         </div>
       </section>
 
@@ -98,7 +117,7 @@ export function SiteForm({
       )}
 
       <div>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending} className="h-11 w-full sm:h-auto sm:w-auto">
           {pending ? "Saving…" : submitLabel}
         </Button>
       </div>
