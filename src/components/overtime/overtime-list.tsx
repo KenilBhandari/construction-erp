@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
@@ -31,7 +30,13 @@ function refName(ref: OvertimeDTO["labour"] | OvertimeDTO["site"]): string {
   return typeof ref === "string" ? ref : ref.name;
 }
 
-export function OvertimeList({ externalRefreshKey }: { externalRefreshKey?: number } = {}) {
+export function OvertimeList({
+  externalRefreshKey,
+  createRequestKey,
+}: {
+  externalRefreshKey?: number;
+  createRequestKey?: number;
+} = {}) {
   const router = useRouter();
   const [projectId, setProjectId] = useState("");
   const [siteId, setSiteId] = useState("");
@@ -90,6 +95,14 @@ export function OvertimeList({ externalRefreshKey }: { externalRefreshKey?: numb
   }, [externalRefreshKey]);
 
   useEffect(() => {
+    if (createRequestKey !== undefined && createRequestKey > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEditing(null);
+      setFormOpen(true);
+    }
+  }, [createRequestKey]);
+
+  useEffect(() => {
     const params = new URLSearchParams({ page: String(page), limit: "20" });
     if (projectId) params.set("project", projectId);
     if (siteId) params.set("site", siteId);
@@ -140,16 +153,7 @@ export function OvertimeList({ externalRefreshKey }: { externalRefreshKey?: numb
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Overtime"
-        action={
-          <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
-            Add Overtime
-          </Button>
-        }
-      />
-
+    <div className="flex flex-col gap-4 sm:gap-5">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Select label="Project" value={projectId} onChange={(e) => { setProjectId(e.target.value); setSiteId(""); setSites([]); resetPage(); }}>
           <option value="">All projects</option>

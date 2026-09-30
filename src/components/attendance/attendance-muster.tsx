@@ -774,7 +774,7 @@ export function AttendanceMuster({
               ariaLabel="Filter by status"
               value={statusFilter}
               options={[
-                { value: "all", label: "Any Status" },
+                { value: "all", label: "All Status" },
                 { value: "present", label: "Present" },
                 { value: "half-day", label: "Half Day" },
                 { value: "absent", label: "Absent" },
@@ -1415,11 +1415,13 @@ export function AttendanceMuster({
                               }
                               className="min-w-0 flex-1 text-left"
                             >
-                              <div className="truncate text-[15px] font-semibold text-primary">
-                                {item.labour.name}
-                              </div>
-                              <div className="mt-[2px] truncate text-xs font-medium text-text-muted">
-                                {item.labour.skill}
+                              <div className="flex min-w-0 items-baseline gap-1.5">
+                                <span className="truncate text-sm font-semibold text-primary">
+                                  {item.labour.name}
+                                </span>
+                                <span className="shrink-0 text-[11px] font-medium text-text-muted">
+                                  {item.labour.skill}
+                                </span>
                               </div>
                             </button>
 
@@ -1491,7 +1493,10 @@ export function AttendanceMuster({
                                     }
                                   }}
                                   autoOpen
-                                  disabled={isSiteSaving || pendingAttendance.has(item.labour._id)}
+                                  disabled={
+                                    isSiteSaving ||
+                                    pendingAttendance.has(item.labour._id)
+                                  }
                                   className="w-full"
                                   triggerClassName="h-8 w-full px-2 text-xs"
                                 />
@@ -1505,7 +1510,10 @@ export function AttendanceMuster({
                                   setEditingSiteId(null);
                                   setSiteEditError(null);
                                 }}
-                                disabled={isSiteSaving || pendingAttendance.has(item.labour._id)}
+                                disabled={
+                                  isSiteSaving ||
+                                  pendingAttendance.has(item.labour._id)
+                                }
                                 className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-text-muted hover:bg-background disabled:opacity-50"
                               >
                                 <X className="h-3.5 w-3.5" />
@@ -1552,7 +1560,10 @@ export function AttendanceMuster({
                                         }
                                       }}
                                       autoOpen
-                                      disabled={isSiteSaving || pendingAttendance.has(item.labour._id)}
+                                      disabled={
+                                        isSiteSaving ||
+                                        pendingAttendance.has(item.labour._id)
+                                      }
                                       className="w-full"
                                       triggerClassName="h-8 w-full px-2 text-xs"
                                     />
@@ -1567,7 +1578,10 @@ export function AttendanceMuster({
                                       setEditingSiteId(null);
                                       setSiteEditError(null);
                                     }}
-                                    disabled={isSiteSaving || pendingAttendance.has(item.labour._id)}
+                                    disabled={
+                                      isSiteSaving ||
+                                      pendingAttendance.has(item.labour._id)
+                                    }
                                     className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-text-muted hover:bg-background disabled:opacity-50"
                                   >
                                     <X className="h-3.5 w-3.5" />
@@ -1583,7 +1597,10 @@ export function AttendanceMuster({
                                         setSiteEditError(null);
                                         setEditingSiteId(att._id);
                                       }}
-                                      disabled={isSiteSaving || pendingAttendance.has(item.labour._id)}
+                                      disabled={
+                                        isSiteSaving ||
+                                        pendingAttendance.has(item.labour._id)
+                                      }
                                       className="flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md border border-border bg-surface px-2 text-left text-xs font-medium transition-colors hover:border-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 disabled:opacity-60"
                                     >
                                       <span
@@ -1646,7 +1663,9 @@ export function AttendanceMuster({
                                   aria-label="Present"
                                   title="Present"
                                   onClick={() => markOne(item, "present")}
-                                  disabled={pendingAttendance.has(item.labour._id)}
+                                  disabled={pendingAttendance.has(
+                                    item.labour._id,
+                                  )}
                                   className={cn(
                                     "inline-flex h-8 w-8 items-center justify-center disabled:opacity-50",
                                     att?.status === "present"
@@ -1662,7 +1681,9 @@ export function AttendanceMuster({
                                   aria-label="Half Day"
                                   title="Half Day"
                                   onClick={() => markOne(item, "half-day")}
-                                  disabled={pendingAttendance.has(item.labour._id)}
+                                  disabled={pendingAttendance.has(
+                                    item.labour._id,
+                                  )}
                                   className={cn(
                                     "inline-flex h-8 w-8 items-center justify-center disabled:opacity-50",
                                     att?.status === "half-day"
@@ -1678,7 +1699,9 @@ export function AttendanceMuster({
                                   aria-label="Absent"
                                   title="Absent"
                                   onClick={() => markOne(item, "absent")}
-                                  disabled={pendingAttendance.has(item.labour._id)}
+                                  disabled={pendingAttendance.has(
+                                    item.labour._id,
+                                  )}
                                   className={cn(
                                     "inline-flex h-8 w-8 items-center justify-center disabled:opacity-50",
                                     att?.status === "absent"
