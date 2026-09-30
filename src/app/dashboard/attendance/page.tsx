@@ -12,7 +12,7 @@ function AttendanceContent() {
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
       <PageHeader title="Attendance" />
-      <div className="flex gap-2 overflow-x-auto border-b border-border">
+      <div className="flex gap-2 border-b border-border">
         <button
           type="button"
           onClick={() => setTab("attendance")}
