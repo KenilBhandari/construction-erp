@@ -126,7 +126,7 @@ export default function LabourList() {
               placeholder="Search labour…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              className="pl-10 pr-10"
+              className="h-9 pl-10 pr-10 text-sm"
             />
             {q && (
               <button
@@ -176,6 +176,7 @@ export default function LabourList() {
             placeholder="Search name, phone…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            className="h-9 text-sm sm:h-10"
           />
         </div>
         <div className="w-44 shrink-0">

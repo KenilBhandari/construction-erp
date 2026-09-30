@@ -667,7 +667,7 @@ export function AttendanceMuster({
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="sm:w-48"
+            className="h-9 text-sm sm:h-10 sm:w-48"
           />
         </div>
 
@@ -728,7 +728,7 @@ export function AttendanceMuster({
               placeholder="Search labour…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 pr-10"
+              className="h-9 pl-10 pr-10 text-sm"
             />
             {search && (
               <button
@@ -783,13 +783,7 @@ export function AttendanceMuster({
             />
           </div>
         </div>
-        {hasActiveFilters && (
-          <div className="flex justify-end">
-            <Button variant="outline" size="sm" onClick={clearFilters}>
-              Clear filters
-            </Button>
-          </div>
-        )}
+
       </div>
 
       {/* Desktop: original row, selects swapped to ComboSelect popups. */}
@@ -800,6 +794,7 @@ export function AttendanceMuster({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             aria-label="Search labour"
+            className="h-9 text-sm sm:h-10"
           />
         </div>
         <div className="w-44 shrink-0">
@@ -946,14 +941,7 @@ export function AttendanceMuster({
           <p className="text-sm text-text-muted">
             No labour matches current filters.
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            onClick={clearFilters}
-          >
-            Clear filters
-          </Button>
+        
         </Card>
       )}
 

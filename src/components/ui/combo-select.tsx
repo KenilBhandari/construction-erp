@@ -56,6 +56,15 @@ export function ComboSelect({
   const btnRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
+  /*
+   * Ghost-tap guard (phones): selecting an option commits on pointerdown and
+   * unmounts the menu, but touch browsers still deliver the tap's `click`
+   * afterwards — landing on whatever is now under the finger (e.g. a card
+   * below the menu) and triggering it too. Stamping every close lets a
+   * capture-phase listener below swallow just that orphaned click.
+   */
+  const lastCloseAt = useRef(0);
+
   const instanceId = useId();
 
   const selected = options.find((o) => o.value === value);
@@ -197,6 +206,7 @@ export function ComboSelect({
     setOpen(false);
     setHighlight(-1);
     setPos(null);
+    lastCloseAt.current = Date.now();
     onCloseRef.current?.();
   }
 
@@ -272,6 +282,32 @@ export function ComboSelect({
       );
     };
   }, [open]);
+
+  /*
+   * Swallow the orphaned click that follows a menu close on touch devices.
+   * Capture phase runs before React's root-delegated handlers (cards, links),
+   * so stopping it here keeps the tap from activating what slid under the
+   * finger. Trigger taps are exempt so reopening still works; desktop is
+   * unaffected — pointerdown-preventDefault there means no click ever arrives
+   * inside the window.
+   */
+  useEffect(() => {
+    function onClickCapture(e: MouseEvent) {
+      if (Date.now() - lastCloseAt.current > 350) return;
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (wrapRef.current?.contains(target)) return;
+      if (listRef.current?.contains(target)) return;
+      e.stopPropagation();
+      e.preventDefault();
+    }
+
+    document.addEventListener("click", onClickCapture, true);
+
+    return () => {
+      document.removeEventListener("click", onClickCapture, true);
+    };
+  }, []);
 
   /*
    * When another ComboSelect opens, close this one.

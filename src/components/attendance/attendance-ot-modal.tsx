@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { formatINR } from "@/lib/utils";
@@ -139,15 +139,30 @@ export function AttendanceOtModal({ open, onClose, onSaved, labour, date, sites,
   if (!open) return null;
   return (
     <Modal open={open} onClose={onClose} title={existing ? "Edit Overtime" : "Add Overtime"}>
-      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-        {freeForm ? (
+      <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
+        {freeForm && existing ? (
+          // Identity is immutable on edit (PATCH accepts hours/rate/site/notes
+          // only) — show it locked instead of editable selects that silently
+          // drop changes.
+          <div className="rounded-md bg-background p-3 text-sm">
+            <p className="font-medium text-text">
+              {(() => {
+                const l = (existing as unknown as { labour?: string | { _id: string; name: string } } | null)?.labour;
+                return typeof l === "object" && l !== null ? l.name : activeLabour.name;
+              })()}
+            </p>
+            <p className="text-text-muted">{existingDate}</p>
+          </div>
+        ) : freeForm ? (
           <>
-            <Select label="Worker" required value={freeLabourId} onChange={(e) => setFreeLabourId(e.target.value)} disabled={pending}>
-              <option value="">Select worker…</option>
-              {labourOptions?.map((l) => (
-                <option key={l._id} value={l._id}>{l.name}</option>
-              ))}
-            </Select>
+            <ComboSelect
+              label="Worker"
+              required
+              value={freeLabourId}
+              options={labourOptions?.map((l) => ({ value: l._id, label: l.name })) ?? []}
+              onChange={setFreeLabourId}
+              disabled={pending}
+            />
             <Input label="Date" required type="date" value={freeDate} onChange={(e) => setFreeDate(e.target.value)} disabled={pending} />
           </>
         ) : (
@@ -157,39 +172,45 @@ export function AttendanceOtModal({ open, onClose, onSaved, labour, date, sites,
           </div>
         )}
 
-        <Select label="Site" required value={siteId} onChange={(e) => setSiteId(e.target.value)} disabled={pending}>
-          <option value="">Select site…</option>
-          {sites.map((s) => (
-            <option key={s._id} value={s._id}>{s.name}</option>
-          ))}
-        </Select>
-
-        <Input
-          label="OT Hours"
+        <ComboSelect
+          label="Site"
           required
-          type="number"
-          max={24}
-          step="any"
-          value={hours}
-          onChange={(e) => setHours(e.target.value)}
-          placeholder="2.0"
+          value={siteId}
+          options={sites.map((s) => ({ value: s._id, label: s.name }))}
+          onChange={setSiteId}
+          disabled={pending}
         />
-        <Input
-          label={`OT Rate (₹/hr) — default ${formatINR(activeLabour.hourlyRate)}`}
-          type="number"
-          min={0}
-          value={rate}
-          onChange={(e) => setRate(e.target.value)}
-          placeholder="Leave blank for worker's rate"
-        />
+
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="OT Hours"
+            required
+            type="number"
+            max={24}
+            step="any"
+            value={hours}
+            onChange={(e) => setHours(e.target.value)}
+            placeholder="2.0"
+            disabled={pending}
+          />
+          <Input
+            label={`Rate (₹/hr)`}
+            type="number"
+            min={0}
+            value={rate}
+            onChange={(e) => setRate(e.target.value)}
+            placeholder={`Blank = ${formatINR(activeLabour.hourlyRate)}`}
+            disabled={pending}
+          />
+        </div>
         {hoursNum > 0 && (
           <p className="text-sm font-medium text-text">OT Amount = {hoursNum} × {formatINR(rateNum)} = {formatINR(amount)}</p>
         )}
-        <Textarea label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reason…" />
+        <Textarea label="Notes (optional)" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reason…" disabled={pending} />
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onClose} disabled={pending}>Cancel</Button>
-          <Button type="submit" disabled={pending}>{pending ? "Saving…" : existing ? "Save Changes" : "Add Overtime"}</Button>
+          <Button type="button" variant="outline" onClick={onClose} disabled={pending} className="h-11 sm:h-auto">Cancel</Button>
+          <Button type="submit" disabled={pending} className="h-11 sm:h-auto">{pending ? "Saving…" : existing ? "Save Changes" : "Add Overtime"}</Button>
         </div>
       </form>
     </Modal>

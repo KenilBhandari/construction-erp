@@ -153,7 +153,7 @@ export default function SitesList() {
               placeholder="Search sites…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="pl-10 pr-10"
+              className="h-9 pl-10 pr-10 text-sm"
             />
             {query && (
               <button
@@ -197,6 +197,7 @@ export default function SitesList() {
             placeholder="Search name, supervisor, location…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            className="h-9 text-sm sm:h-10"
           />
         </div>
         <div className="w-44 shrink-0 sm:w-48">

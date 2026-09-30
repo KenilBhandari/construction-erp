@@ -3,16 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { ComboSelect } from "@/components/ui/combo-select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/ui/modal";
 import { AttendanceOtModal } from "@/components/attendance/attendance-ot-modal";
 import { formatDateShort, formatINR, toDateInputValue } from "@/lib/utils";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Search, Trash2, X } from "lucide-react";
 import type { OvertimeDTO } from "@/types/attendance";
-import type { ProjectDTO } from "@/types/project";
 import type { SiteDTO } from "@/types/site";
 import type { LabourDTO } from "@/types/labour";
 
@@ -30,21 +31,25 @@ function refName(ref: OvertimeDTO["labour"] | OvertimeDTO["site"]): string {
   return typeof ref === "string" ? ref : ref.name;
 }
 
+function siteName(ref: OvertimeDTO["site"]): string | null {
+  if (!ref) return null;
+  return typeof ref === "string" ? ref : ref.name;
+}
+
 export function OvertimeList({
-  externalRefreshKey,
-  createRequestKey,
+  createOpen,
+  onCreateOpenChange,
 }: {
-  externalRefreshKey?: number;
-  createRequestKey?: number;
+  createOpen?: boolean;
+  onCreateOpenChange?: (open: boolean) => void;
 } = {}) {
   const router = useRouter();
-  const [projectId, setProjectId] = useState("");
+  const [q, setQ] = useState("");
+  const [appliedQ, setAppliedQ] = useState("");
   const [siteId, setSiteId] = useState("");
   const [labourId, setLabourId] = useState("");
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
-  const [projects, setProjects] = useState<ProjectDTO[]>([]);
-  const [sites, setSites] = useState<SiteDTO[]>([]);
   const [labour, setLabour] = useState<LabourDTO[]>([]);
   const [allSites, setAllSites] = useState<SiteDTO[]>([]);
   const [data, setData] = useState<ListResponse | null>(null);
@@ -57,12 +62,6 @@ export function OvertimeList({
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/projects?limit=100")
-      .then(async (r) => r.json())
-      .then((j) => {
-        if (Array.isArray(j.data)) setProjects(j.data);
-      })
-      .catch(() => {});
     fetch("/api/labour?limit=100&sort=name")
       .then(async (r) => r.json())
       .then((j) => {
@@ -77,34 +76,20 @@ export function OvertimeList({
       .catch(() => {});
   }, []);
 
+  // Controlled create signal from the page header. A boolean carries no
+  // history, so remounts replay `false` (no-op) — nothing stale can reopen
+  // the modal. Freshness on return comes free from the mount load below.
   useEffect(() => {
-    if (!projectId) return;
-    fetch(`/api/sites?project=${projectId}&limit=100`)
-      .then(async (r) => r.json())
-      .then((j) => {
-        if (Array.isArray(j.data)) setSites(j.data);
-      })
-      .catch(() => {});
-  }, [projectId]);
-
-  useEffect(() => {
-    if (externalRefreshKey !== undefined && externalRefreshKey > 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setReloadKey((k) => k + 1);
-    }
-  }, [externalRefreshKey]);
-
-  useEffect(() => {
-    if (createRequestKey !== undefined && createRequestKey > 0) {
+    if (createOpen) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setEditing(null);
       setFormOpen(true);
     }
-  }, [createRequestKey]);
+  }, [createOpen]);
 
   useEffect(() => {
     const params = new URLSearchParams({ page: String(page), limit: "20" });
-    if (projectId) params.set("project", projectId);
+    if (appliedQ) params.set("q", appliedQ);
     if (siteId) params.set("site", siteId);
     if (labourId) params.set("labour", labourId);
     fetch(`/api/overtime?${params}`)
@@ -117,7 +102,16 @@ export function OvertimeList({
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [projectId, siteId, labourId, page, reloadKey]);
+  }, [appliedQ, siteId, labourId, page, reloadKey]);
+
+  // Debounce worker search so typing doesn't spam the API (labour pattern).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setAppliedQ(q.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [q]);
 
   function refresh() {
     setLoading(true);
@@ -127,6 +121,26 @@ export function OvertimeList({
   function resetPage() {
     setPage(1);
   }
+
+  function clearFilters() {
+    setQ("");
+    setAppliedQ("");
+    setSiteId("");
+    setLabourId("");
+    resetPage();
+  }
+
+  const hasActiveFilters =
+    q.trim() !== "" || siteId !== "" || labourId !== "";
+
+  const siteOptions = [
+    { value: "", label: "All sites" },
+    ...allSites.map((s) => ({ value: s._id, label: s.name })),
+  ];
+  const workerOptions = [
+    { value: "", label: "All workers" },
+    ...labour.map((l) => ({ value: l._id, label: l.name })),
+  ];
 
   async function handleDelete() {
     if (!deleting) return;
@@ -153,26 +167,79 @@ export function OvertimeList({
   }
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-5">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Select label="Project" value={projectId} onChange={(e) => { setProjectId(e.target.value); setSiteId(""); setSites([]); resetPage(); }}>
-          <option value="">All projects</option>
-          {projects.map((p) => (
-            <option key={p._id} value={p._id}>{p.name}</option>
-          ))}
-        </Select>
-        <Select label="Site" value={siteId} onChange={(e) => { setSiteId(e.target.value); resetPage(); }}>
-          <option value="">{projectId ? "All sites" : "Pick project first"}</option>
-          {sites.map((s) => (
-            <option key={s._id} value={s._id}>{s.name}</option>
-          ))}
-        </Select>
-        <Select label="Worker" value={labourId} onChange={(e) => { setLabourId(e.target.value); resetPage(); }}>
-          <option value="">All workers</option>
-          {labour.map((l) => (
-            <option key={l._id} value={l._id}>{l.name}</option>
-          ))}
-        </Select>
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
+      {/* Phone: full-width search, site + worker below. */}
+      <div className="flex flex-col gap-2 sm:hidden">
+        <div className="relative min-w-0 flex-1">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+          />
+            <Input
+              aria-label="Search workers"
+              placeholder="Search workers…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="h-9 pl-10 pr-10 text-sm"
+            />
+          {q && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => setQ("")}
+              className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-text-muted hover:bg-background hover:text-text"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <div className="flex flex-row gap-2">
+          <div className="min-w-0 flex-1">
+            <ComboSelect
+              ariaLabel="Filter by site"
+              value={siteId}
+              options={siteOptions}
+              onChange={(v) => { setSiteId(v); resetPage(); }}
+            />
+          </div>
+          <div className="w-[132px] shrink-0">
+            <ComboSelect
+              ariaLabel="Filter by worker"
+              value={labourId}
+              options={workerOptions}
+              onChange={(v) => { setLabourId(v); resetPage(); }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop: search + combos in one row. */}
+      <div className="hidden sm:flex sm:flex-row sm:gap-3">
+        <div className="flex-1">
+          <Input
+            aria-label="Search workers"
+            placeholder="Search name, phone…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="h-9 text-sm sm:h-10"
+          />
+        </div>
+        <div className="w-44 shrink-0 sm:w-48">
+          <ComboSelect
+            ariaLabel="Filter by site"
+            value={siteId}
+            options={siteOptions}
+            onChange={(v) => { setSiteId(v); resetPage(); }}
+          />
+        </div>
+        <div className="w-44 shrink-0">
+          <ComboSelect
+            ariaLabel="Filter by worker"
+            value={labourId}
+            options={workerOptions}
+            onChange={(v) => { setLabourId(v); resetPage(); }}
+          />
+        </div>
       </div>
 
       {loading && <TableSkeleton rows={6} />}
@@ -184,18 +251,78 @@ export function OvertimeList({
 
       {!loading && !error && data && data.data.length === 0 && (
         <EmptyState
-          title="No overtime records"
-          description="Record extra hours with a custom rate — or leave blank to use the worker's hourly rate."
+          title={hasActiveFilters ? "No overtime found" : "No overtime records"}
+          description={
+            hasActiveFilters
+              ? "No records match the current search or filters. Try a different worker or clear your filters."
+              : "Record extra hours with a custom rate — or leave blank to use the worker's hourly rate."
+          }
           action={
-            <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
-              Add Overtime
-            </Button>
+            hasActiveFilters ? (
+              <Button variant="outline" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            ) : (
+              <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
+                Add Overtime
+              </Button>
+            )
           }
         />
       )}
 
       {!loading && !error && data && data.data.length > 0 && (
         <>
+          {/* Phone cards flow with the page — no fixed inner height. */}
+          <ul className="flex flex-col gap-2 sm:hidden">
+            {data.data.map((o) => (
+              <li key={o._id}>
+                <Card className="cursor-pointer p-3 active:bg-background">
+                  <div
+                    className="flex flex-col gap-1.5"
+                    onClick={() => { const id = labourIdOf(o.labour); if (id) router.push(`/dashboard/labour/${id}`); }}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate text-[15px] font-medium text-primary">
+                        {refName(o.labour)}
+                      </span>
+                      <span className="shrink-0 text-xs text-text-muted tnum">
+                        {formatDateShort(o.date)}
+                      </span>
+                    </div>
+                    <p className="min-w-0 truncate text-xs text-text-muted">
+                      {siteName(o.site) ?? "Unassigned"} · {o.hours}h @ {formatINR(o.rate)}/hr
+                    </p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="min-w-0 truncate text-[15px] font-semibold tnum text-text">
+                        {formatINR(o.amount)}
+                      </p>
+                      <div className="-mr-1.5 flex shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          aria-label="Edit overtime"
+                          onClick={() => { setEditing(o); setFormOpen(true); }}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Delete overtime"
+                          onClick={() => { setDeleting(o); setDeleteError(null); }}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden sm:block">
           <Table>
             <THead>
               <TR>
@@ -212,8 +339,8 @@ export function OvertimeList({
               {data.data.map((o) => (
                 <TR key={o._id} className="cursor-pointer hover:bg-background/70" onClick={() => { const id = labourIdOf(o.labour); if (id) router.push(`/dashboard/labour/${id}`); }}>
                   <TD className="tnum">{formatDateShort(o.date)}</TD>
-                  <TD className="font-medium">{refName(o.labour)}</TD>
-                  <TD>{refName(o.site)}</TD>
+                  <TD className="font-medium text-primary">{refName(o.labour)}</TD>
+                  <TD className={siteName(o.site) ? "" : "text-text-muted italic"}>{siteName(o.site) ?? "Unassigned"}</TD>
                   <TD numeric>{o.hours}</TD>
                   <TD numeric>{formatINR(o.rate)}</TD>
                   <TD numeric>{formatINR(o.amount)}</TD>
@@ -241,8 +368,9 @@ export function OvertimeList({
               ))}
             </tbody>
           </Table>
+          </div>
 
-          <div className="flex items-center justify-between text-sm text-text-muted">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted sm:text-sm">
             <p className="tnum">{data.total} record(s) · Page {data.page} of {totalPages}</p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
@@ -275,9 +403,10 @@ export function OvertimeList({
           suggestedSiteId={null}
           existing={editing}
           labourOptions={labour.map((l) => ({ _id: l._id, name: l.name, hourlyRate: l.hourlyRate }))}
-          onClose={() => setFormOpen(false)}
+          onClose={() => { setFormOpen(false); onCreateOpenChange?.(false); }}
           onSaved={() => {
             setFormOpen(false);
+            onCreateOpenChange?.(false);
             refresh();
           }}
         />

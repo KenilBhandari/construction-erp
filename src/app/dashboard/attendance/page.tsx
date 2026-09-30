@@ -9,16 +9,21 @@ import { OvertimeList } from "@/components/overtime/overtime-list";
 
 function AttendanceContent() {
   const [tab, setTab] = useState<"attendance" | "overtime">("attendance");
-  const [otRefreshKey, setOtRefreshKey] = useState(0);
-  const [otCreateKey, setOtCreateKey] = useState(0);
-  
+  const [otCreateOpen, setOtCreateOpen] = useState(false);
+
+  const switchTab = (next: "attendance" | "overtime") => {
+    // Leaving the tab dismisses a draft create modal — no stale state on return.
+    if (next === "attendance") setOtCreateOpen(false);
+    setTab(next);
+  };
+
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
       <PageHeader
         title={tab === "attendance" ? "Attendance" : "Overtime"}
         action={
           tab === "overtime" ? (
-            <Button onClick={() => setOtCreateKey((k) => k + 1)}>
+            <Button onClick={() => setOtCreateOpen(true)}>
               Add Overtime
             </Button>
           ) : undefined
@@ -27,25 +32,25 @@ function AttendanceContent() {
       <div className="flex gap-2 border-b border-border">
         <button
           type="button"
-          onClick={() => setTab("attendance")}
+          onClick={() => switchTab("attendance")}
           className={`-mb-px min-h-10 shrink-0 border-b-2 px-3 py-2 text-sm font-medium sm:min-h-0 sm:py-2 ${tab === "attendance" ? "border-primary text-primary" : "border-transparent text-text-muted hover:text-text"}`}
         >
           Attendance
         </button>
         <button
           type="button"
-          onClick={() => setTab("overtime")}
+          onClick={() => switchTab("overtime")}
           className={`-mb-px min-h-10 shrink-0 border-b-2 px-3 py-2 text-sm font-medium sm:min-h-0 sm:py-2 ${tab === "overtime" ? "border-primary text-primary" : "border-transparent text-text-muted hover:text-text"}`}
         >
           Overtime
         </button>
       </div>
       {tab === "attendance" ? (
-        <AttendanceMuster onOtChange={() => setOtRefreshKey((k) => k + 1)} />
+        <AttendanceMuster />
       ) : (
         <OvertimeList
-          externalRefreshKey={otRefreshKey}
-          createRequestKey={otCreateKey}
+          createOpen={otCreateOpen}
+          onCreateOpenChange={setOtCreateOpen}
         />
       )}
     </div>

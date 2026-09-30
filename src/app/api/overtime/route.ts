@@ -5,6 +5,7 @@ import { overtimeCreateSchema } from "@/lib/schemas";
 import { toDayDate, dayRange } from "@/lib/utils";
 import { saveOvertime } from "@/lib/overtime";
 import { Overtime } from "@/models/Overtime";
+import { Labour } from "@/models/Labour";
 
 export async function GET(req: Request) {
   const { error } = await requireAuth();
@@ -23,6 +24,7 @@ export async function GET(req: Request) {
     const project = url.searchParams.get("project")?.trim() ?? "";
     const site = url.searchParams.get("site")?.trim() ?? "";
     const labour = url.searchParams.get("labour")?.trim() ?? "";
+    const q = url.searchParams.get("q")?.trim() ?? "";
 
     const filter: Record<string, unknown> = {};
     if (date) filter.date = toDayDate(date);
@@ -38,6 +40,28 @@ export async function GET(req: Request) {
       if (value) {
         const parsed = objectIdSchema.safeParse(value);
         if (parsed.success) filter[key] = parsed.data;
+      }
+    }
+    // Worker text search (same `q` convention as /api/labour): resolve
+    // matching labour ids first, then constrain. Explicit `labour` id
+    // intersects — a selected worker outside the search yields no rows.
+    if (q) {
+      const matched = await Labour.find({
+        $or: [
+          { name: { $regex: q, $options: "i" } },
+          { phone: { $regex: q, $options: "i" } },
+        ],
+      })
+        .select("_id")
+        .lean();
+      const ids = matched.map((l) => l._id);
+      if (labour && filter.labour) {
+        const selected = String(filter.labour);
+        filter.labour = ids.some((id) => String(id) === selected)
+          ? filter.labour
+          : { $in: [] };
+      } else {
+        filter.labour = { $in: ids };
       }
     }
 
