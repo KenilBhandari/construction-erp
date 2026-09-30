@@ -102,8 +102,10 @@ export function LabourAdvanceSection({ labourId }: { labourId: string }) {
 
   return (
     <>
-      <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
-        <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">Advance Balance</h2>
+      <Card className="w-full overflow-hidden rounded-xl p-4 sm:rounded-lg sm:p-5">
+        <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">
+          Advance Balance
+        </h2>
 
         {loading ? (
           <p className="mt-3.5 text-sm text-text-muted sm:mt-3">Loading…</p>
@@ -132,18 +134,20 @@ export function LabourAdvanceSection({ labourId }: { labourId: string }) {
       </Card>
 
       {advances.length > 0 && (
-        <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
-          <h3 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">Recent advances</h3>
-          <div className="scroll-area mt-3.5 overflow-x-auto sm:mt-3">
-            <Table>
+        <Card className="w-full overflow-hidden rounded-xl p-4 sm:rounded-lg sm:p-5">
+          <h3 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">
+            Recent advances
+          </h3>
+          <div className="w-full">
+            <Table className="w-full mt-3.5 sm:mt-3">
               <THead>
                 <TR>
-                  <TH>Date</TH>
-                  <TH numeric>Amount</TH>
-                  <TH>Site</TH>
-                  <TH className="hidden sm:table-cell">Payment</TH>
-                  <TH className="hidden sm:table-cell">Reference</TH>
-                  <TH>Notes</TH>
+                  <TH className="text-xs sm:text-sm">Date</TH>
+                  <TH numeric className="text-right text-xs sm:text-sm">Amount</TH>
+                  <TH className="w-full text-xs sm:w-auto sm:text-sm">Site</TH>
+                  <TH className="hidden text-sm sm:table-cell">Payment</TH>
+                  <TH className="hidden text-sm sm:table-cell">Reference</TH>
+                  <TH className="hidden text-sm sm:table-cell">Notes</TH>
                 </TR>
               </THead>
               <tbody>
@@ -154,12 +158,26 @@ export function LabourAdvanceSection({ labourId }: { labourId: string }) {
                   const isUnspecifiedReason = reasonNotes === "—";
                   return (
                     <TR key={a._id}>
-                      <TD className="tnum"><ResponsiveDate date={a.date} /></TD>
-                      <TD numeric>{safeINR(a.amount)}</TD>
-                      <TD className={isUnspecifiedSite ? "text-text-muted italic" : ""}>{siteLabel}</TD>
-                      <TD className={`hidden sm:table-cell ${a.paymentMethod ? "" : "text-text-muted italic"}`}>{a.paymentMethod ?? "—"}</TD>
-                      <TD className={`hidden sm:table-cell ${a.reference ? "tnum" : "tnum text-text-muted italic"}`}>{a.reference ?? "—"}</TD>
-                      <TD className={`max-w-[200px] truncate ${isUnspecifiedReason ? "text-text-muted italic" : ""}`}>
+                      <TD className="whitespace-nowrap text-xs tnum sm:text-sm">
+                        <ResponsiveDate date={a.date} />
+                      </TD>
+                      <TD numeric className="whitespace-nowrap text-right text-xs sm:text-sm">
+                        {safeINR(a.amount)}
+                      </TD>
+                      <TD
+                        className={`w-full max-w-0 truncate text-xs sm:w-auto sm:max-w-none sm:text-sm ${
+                          isUnspecifiedSite ? "text-text-muted italic" : ""
+                        }`}
+                      >
+                        {siteLabel}
+                      </TD>
+                      <TD className={`hidden text-sm sm:table-cell ${a.paymentMethod ? "" : "text-text-muted italic"}`}>
+                        {a.paymentMethod ?? "—"}
+                      </TD>
+                      <TD className={`hidden text-sm sm:table-cell ${a.reference ? "tnum" : "text-text-muted italic tnum"}`}>
+                        {a.reference ?? "—"}
+                      </TD>
+                      <TD className={`hidden max-w-[200px] truncate text-sm sm:table-cell ${isUnspecifiedReason ? "text-text-muted italic" : ""}`}>
                         <span title={reasonNotes}>{reasonNotes}</span>
                       </TD>
                     </TR>
@@ -179,25 +197,27 @@ export function LabourSalaryRecordsSection({ labourId }: { labourId: string }) {
   if (salaries.length === 0) return null;
 
   return (
-    <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
-      <h3 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">Recent Salary records</h3>
-      <div className="scroll-area mt-3.5 overflow-x-auto sm:mt-3">
-        <Table>
+    <Card className="w-full overflow-hidden rounded-xl p-4 sm:rounded-lg sm:p-5">
+      <h3 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">
+        Recent Salary records
+      </h3>
+      <div className="w-full">
+        <Table className="w-full mt-3.5 sm:mt-3">
           <THead>
             <TR>
-              <TH>Period</TH>
-              <TH numeric>Net</TH>
-              <TH numeric>Recovery</TH>
-              <TH numeric>Paid</TH>
+              <TH className="text-xs sm:text-sm">Period</TH>
+              <TH numeric className="text-right text-xs sm:text-sm">Net</TH>
+              <TH numeric className="text-right text-xs sm:text-sm">Recovery</TH>
+              <TH numeric className="text-right text-xs sm:text-sm">Paid</TH>
             </TR>
           </THead>
           <tbody>
             {salaries.map((s) => (
               <TR key={s._id}>
-                <TD className="tnum">
+                <TD className="tnum text-xs sm:text-sm">
                   <span className="sm:hidden">
                     <ResponsiveDate date={s.periodStart} />
-                    <span className="block text-xs text-text-muted">
+                    <span className="block text-[10px] text-text-muted">
                       <ResponsiveDate date={s.periodEnd} />
                     </span>
                   </span>
@@ -205,9 +225,15 @@ export function LabourSalaryRecordsSection({ labourId }: { labourId: string }) {
                     <ResponsiveDate date={s.periodStart} /> – <ResponsiveDate date={s.periodEnd} />
                   </span>
                 </TD>
-                <TD numeric className="font-semibold">{safeINR(s.net)}</TD>
-                <TD numeric>{safeINR(s.advanceRecovery)}</TD>
-                <TD numeric>{safeINR(s.paidAmount)}</TD>
+                <TD numeric className="whitespace-nowrap text-right text-xs font-semibold sm:text-sm">
+                  {safeINR(s.net)}
+                </TD>
+                <TD numeric className="whitespace-nowrap text-right text-xs sm:text-sm">
+                  {safeINR(s.advanceRecovery)}
+                </TD>
+                <TD numeric className="whitespace-nowrap text-right text-xs sm:text-sm">
+                  {safeINR(s.paidAmount)}
+                </TD>
               </TR>
             ))}
           </tbody>
@@ -222,16 +248,18 @@ export function LabourWriteOffsSection({ labourId }: { labourId: string }) {
   if (writeOffs.length === 0) return null;
 
   return (
-    <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
-      <h3 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">Recent write-offs</h3>
-      <div className="scroll-area mt-3.5 overflow-x-auto sm:mt-3">
-        <Table>
+    <Card className="w-full overflow-hidden rounded-xl p-4 sm:rounded-lg sm:p-5">
+      <h3 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">
+        Recent write-offs
+      </h3>
+      <div className="w-full">
+        <Table className="w-full mt-3.5 sm:mt-3">
           <THead>
             <TR>
-              <TH>Date</TH>
-              <TH numeric>Amount</TH>
-              <TH>Description</TH>
-              <TH>Site</TH>
+              <TH className="text-xs sm:text-sm">Date</TH>
+              <TH numeric className="text-right text-xs sm:text-sm">Amount</TH>
+              <TH className="w-full text-xs sm:w-auto sm:text-sm">Desc</TH>
+              <TH className="text-xs sm:text-sm">Site</TH>
             </TR>
           </THead>
           <tbody>
@@ -240,10 +268,25 @@ export function LabourWriteOffsSection({ labourId }: { labourId: string }) {
               const isUnspec = siteLabel === "—";
               return (
                 <TR key={r._id}>
-                  <TD className="tnum"><ResponsiveDate date={r.date} /></TD>
-                  <TD numeric>{safeINR(r.amount)}</TD>
-                  <TD>{r.description}</TD>
-                  <TD className={isUnspec ? "text-text-muted italic" : ""}>{siteLabel}</TD>
+                  <TD className="whitespace-nowrap text-xs tnum sm:text-sm">
+                    <ResponsiveDate date={r.date} />
+                  </TD>
+                  <TD numeric className="whitespace-nowrap text-right text-xs sm:text-sm">
+                    {safeINR(r.amount)}
+                  </TD>
+                  <TD 
+                    className="w-full max-w-0 truncate text-xs sm:w-auto sm:max-w-none sm:text-sm" 
+                    title={r.description}
+                  >
+                    {r.description}
+                  </TD>
+                  <TD 
+                    className={`max-w-[70px] truncate text-xs sm:max-w-none sm:text-sm ${
+                      isUnspec ? "text-text-muted italic" : ""
+                    }`}
+                  >
+                    {siteLabel}
+                  </TD>
                 </TR>
               );
             })}

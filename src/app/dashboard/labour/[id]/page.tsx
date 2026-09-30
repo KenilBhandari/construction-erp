@@ -206,45 +206,70 @@ export default async function LabourDetailPage({
       <LabourWriteOffsSection labourId={lid} />
 
       {assignments.length > 0 && (
-        <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
-          <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">Assignment History</h2>
-          <div className="scroll-area mt-3.5 max-h-[320px] overflow-auto rounded-xl border border-border sm:mt-3 sm:rounded-lg">
-            <Table>
-              <THead>
-                <TR>
-                  <TH>Site</TH>
-                  <TH>From</TH>
-                  <TH>To</TH>
-                  <TH>Status</TH>
-                </TR>
-              </THead>
-              <tbody>
-                {assignments.map((a) => {
-                  const siteName =
-                    a.site && typeof a.site === "object" && "name" in a.site
-                      ? String((a.site as { name: unknown }).name)
-                      : "—";
-                  const isUnspecSite = siteName === "—";
-                  const isUnspecTo = !a.to;
-                  return (
-                    <TR key={String(a._id)}>
-                      <TD className={isUnspecSite ? "font-medium text-text-muted italic" : "font-medium"}>{siteName}</TD>
-                      <TD><ResponsiveDate date={a.from} /></TD>
-                      <TD className={isUnspecTo ? "text-text-muted italic" : ""}>{a.to ? <ResponsiveDate date={a.to} /> : "—"}</TD>
-                      <TD>
-                        {a.to ? (
-                          <Badge tone="neutral">Closed</Badge>
-                        ) : (
-                          <Badge tone="primary">Current</Badge>
-                        )}
-                      </TD>
-                    </TR>
-                  );
-                })}
-              </tbody>
-            </Table>
-          </div>
-        </Card>
+      <Card className="w-full overflow-hidden rounded-xl p-4 sm:rounded-lg sm:p-5">
+  <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">
+    Assignment History
+  </h2>
+  <div className="scroll-area mt-3.5 w-full max-h-[320px] overflow-y-auto sm:mt-3">
+    <Table className="w-full">
+      <THead>
+        <TR>
+          <TH className="w-full text-xs sm:w-auto sm:text-sm">Site</TH>
+          <TH className="text-xs sm:text-sm">From</TH>
+          <TH className="text-right text-xs sm:text-left sm:text-sm">To</TH>
+          <TH className="hidden sm:table-cell sm:text-sm">Status</TH>
+        </TR>
+      </THead>
+      <tbody>
+        {assignments.map((a) => {
+          const siteName =
+            a.site && typeof a.site === "object" && "name" in a.site
+              ? String((a.site as { name: unknown }).name)
+              : "—";
+          const isUnspecSite = siteName === "—";
+          
+          return (
+            <TR key={String(a._id)}>
+              <TD
+                className={`w-full max-w-0 truncate font-medium text-xs sm:w-auto sm:max-w-none sm:text-sm ${
+                  isUnspecSite ? "text-text-muted italic" : ""
+                }`}
+              >
+                {siteName}
+              </TD>
+              
+              <TD className="whitespace-nowrap text-xs tnum sm:text-sm">
+                <ResponsiveDate date={a.from} />
+              </TD>
+              
+              <TD className="whitespace-nowrap text-right text-xs tnum sm:text-left sm:text-sm">
+                {a.to ? (
+                  <ResponsiveDate date={a.to} />
+                ) : (
+                  <>
+                    {/* Shows "Current" on mobile, hidden on desktop */}
+                    <span className="font-medium sm:hidden">Current</span>
+                    {/* Shows "—" on desktop, hidden on mobile */}
+                    <span className="hidden text-text-muted italic sm:inline">—</span>
+                  </>
+                )}
+              </TD>
+
+              {/* Status Badge only visible on desktop */}
+              <TD className="hidden sm:table-cell">
+                {a.to ? (
+                  <Badge tone="neutral">Closed</Badge>
+                ) : (
+                  <Badge tone="primary">Current</Badge>
+                )}
+              </TD>
+            </TR>
+          );
+        })}
+      </tbody>
+    </Table>
+  </div>
+</Card>
       )}
     </div>
   );

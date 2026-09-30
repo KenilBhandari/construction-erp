@@ -97,31 +97,54 @@ export function LabourAttendanceHistory({ labourId }: { labourId: string }) {
   }
   if (rows.length === 0) return null;
 
-  return (
-    <Card className="rounded-xl p-4 sm:rounded-lg sm:p-5">
-      <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">This month attendances</h2>
-      <div className="scroll-area mt-3.5 max-h-[320px] overflow-auto rounded-xl border border-border sm:mt-3 sm:rounded-lg">
-        <Table>
+ return (
+    <Card className="w-full overflow-hidden rounded-xl p-4 sm:rounded-lg sm:p-5">
+      <h2 className="text-[15px] font-semibold tracking-tight text-text sm:text-base sm:tracking-normal">
+        This month attendances
+      </h2>
+      <div className="scroll-area mt-3.5 w-full max-h-[320px] overflow-y-auto sm:mt-3">
+        <Table className="w-full">
           <THead>
             <TR>
-              <TH>Date</TH>
-              <TH>Status</TH>
-              <TH>Site</TH>
-              <TH>OT</TH>
+              <TH className="text-xs sm:text-sm">Date</TH>
+              <TH className="text-xs sm:text-sm">Status</TH>
+              <TH className="text-xs sm:text-sm w-full sm:w-auto">Site</TH>
+              <TH className="text-xs sm:text-sm text-right">OT</TH>
             </TR>
           </THead>
           <tbody>
             {rows.map((r) => {
               const siteLabel = siteNameOf(r.site);
               const isUnspecified = siteLabel === "—";
-              const dateKey = new Date(r.date).toISOString().slice(0,10);
-              const otHours = Math.round(((r.overtimeHours ?? 0) + (otByDate.get(dateKey) ?? 0)) * 10) / 10;
+              const dateKey = new Date(r.date).toISOString().slice(0, 10);
+              const otHours =
+                Math.round(
+                  ((r.overtimeHours ?? 0) + (otByDate.get(dateKey) ?? 0)) * 10
+                ) / 10;
+                
               return (
                 <TR key={r._id}>
-                  <TD className="tnum"><ResponsiveDate date={r.date} /></TD>
-                  <TD><Badge tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</Badge></TD>
-                  <TD className={isUnspecified ? "text-text-muted italic" : ""}>{siteLabel}</TD>
-                  <TD className="tnum">{otHours ? `${otHours}h` : <span className="text-text-muted">—</span>}</TD>
+                  <TD className="whitespace-nowrap text-xs sm:text-sm tnum">
+                    <ResponsiveDate date={r.date} />
+                  </TD>
+                  
+                  <TD className="text-xs sm:text-sm truncate">
+                    <Badge tone={STATUS_TONE[r.status]}>
+                      {STATUS_LABEL[r.status]}
+                    </Badge>
+                  </TD>
+                  
+                  <TD 
+                    className={`w-full max-w-0 truncate text-xs sm:w-auto sm:max-w-none sm:text-sm ${
+                      isUnspecified ? "text-text-muted italic" : ""
+                    }`}
+                  >
+                    {siteLabel}
+                  </TD>
+                  
+                  <TD className="whitespace-nowrap text-right text-xs sm:text-sm tnum">
+                    {otHours ? `${otHours}h` : <span className="text-text-muted">—</span>}
+                  </TD>
                 </TR>
               );
             })}
