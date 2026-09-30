@@ -3,15 +3,17 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { ComboSelect } from "@/components/ui/combo-select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/ui/modal";
-import { formatDateShort, safeINR, toDateInputValue, toSafeNumber } from "@/lib/utils";
-import { CreditCardPlus, Pencil, RefreshCw, X } from "lucide-react";
+import { ResponsiveDate } from "@/components/ui/responsive-date";
+import { formatDateShort, formatDateRange, safeINR, toDateInputValue, toSafeNumber } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { ChevronDown, CreditCardPlus, Pencil, RefreshCw, Search, Trash2, X } from "lucide-react";
 import type { SalaryDTO, SalaryStatus } from "@/types/salary";
 import { salaryLabourName } from "@/types/salary";
 import type { LabourDTO } from "@/types/labour";
@@ -43,20 +45,27 @@ function firstOfMonth(): string {
   return toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
 }
 
+// Server errors are verbose — trim to what the user needs. Overlap keeps its
+// dates (the useful part) in short form; everything else passes through.
+function friendlyCalcError(msg: string): string {
+  const m = msg.match(/overlapping period \((\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})\)/);
+  if (m) return `Already settled for ${formatDateShort(m[1])} – ${formatDateShort(m[2])}.`;
+  return msg;
+}
+
 export function CalculatePendingTab() {
+  const [calcOpen, setCalcOpen] = useState(true);
   const [calcLabour, setCalcLabour] = useState("");
   const [calcStart, setCalcStart] = useState(() => firstOfMonth());
   const [calcEnd, setCalcEnd] = useState(() => toDateInputValue());
-  const [calcRecovery, setCalcRecovery] = useState("0");
-  const [calcDeductions, setCalcDeductions] = useState("0");
   const [calcPending, setCalcPending] = useState(false);
   const [calcMessage, setCalcMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [outstanding, setOutstanding] = useState<number | null>(null);
-  const [outstandingLoading, setOutstandingLoading] = useState(false);
   const [lastResult, setLastResult] = useState<SalaryDTO | null>(null);
   const [lastOutstanding, setLastOutstanding] = useState<number | null>(null);
 
-  const [labourId, setLabourId] = useState("");
+  const [q, setQ] = useState("");
+  const [appliedQ, setAppliedQ] = useState("");
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
   const [labour, setLabour] = useState<LabourDTO[]>([]);
@@ -84,20 +93,18 @@ export function CalculatePendingTab() {
       setOutstanding(null);
       return;
     }
-    setOutstandingLoading(true);
     fetch(`/api/labour/${calcLabour}/advance-summary`)
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? "Failed");
         setOutstanding(toSafeNumber(j.outstanding, 0));
       })
-      .catch(() => setOutstanding(null))
-      .finally(() => setOutstandingLoading(false));
+      .catch(() => setOutstanding(null));
   }, [calcLabour, reloadKey]);
 
   useEffect(() => {
     const params = new URLSearchParams({ page: String(page), limit: "20", status: "pending" });
-    if (labourId) params.set("labour", labourId);
+    if (appliedQ) params.set("q", appliedQ);
     fetch(`/api/salary?${params}`)
       .then(async (res) => {
         const json = await res.json();
@@ -108,19 +115,33 @@ export function CalculatePendingTab() {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [labourId, page, reloadKey]);
+  }, [appliedQ, page, reloadKey]);
+
+  // Debounce worker search so typing doesn't spam the API (labour pattern).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setAppliedQ(q.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [q]);
 
   function refresh() {
     setLoading(true);
     setReloadKey((k) => k + 1);
   }
 
-  const rawRecovery = calcRecovery.trim() === "" ? 0 : Number(calcRecovery);
-  const rawDeductions = calcDeductions.trim() === "" ? 0 : Number(calcDeductions);
-  const recoveryNum = toSafeNumber(calcRecovery, 0);
-  const deductionsNum = toSafeNumber(calcDeductions, 0);
-  const remainingAdvance = outstanding !== null ? Math.max(0, outstanding - recoveryNum) : null;
-  const recoveryExceeds = outstanding !== null && recoveryNum > outstanding;
+  function resetPage() {
+    setPage(1);
+  }
+
+  function clearFilters() {
+    setQ("");
+    setAppliedQ("");
+    resetPage();
+  }
+
+  const hasActiveFilters = q.trim() !== "";
 
   async function handleCalculate() {
     if (!calcLabour) {
@@ -129,14 +150,6 @@ export function CalculatePendingTab() {
     }
     if (!calcStart || !calcEnd || calcStart > calcEnd) {
       setCalcMessage({ kind: "error", text: "Pick a valid period." });
-      return;
-    }
-    if (Number.isNaN(rawRecovery) || rawRecovery < 0 || Number.isNaN(rawDeductions) || rawDeductions < 0) {
-      setCalcMessage({ kind: "error", text: "Recovery/deductions must be a valid number ≥ 0 (e.g. 0, 500). Check for letters or symbols." });
-      return;
-    }
-    if (recoveryExceeds) {
-      setCalcMessage({ kind: "error", text: `Recovery ${safeINR(recoveryNum)} exceeds outstanding ${safeINR(outstanding)}.` });
       return;
     }
     setCalcPending(true);
@@ -151,8 +164,8 @@ export function CalculatePendingTab() {
           labour: calcLabour,
           periodStart: calcStart,
           periodEnd: calcEnd,
-          advanceRecovery: recoveryNum,
-          deductions: deductionsNum,
+          advanceRecovery: 0,
+          deductions: 0,
           site: null,
           project: null,
           notes: null,
@@ -163,10 +176,10 @@ export function CalculatePendingTab() {
       const saved: SalaryDTO = json as SalaryDTO;
       setLastResult(saved);
       setLastOutstanding(outstanding);
-      setCalcMessage({ kind: "ok", text: "Settlement calculated — review breakdown below." });
+      setCalcMessage({ kind: "ok", text: "Salary calculated — review below." });
       refresh();
     } catch (err) {
-      setCalcMessage({ kind: "error", text: (err as Error).message });
+      setCalcMessage({ kind: "error", text: friendlyCalcError((err as Error).message) });
     } finally {
       setCalcPending(false);
     }
@@ -220,43 +233,61 @@ export function CalculatePendingTab() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card className="p-5">
-        <h2 className="text-base font-semibold text-text">Calculate Salary</h2>
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
+      <Card className="overflow-hidden p-0">
+        <button
+          type="button"
+          onClick={() => setCalcOpen((o) => !o)}
+          aria-expanded={calcOpen}
+          aria-label={calcOpen ? "Collapse calculate salary" : "Expand calculate salary"}
+          className="flex w-full items-center justify-between gap-2 p-3 text-left sm:p-4"
+        >
+          <span className="text-[15px] font-semibold text-text sm:text-base">Calculate Salary</span>
+          <ChevronDown
+            aria-hidden="true"
+            className={cn(
+              "h-4 w-4 shrink-0 text-text-muted transition-transform duration-150",
+              calcOpen && "rotate-180",
+            )}
+          />
+        </button>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Select
-            label="Worker *"
+        {calcOpen && (
+        <div className="border-t border-border p-3 sm:p-4">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
+          <ComboSelect
+            label="Worker"
+            required
+            ariaLabel="Select worker to calculate"
             value={calcLabour}
-            onChange={(e) => setCalcLabour(e.target.value)}
-          >
-            <option value="">Select worker…</option>
-            {labour.map((l) => (
-              <option key={l._id} value={l._id}>
-                {l.name} - {l.skill}
-              </option>
-            ))}
-          </Select>
+            options={labour.map((l) => ({ value: l._id, label: `${l.name} - ${l.skill}` }))}
+            onChange={setCalcLabour}
+            disabled={calcPending}
+          />
           <Input
             label="Period start *"
             type="date"
             value={calcStart}
             onChange={(e) => setCalcStart(e.target.value)}
+            disabled={calcPending}
+            className="h-9 text-sm sm:h-10"
           />
           <Input
             label="Period end *"
             type="date"
             value={calcEnd}
             onChange={(e) => setCalcEnd(e.target.value)}
+            disabled={calcPending}
+            className="h-9 text-sm sm:h-10"
           />
         </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="mt-2 sm:mt-3">
           <div>
             <Button
               onClick={handleCalculate}
-              disabled={calcPending || recoveryExceeds}
-              className="w-full sm:w-auto"
+              disabled={calcPending}
+              className="h-10 w-full sm:w-auto"
             >
               {calcPending ? "Calculating…" : "Calculate"}
             </Button>
@@ -276,12 +307,11 @@ export function CalculatePendingTab() {
           <div className="mt-4 rounded-lg border border-border bg-background p-4">
             <h3 className="text-sm font-semibold text-text">
               {salaryLabourName(lastResult)} ·{" "}
-              {formatDateShort(lastResult.periodStart)} –{" "}
-              {formatDateShort(lastResult.periodEnd)}
+              {formatDateRange(lastResult.periodStart, lastResult.periodEnd)}
             </h3>
             <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
               <div>
-                <dt className="text-text-muted">Attendance earnings</dt>
+                <dt className="text-text-muted">Earnings</dt>
                 <dd className="mt-0.5 font-semibold tnum">
                   {safeINR(lastResult.gross)}
                 </dd>
@@ -320,17 +350,17 @@ export function CalculatePendingTab() {
               return showAdvance ? (
                 <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm sm:grid-cols-3">
                   <div>
-                    <dt className="text-text-muted">Advance outstanding (before)</dt>
+                    <dt className="text-text-muted">Advance before</dt>
                     <dd className="font-medium tnum">{safeINR(lastOutstanding)}</dd>
                   </div>
                   <div>
-                    <dt className="text-text-muted">Recovery this settlement</dt>
+                    <dt className="text-text-muted">Recovered</dt>
                     <dd className={`font-semibold tnum ${rec > 0 ? "text-warning" : ""}`}>
                       {safeINR(lastResult.advanceRecovery)}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-text-muted">Remaining advance (after)</dt>
+                    <dt className="text-text-muted">Advance left</dt>
                     <dd className="font-semibold tnum">{safeINR(after)}</dd>
                   </div>
                 </dl>
@@ -353,26 +383,46 @@ export function CalculatePendingTab() {
             </div>
           </div>
         )}
+        </div>
+        )}
       </Card>
 
-      <div className="flex flex-col gap-3 sm:flex-row max-w-xs">
-        <div className="flex-1">
-          <Select
-            aria-label="Filter by worker"
-            value={labourId}
-            onChange={(e) => {
-              setLabourId(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">All workers (pending)</option>
-            {labour.map((l) => (
-              <option key={l._id} value={l._id}>
-                {l.name}
-              </option>
-            ))}
-          </Select>
+      {/* Phone: search only. */}
+      <div className="sm:hidden">
+        <div className="relative min-w-0 flex-1">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+          />
+          <Input
+            aria-label="Search workers"
+            placeholder="Search workers…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="h-9 pl-10 pr-10 text-sm"
+          />
+          {q && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => setQ("")}
+              className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-text-muted hover:bg-background hover:text-text"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
+      </div>
+
+      {/* Desktop: search only, constrained width. */}
+      <div className="hidden sm:block sm:max-w-sm">
+        <Input
+          aria-label="Search workers"
+          placeholder="Search name, phone…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          className="h-9 text-sm sm:h-10"
+        />
       </div>
 
       {loading && <TableSkeleton rows={6} />}
@@ -386,14 +436,104 @@ export function CalculatePendingTab() {
       )}
       {!loading && !error && data && data.data.length === 0 && (
         <EmptyState
-          title="No pending settlements"
-          description="Calculate a worker's pay for a week or month to create a pending settlement."
+          title={hasActiveFilters ? "No pending settlements found" : "No pending settlements"}
+          description={
+            hasActiveFilters
+              ? "No pending settlements match the current search or filter."
+              : "Calculate a worker's pay for a week or month to create a pending settlement."
+          }
+          action={
+            hasActiveFilters ? (
+              <Button variant="outline" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            ) : undefined
+          }
         />
       )}
       {!loading && !error && data && data.data.length > 0 && (
         <>
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <Table>
+          {/* Phone cards — desktop table below stays untouched. */}
+          <ul className="flex flex-col gap-2 sm:hidden">
+            {data.data.map((s) => {
+              const remaining = toSafeNumber(
+                s.remainingAmount ??
+                  toSafeNumber(s.net) - toSafeNumber(s.paidAmount),
+              );
+              return (
+                <li key={s._id}>
+                  <Card className="cursor-pointer p-3 active:bg-background">
+                    <div
+                      className="flex flex-col gap-1.5"
+                      onClick={() => setViewing(s._id)}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate text-[15px] font-medium text-primary">
+                          {salaryLabourName(s)}
+                        </span>
+                        <Badge tone={STATUS_TONE[s.status]} className="shrink-0">
+                          {STATUS_LABEL[s.status]}
+                        </Badge>
+                      </div>
+                      <p className="min-w-0 truncate text-xs text-text-muted tnum">
+                        <ResponsiveDate date={s.periodStart} /> – <ResponsiveDate date={s.periodEnd} /> · Gross {safeINR(toSafeNumber(s.gross) + toSafeNumber(s.overtimeAmount))}
+                      </p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="min-w-0 truncate text-[15px] font-semibold tnum text-text">
+                          {safeINR(s.net)} <span className="text-xs font-normal text-text-muted">payable</span>
+                          {toSafeNumber(s.advanceRecovery) > 0 && (
+                            <span className="text-xs font-normal text-text-muted"> · −{safeINR(s.advanceRecovery)} recovery</span>
+                          )}
+                        </p>
+                        <div className="-mr-1.5 flex shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
+                          {remaining > 0 && (
+                            <button
+                              type="button"
+                              aria-label="Pay"
+                              onClick={() => setPaying(s)}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-md text-primary hover:bg-primary/10"
+                            >
+                              <CreditCardPlus className="h-4 w-4" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            aria-label="Recalculate"
+                            onClick={() => handleRecalculate(s)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Edit settlement"
+                            onClick={() => setEditing(s)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Delete settlement"
+                            onClick={() => {
+                              setDeleting(s);
+                              setDeleteError(null);
+                            }}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="hidden sm:block">
+          <Table>
               <THead>
                 <TR>
                   <TH>Worker / Period</TH>
@@ -415,12 +555,12 @@ export function CalculatePendingTab() {
                   return (
                     <TR key={s._id} className="cursor-pointer hover:bg-background/70" onClick={() => setViewing(s._id)}>
                       <TD>
-                        <span className="font-medium">
+                        <span className="font-medium text-primary">
                           {salaryLabourName(s)}
                         </span>
                         <p className="text-xs text-text-muted tnum">
-                          {formatDateShort(s.periodStart)} –{" "}
-                          {formatDateShort(s.periodEnd)}
+                          <ResponsiveDate date={s.periodStart} /> –{" "}
+                          <ResponsiveDate date={s.periodEnd} />
                         </p>
                       </TD>
                       <TD numeric>
@@ -489,17 +629,17 @@ export function CalculatePendingTab() {
                             }}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger"
                           >
-                            <X className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                       </TD>
                     </TR>
                   );
                 })}
-              </tbody>
-            </Table>
+            </tbody>
+          </Table>
           </div>
-          <div className="flex items-center justify-between text-sm text-text-muted">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted sm:text-sm">
             <p className="tnum">
               {data.total} record(s) · Page {data.page} of {totalPages}
             </p>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { safeINR, toSafeNumber } from "@/lib/utils";
@@ -134,6 +134,14 @@ export function SalaryPaymentModal({
           </dd>
         </div>
       </dl>
+      {(toSafeNumber(record.advanceRecovery) > 0 || toSafeNumber(record.deductions) > 0) && (
+        <p className="mt-2 text-xs text-text-muted tnum">
+          Net is after
+          {toSafeNumber(record.advanceRecovery) > 0 && <> {safeINR(record.advanceRecovery)} recovery</>}
+          {toSafeNumber(record.advanceRecovery) > 0 && toSafeNumber(record.deductions) > 0 && " +"}
+          {toSafeNumber(record.deductions) > 0 && <> {safeINR(record.deductions)} deductions</>}.
+        </p>
+      )}
       {isLocked ? (
         <p className="mt-4 text-sm text-danger">
           This salary is locked — no further payments allowed.
@@ -158,29 +166,27 @@ export function SalaryPaymentModal({
             required
             disabled={pending}
           />
-          <Select
-            label="Payment method"
-            value={method}
-            onChange={(e) => setMethod(e.target.value)}
-            disabled={pending}
-          >
-            {PAYMENT_METHODS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </Select>
-          {method !== "Cash" && (
-            <Input
-              label="Reference (optional)"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              placeholder="Txn ID / Cheque No"
+          <div className={method !== "Cash" ? "grid grid-cols-2 gap-3" : ""}>
+            <ComboSelect
+              label="Payment method"
+              value={method}
+              options={PAYMENT_METHODS.map((m) => ({ value: m, label: m }))}
+              onChange={setMethod}
               disabled={pending}
             />
-          )}
+            {method !== "Cash" && (
+              <Input
+                label="Reference (optional)"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder="Txn ID / Cheque No"
+                disabled={pending}
+              />
+            )}
+          </div>
           <Textarea
             label="Notes (optional)"
+            rows={2}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Reason…"
@@ -197,10 +203,11 @@ export function SalaryPaymentModal({
               variant="outline"
               onClick={onClose}
               disabled={pending}
+              className="h-11 sm:h-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={pending || isLocked}>
+            <Button type="submit" disabled={pending || isLocked} className="h-11 sm:h-auto">
               {pending ? "Saving…" : "Record Payment"}
             </Button>
           </div>

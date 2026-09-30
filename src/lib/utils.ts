@@ -61,6 +61,27 @@ export function formatDateCompact(date: Date | string): string {
   return `${dd}/${mm}/${yy}`;
 }
 
+/**
+ * Smart period range: "12 – 30 Sep 2026" (same month),
+ * "12 Sep – 30 Oct 2026" (same year), else full both ends.
+ */
+export function formatDateRange(start: Date | string, end: Date | string): string {
+  const s = typeof start === "string" ? new Date(start) : start;
+  const e = typeof end === "string" ? new Date(end) : end;
+  const mon = (d: Date) =>
+    new Intl.DateTimeFormat("en-IN", { month: "short" }).format(d);
+  if (
+    s.getFullYear() === e.getFullYear() &&
+    s.getMonth() === e.getMonth()
+  ) {
+    return `${s.getDate()} – ${e.getDate()} ${mon(e)} ${e.getFullYear()}`;
+  }
+  if (s.getFullYear() === e.getFullYear()) {
+    return `${s.getDate()} ${mon(s)} – ${e.getDate()} ${mon(e)} ${e.getFullYear()}`;
+  }
+  return `${formatDateShort(s)} – ${formatDateShort(e)}`;
+}
+
 /** "2026-09-18" for <input type="date"> defaults (attendance defaults to today). */
 export function toDateInputValue(date: Date = new Date()): string {
   const year = date.getFullYear();

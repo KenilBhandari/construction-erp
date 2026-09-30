@@ -95,8 +95,8 @@ export function SalaryEditModal({
         )}
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onClose} disabled={pending}>Cancel</Button>
-          <Button type="submit" disabled={pending || isLocked}>{pending ? "Saving…" : "Save Changes"}</Button>
+          <Button type="button" variant="outline" onClick={onClose} disabled={pending} className="h-11 sm:h-auto">Cancel</Button>
+          <Button type="submit" disabled={pending || isLocked} className="h-11 sm:h-auto">{pending ? "Saving…" : "Save Changes"}</Button>
         </div>
       </form>
     </Modal>

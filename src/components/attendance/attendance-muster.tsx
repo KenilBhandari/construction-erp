@@ -17,6 +17,7 @@ import { AttendanceOtModal } from "./attendance-ot-modal";
 import {
   X,
   Check,
+  ChevronDown,
   Search,
   UserCheck,
   UserRoundX,
@@ -106,6 +107,7 @@ export function AttendanceMuster({
 }: { onOtChange?: () => void } = {}) {
   const router = useRouter();
   const [date, setDate] = useState(() => toDateInputValue());
+  const [attOpen, setAttOpen] = useState(true);
   const [search, setSearch] = useState("");
   const [siteFilter, setSiteFilter] = useState<string>("all"); // all | siteId | "none"
   const [statusFilter, setStatusFilter] = useState<string>("all"); // all | present | half-day | absent
@@ -657,22 +659,38 @@ export function AttendanceMuster({
 
   return (
     <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
-      <Card className="p-4 sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-base font-semibold tracking-tight text-text">
-            Attendance — {formatDateShort(date)}
-          </h2>
+      <Card className="overflow-hidden p-0">
+        <div className="flex items-center justify-between gap-2 p-3 sm:p-4">
+          <button
+            type="button"
+            onClick={() => setAttOpen((o) => !o)}
+            aria-expanded={attOpen}
+            aria-label={attOpen ? "Collapse attendance summary" : "Expand attendance summary"}
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          >
+            <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-text sm:text-base">
+              Attendance for
+            </h2>
+          </button>
           <Input
             aria-label="Select date"
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="h-9 text-sm sm:h-10 sm:w-48"
+            className="h-9 w-auto text-sm sm:h-10 sm:w-48"
           />
+            <ChevronDown
+              aria-hidden="true"
+              className={cn(
+                "h-4 w-4 shrink-0 text-text-muted transition-transform duration-150",
+                attOpen && "rotate-180",
+              )}
+            />
         </div>
 
-        {counters && (
-          <dl className="mt-3 grid grid-cols-3 gap-2 text-sm sm:mt-4 sm:grid-cols-6 sm:gap-4">
+        {attOpen && counters && (
+          <div className="border-t border-border px-3 pb-3 pt-3 sm:px-4 sm:pb-4">
+          <dl className="grid grid-cols-3 gap-2 text-sm sm:grid-cols-6 sm:gap-4">
             <div className="min-w-0 rounded-lg bg-background px-3 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
               <dt className="text-xs text-nowrap truncate text-text-muted sm:text-sm">
                 Total Labour
@@ -712,6 +730,7 @@ export function AttendanceMuster({
               </dd>
             </div>
           </dl>
+          </div>
         )}
       </Card>
 

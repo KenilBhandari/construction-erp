@@ -574,15 +574,7 @@ export function ComboSelect({
                     data-idx={idx}
                     role="option"
                     aria-selected={isSelected}
-                    onPointerDown={(e) => {
-                      /*
-                       * Prevent the trigger from losing focus / the
-                       * document handler from closing the menu before
-                       * pick() runs.
-                       */
-                      e.preventDefault();
-                      pick(idx);
-                    }}
+                    onClick={() => pick(idx)}
                     onMouseEnter={() =>
                       setHighlight(idx)
                     }
