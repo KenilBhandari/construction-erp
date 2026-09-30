@@ -10,6 +10,26 @@ import { Site } from "@/models/Site";
 import { ATTENDANCE_STATUSES } from "@/types/attendance";
 import { Types } from "mongoose";
 
+function toRecordPayload(docs: Array<Record<string, unknown>>) {
+  return docs.map((a) => {
+    const rawLabour = a.labour as { _id?: unknown } | string | unknown;
+    const labourId =
+      typeof rawLabour === "object" && rawLabour !== null && "_id" in rawLabour
+        ? String((rawLabour as { _id: unknown })._id)
+        : String(rawLabour);
+    return {
+      _id: String(a._id as unknown),
+      labour: labourId,
+      date: a.date,
+      status: a.status,
+      site: a.site ?? null,
+      project: a.project ?? null,
+      notes: (a.notes as string | null) ?? null,
+      cost: (a.cost as number) ?? 0,
+    };
+  });
+}
+
 export async function GET(req: Request) {
   const { error } = await requireAuth();
   if (error) return error;
@@ -91,7 +111,12 @@ export async function POST(req: Request) {
       const perKeys = body.records.map((r) => perRecordIdempotencyKey(headerKey, r.labour, body.date));
       const existing = await Attendance.countDocuments({ idempotencyKey: { $in: perKeys } });
       if (existing === body.records.length && existing > 0) {
-        return ok({ saved: body.records.length, insertedOrUpdated: existing, date: body.date, idempotent: true });
+        const cachedIds = [...new Set(body.records.map((r) => r.labour))];
+        const cached = await Attendance.find({ labour: { $in: cachedIds }, date })
+          .populate({ path: "site", select: "name", strictPopulate: false })
+          .populate({ path: "project", select: "name", strictPopulate: false })
+          .lean();
+        return ok({ saved: body.records.length, insertedOrUpdated: existing, date: body.date, idempotent: true, records: toRecordPayload(cached as Array<Record<string, unknown>>) });
       }
     }
 
@@ -199,8 +224,12 @@ export async function POST(req: Request) {
     }
 
     const afterCount = await Attendance.countDocuments({ labour: { $in: labourIds }, date });
+    const savedDocs = await Attendance.find({ labour: { $in: labourIds }, date })
+      .populate({ path: "site", select: "name", strictPopulate: false })
+      .populate({ path: "project", select: "name", strictPopulate: false })
+      .lean();
 
-    return ok({ saved: ops.length, insertedOrUpdated: afterCount, date: body.date });
+    return ok({ saved: ops.length, insertedOrUpdated: afterCount, date: body.date, records: toRecordPayload(savedDocs as Array<Record<string, unknown>>) });
   } catch (err) {
     return fail(err, 422);
   }

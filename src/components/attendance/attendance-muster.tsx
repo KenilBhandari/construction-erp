@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,6 +126,11 @@ export function AttendanceMuster({
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+  // Per-row mutation lock: one active save per worker, other rows stay usable.
+  const [pendingAttendance, setPendingAttendance] = useState<Set<string>>(
+    new Set(),
+  );
+  const [rowError, setRowError] = useState<Record<string, string>>({});
   const [confirmBulk, setConfirmBulk] = useState<{
     status: AttendanceStatus;
     mode: "remaining" | "allBelow" | "selected";
@@ -215,8 +220,17 @@ export function AttendanceMuster({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSiteEditError(null);
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPendingAttendance(new Set());
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRowError({});
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
   }, [date]);
+
+  // Guards stale single-row responses after a date change: only the
+  // roster for the requested date may be reconciled/rolled back.
+  const dateRef = useRef(date);
+  dateRef.current = date;
 
   const filtered = useMemo(() => {
     if (!roster) return [];
@@ -305,7 +319,12 @@ export function AttendanceMuster({
     newSiteId: string | null,
   ) => {
     if (!item.attendance) return;
+    const labourId = item.labour._id;
+    if (pendingAttendance.has(labourId)) return;
     const attId = item.attendance._id;
+    const prevItem = item;
+    const requestDate = date;
+    setPendingAttendance((prev) => new Set(prev).add(labourId));
     setSiteSavingId(attId);
     setSiteSavedId(null);
     setSiteEditError(null);
@@ -317,66 +336,185 @@ export function AttendanceMuster({
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Site update failed");
+      if (dateRef.current !== requestDate) return;
+      // Server is truth: replace row with returned doc, discard optimistic.
+      type SavedAtt = NonNullable<RosterItem["attendance"]>;
+      setRoster((prev) =>
+        (prev ?? []).map((r) =>
+          r.labour._id === labourId
+            ? {
+                ...r,
+                attendance: {
+                  _id: String(j._id ?? attId),
+                  labour: labourId,
+                  date,
+                  status: (j.status ?? r.attendance!.status) as AttendanceStatus,
+                  site: (j.site ?? null) as SavedAtt["site"],
+                  project: (j.project ?? null) as SavedAtt["project"],
+                  notes: (j.notes ?? null) as string | null,
+                  overtimeHours: r.attendance?.overtimeHours ?? 0,
+                },
+              }
+            : r,
+        ),
+      );
       setSiteSavedId(attId);
       setTimeout(
         () => setSiteSavedId((prev) => (prev === attId ? null : prev)),
         2000,
       );
-      await fetchRoster();
       // Close only after the save settles — no unmount mid-flight.
       setEditingSiteId((prev) => (prev === attId ? null : prev));
+      onOtChange?.();
     } catch (e) {
-      // Stay in edit mode with an inline error so the user can retry.
-      setSiteEditError((e as Error).message);
+      // Roll back to snapshot; stay in edit mode with an inline error to retry.
+      if (dateRef.current === requestDate) {
+        setRoster((prev) =>
+          (prev ?? []).map((r) => (r.labour._id === labourId ? prevItem : r)),
+        );
+        setSiteEditError((e as Error).message);
+      }
     } finally {
       setSiteSavingId(null);
+      setPendingAttendance((prev) => {
+        const next = new Set(prev);
+        next.delete(labourId);
+        return next;
+      });
     }
   };
 
   const markOne = async (item: RosterItem, status: AttendanceStatus) => {
+    const labourId = item.labour._id;
     if (item.attendance?.status === status) return;
-    setSaving(true);
-    try {
-      let site: string | null = null;
-      if (item.attendance) {
-        site = siteIdOf(
-          item.attendance.site as string | { _id: string; name: string },
-        );
-      } else {
-        const pending = pendingSite[item.labour._id];
-        if (pending !== undefined) site = pending;
-        else site = item.suggestedSite?._id ?? null;
-      }
+    // Per-row lock: ignore taps on this worker while its save is in flight.
+    // Other workers stay fully usable.
+    if (pendingAttendance.has(labourId)) return;
+    const prevItem = item;
+    const prevCounters = counters;
+    const requestDate = date;
 
+    let site: string | null = null;
+    if (item.attendance) {
+      site = siteIdOf(
+        item.attendance.site as string | { _id: string; name: string },
+      );
+    } else {
+      const pending = pendingSite[labourId];
+      if (pending !== undefined) site = pending;
+      else site = item.suggestedSite?._id ?? null;
+    }
+    const prevNotes = item.attendance?.notes ?? null;
+
+    // Optimistic visual only — server response replaces it below.
+    setRowError((prev) => {
+      if (!(labourId in prev)) return prev;
+      const next = { ...prev };
+      delete next[labourId];
+      return next;
+    });
+    setPendingAttendance((prev) => new Set(prev).add(labourId));
+    setRoster((prev) =>
+      (prev ?? []).map((r) =>
+        r.labour._id === labourId
+          ? {
+              ...r,
+              attendance: r.attendance
+                ? { ...r.attendance, status }
+                : {
+                    _id: `optimistic-${labourId}`,
+                    labour: labourId,
+                    date,
+                    status,
+                    site,
+                    project: null,
+                    notes: prevNotes,
+                    overtimeHours: 0,
+                  },
+            }
+          : r,
+      ),
+    );
+    setCounters((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev };
+      const prevStatus = prevItem.attendance?.status ?? null;
+      if (!prevStatus) {
+        next.marked += 1;
+        next.remaining = Math.max(0, next.remaining - 1);
+      } else if (prevStatus === "present") next.present = Math.max(0, next.present - 1);
+      else if (prevStatus === "half-day") next.halfDay = Math.max(0, next.halfDay - 1);
+      else if (prevStatus === "absent") next.absent = Math.max(0, next.absent - 1);
+      if (status === "present") next.present += 1;
+      else if (status === "half-day") next.halfDay += 1;
+      else next.absent += 1;
+      return next;
+    });
+
+    try {
       const res = await fetch("/api/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date,
-          records: [
-            {
-              labour: item.labour._id,
-              status,
-              site,
-              notes: item.attendance?.notes ?? null,
-            },
-          ],
+          records: [{ labour: labourId, status, site, notes: prevNotes }],
           overwrite: true,
         }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Failed to save");
-      // Clear pending for this labour after successful mark
+      // Date changed mid-flight: canonical roster for the new date is
+      // already loading — drop this stale response.
+      if (dateRef.current !== requestDate) return;
+      const saved = Array.isArray(j.records)
+        ? (j.records as Array<Record<string, unknown>>).find(
+            (r) => String(r.labour) === labourId,
+          ) ?? (j.records as Array<Record<string, unknown>>)[0]
+        : null;
+      if (!saved) throw new Error("Save succeeded but server returned no record.");
+      // Server is truth: discard optimistic, replace with canonical record.
+      type SavedAtt = NonNullable<RosterItem["attendance"]>;
+      setRoster((prev) =>
+        (prev ?? []).map((r) =>
+          r.labour._id === labourId
+            ? {
+                ...r,
+                attendance: {
+                  _id: String(saved._id),
+                  labour: labourId,
+                  date,
+                  status: saved.status as AttendanceStatus,
+                  site: (saved.site ?? null) as SavedAtt["site"],
+                  project: (saved.project ?? null) as SavedAtt["project"],
+                  notes: (saved.notes ?? null) as string | null,
+                  overtimeHours: r.attendance?.overtimeHours ?? 0,
+                },
+              }
+            : r,
+        ),
+      );
+      // Clear pending site for this labour after successful mark
       setPendingSite((prev) => {
+        if (!(labourId in prev)) return prev;
         const next = { ...prev };
-        delete next[item.labour._id];
+        delete next[labourId];
         return next;
       });
-      await fetchRoster();
     } catch (e) {
-      setError((e as Error).message);
+      // Roll back optimistic row + counters, surface row-level error.
+      // Skip if the user already moved to another date.
+      if (dateRef.current !== requestDate) return;
+      setRoster((prev) =>
+        (prev ?? []).map((r) => (r.labour._id === labourId ? prevItem : r)),
+      );
+      if (prevCounters) setCounters(prevCounters);
+      setRowError((prev) => ({ ...prev, [labourId]: (e as Error).message }));
     } finally {
-      setSaving(false);
+      setPendingAttendance((prev) => {
+        const next = new Set(prev);
+        next.delete(labourId);
+        return next;
+      });
     }
   };
 
@@ -608,7 +746,7 @@ export function AttendanceMuster({
               ariaLabel="Filter by completion"
               value={completion}
               options={[
-                { value: "all", label: "All" },
+                { value: "all", label: "Everyone" },
                 { value: "remaining", label: "Not Marked" },
                 { value: "marked", label: "Marked" },
               ]}
@@ -636,7 +774,7 @@ export function AttendanceMuster({
               ariaLabel="Filter by status"
               value={statusFilter}
               options={[
-                { value: "all", label: "All" },
+                { value: "all", label: "Any Status" },
                 { value: "present", label: "Present" },
                 { value: "half-day", label: "Half Day" },
                 { value: "absent", label: "Absent" },
@@ -669,7 +807,7 @@ export function AttendanceMuster({
             ariaLabel="Completion filter"
             value={completion}
             options={[
-              { value: "all", label: "All" },
+              { value: "all", label: "Everyone" },
               { value: "remaining", label: "Not Marked" },
               { value: "marked", label: "Marked" },
             ]}
@@ -948,7 +1086,7 @@ export function AttendanceMuster({
                                   }
                                 }}
                                 autoOpen
-                                disabled={isSiteSaving}
+                                disabled={isSiteSaving || pendingAttendance.has(item.labour._id)}
                                 className="w-full"
                                 triggerClassName="h-8 w-full px-2 text-sm"
                               />
@@ -971,7 +1109,7 @@ export function AttendanceMuster({
                                 ) ?? "No site"
                               }
                               onClick={() => setEditingSiteId(att._id)}
-                              disabled={isSiteSaving}
+                              disabled={isSiteSaving || pendingAttendance.has(item.labour._id)}
                               className="flex h-8 w-44 min-w-0 max-w-full items-center justify-between gap-2 rounded-md border border-border bg-surface px-2 text-left text-sm transition-colors hover:border-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 disabled:opacity-60"
                             >
                               <span
@@ -1034,11 +1172,27 @@ export function AttendanceMuster({
                       </TD>
                       <TD>
                         {att ? (
-                          <Badge tone={STATUS_TONE[att.status]}>
-                            {STATUS_LABEL[att.status]}
-                          </Badge>
+                          <span className="inline-flex items-center gap-1.5">
+                            <Badge tone={STATUS_TONE[att.status]}>
+                              {STATUS_LABEL[att.status]}
+                            </Badge>
+                            {pendingAttendance.has(item.labour._id) && (
+                              <span className="text-xs text-text-muted">
+                                Saving…
+                              </span>
+                            )}
+                          </span>
+                        ) : pendingAttendance.has(item.labour._id) ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <Badge tone="neutral">Saving…</Badge>
+                          </span>
                         ) : (
                           <Badge tone="neutral">Not Marked</Badge>
+                        )}
+                        {rowError[item.labour._id] && (
+                          <span className="mt-0.5 block max-w-32 truncate text-xs text-danger">
+                            {rowError[item.labour._id]} — retry
+                          </span>
                         )}
                       </TD>
                       <TD onClick={(e) => e.stopPropagation()}>
@@ -1052,9 +1206,9 @@ export function AttendanceMuster({
                               aria-label="Present"
                               title="Present"
                               onClick={() => markOne(item, "present")}
-                              disabled={saving}
+                              disabled={pendingAttendance.has(item.labour._id)}
                               className={cn(
-                                "inline-flex h-9 w-9 items-center justify-center rounded-md sm:h-8 sm:w-8",
+                                "inline-flex h-9 w-9 items-center justify-center rounded-md disabled:opacity-50 sm:h-8 sm:w-8",
                                 att?.status === "present"
                                   ? "bg-primary text-white"
                                   : "text-text-muted hover:bg-primary/10 hover:text-primary",
@@ -1067,9 +1221,9 @@ export function AttendanceMuster({
                               aria-label="Half Day"
                               title="Half Day"
                               onClick={() => markOne(item, "half-day")}
-                              disabled={saving}
+                              disabled={pendingAttendance.has(item.labour._id)}
                               className={cn(
-                                "inline-flex h-9 w-9 items-center justify-center rounded-md sm:h-8 sm:w-8",
+                                "inline-flex h-9 w-9 items-center justify-center rounded-md disabled:opacity-50 sm:h-8 sm:w-8",
                                 att?.status === "half-day"
                                   ? "bg-amber-500 text-white"
                                   : "text-text-muted hover:bg-amber-500/10 hover:text-amber-600",
@@ -1082,9 +1236,9 @@ export function AttendanceMuster({
                               aria-label="Absent"
                               title="Absent"
                               onClick={() => markOne(item, "absent")}
-                              disabled={saving}
+                              disabled={pendingAttendance.has(item.labour._id)}
                               className={cn(
-                                "inline-flex h-9 w-9 items-center justify-center rounded-md sm:h-8 sm:w-8",
+                                "inline-flex h-9 w-9 items-center justify-center rounded-md disabled:opacity-50 sm:h-8 sm:w-8",
                                 att?.status === "absent"
                                   ? "bg-danger text-white"
                                   : "text-text-muted hover:bg-danger/10 hover:text-danger",
@@ -1164,7 +1318,7 @@ export function AttendanceMuster({
           <div className="sm:hidden">
             {/* Select All Header */}
             <div className="flex h-10 items-center justify-between px-1 pb-2">
-              <label className="flex cursor-pointer items-center gap-2.5">
+              <label className="flex cursor-pointer items-center gap-2.5 pl-2">
                 <input
                   type="checkbox"
                   checked={allPageSelected}
@@ -1194,7 +1348,7 @@ export function AttendanceMuster({
             </div>
 
             {/* Roster Cards */}
-            <ul className="scroll-area flex max-h-[560px] flex-col gap-2.5 pb-[200px]">
+            <ul className="flex flex-col gap-2.5">
               {paginated.map((item) => {
                 const isSelected = selected.has(item.labour._id);
                 const att = item.attendance;
@@ -1271,11 +1425,25 @@ export function AttendanceMuster({
 
                             <div className="shrink-0 pt-0.5">
                               {att ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <Badge
+                                    tone={STATUS_TONE[att.status]}
+                                    className="px-1.5 py-0.5 text-[10px]"
+                                  >
+                                    {STATUS_LABEL[att.status]}
+                                  </Badge>
+                                  {pendingAttendance.has(item.labour._id) && (
+                                    <span className="text-[10px] text-text-muted">
+                                      Saving…
+                                    </span>
+                                  )}
+                                </span>
+                              ) : pendingAttendance.has(item.labour._id) ? (
                                 <Badge
-                                  tone={STATUS_TONE[att.status]}
+                                  tone="neutral"
                                   className="px-1.5 py-0.5 text-[10px]"
                                 >
-                                  {STATUS_LABEL[att.status]}
+                                  Saving…
                                 </Badge>
                               ) : (
                                 <Badge
@@ -1284,6 +1452,11 @@ export function AttendanceMuster({
                                 >
                                   Not Marked
                                 </Badge>
+                              )}
+                              {rowError[item.labour._id] && (
+                                <span className="block max-w-28 truncate text-[10px] text-danger">
+                                  {rowError[item.labour._id]}
+                                </span>
                               )}
                             </div>
                           </div>
@@ -1318,7 +1491,7 @@ export function AttendanceMuster({
                                     }
                                   }}
                                   autoOpen
-                                  disabled={isSiteSaving}
+                                  disabled={isSiteSaving || pendingAttendance.has(item.labour._id)}
                                   className="w-full"
                                   triggerClassName="h-8 w-full px-2 text-xs"
                                 />
@@ -1332,7 +1505,7 @@ export function AttendanceMuster({
                                   setEditingSiteId(null);
                                   setSiteEditError(null);
                                 }}
-                                disabled={isSiteSaving}
+                                disabled={isSiteSaving || pendingAttendance.has(item.labour._id)}
                                 className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-text-muted hover:bg-background disabled:opacity-50"
                               >
                                 <X className="h-3.5 w-3.5" />
@@ -1379,7 +1552,7 @@ export function AttendanceMuster({
                                         }
                                       }}
                                       autoOpen
-                                      disabled={isSiteSaving}
+                                      disabled={isSiteSaving || pendingAttendance.has(item.labour._id)}
                                       className="w-full"
                                       triggerClassName="h-8 w-full px-2 text-xs"
                                     />
@@ -1394,7 +1567,7 @@ export function AttendanceMuster({
                                       setEditingSiteId(null);
                                       setSiteEditError(null);
                                     }}
-                                    disabled={isSiteSaving}
+                                    disabled={isSiteSaving || pendingAttendance.has(item.labour._id)}
                                     className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-text-muted hover:bg-background disabled:opacity-50"
                                   >
                                     <X className="h-3.5 w-3.5" />
@@ -1410,7 +1583,7 @@ export function AttendanceMuster({
                                         setSiteEditError(null);
                                         setEditingSiteId(att._id);
                                       }}
-                                      disabled={isSiteSaving}
+                                      disabled={isSiteSaving || pendingAttendance.has(item.labour._id)}
                                       className="flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md border border-border bg-surface px-2 text-left text-xs font-medium transition-colors hover:border-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 disabled:opacity-60"
                                     >
                                       <span
@@ -1473,9 +1646,9 @@ export function AttendanceMuster({
                                   aria-label="Present"
                                   title="Present"
                                   onClick={() => markOne(item, "present")}
-                                  disabled={saving}
+                                  disabled={pendingAttendance.has(item.labour._id)}
                                   className={cn(
-                                    "inline-flex h-8 w-8 items-center justify-center",
+                                    "inline-flex h-8 w-8 items-center justify-center disabled:opacity-50",
                                     att?.status === "present"
                                       ? "bg-primary text-white"
                                       : "bg-background text-text-muted hover:bg-surface hover:text-primary",
@@ -1489,9 +1662,9 @@ export function AttendanceMuster({
                                   aria-label="Half Day"
                                   title="Half Day"
                                   onClick={() => markOne(item, "half-day")}
-                                  disabled={saving}
+                                  disabled={pendingAttendance.has(item.labour._id)}
                                   className={cn(
-                                    "inline-flex h-8 w-8 items-center justify-center",
+                                    "inline-flex h-8 w-8 items-center justify-center disabled:opacity-50",
                                     att?.status === "half-day"
                                       ? "bg-amber-500 text-white"
                                       : "bg-background text-text-muted hover:bg-surface hover:text-amber-600",
@@ -1505,9 +1678,9 @@ export function AttendanceMuster({
                                   aria-label="Absent"
                                   title="Absent"
                                   onClick={() => markOne(item, "absent")}
-                                  disabled={saving}
+                                  disabled={pendingAttendance.has(item.labour._id)}
                                   className={cn(
-                                    "inline-flex h-8 w-8 items-center justify-center",
+                                    "inline-flex h-8 w-8 items-center justify-center disabled:opacity-50",
                                     att?.status === "absent"
                                       ? "bg-danger text-white"
                                       : "bg-background text-text-muted hover:bg-surface hover:text-danger",
