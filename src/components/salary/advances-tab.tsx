@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Search, Trash2, X } from "lucide-react";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { Modal, ConfirmDialog } from "@/components/ui/modal";
 import { Card } from "@/components/ui/card";
+import { ResponsiveDate } from "@/components/ui/responsive-date";
 import { formatDateShort, safeINR, toSafeNumber, toDateInputValue } from "@/lib/utils";
 import type { AdvanceDTO } from "@/types/salary";
 import { advanceLabourName, advanceSiteName } from "@/types/salary";
@@ -33,10 +34,13 @@ interface Summary {
   outstanding: number;
 }
 
-export function AdvancesTab() {
-  const [labourId, setLabourId] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+export function AdvancesTab({
+  advCmd,
+}: {
+  advCmd?: { kind: "add" | "writeoff"; n: number } | null;
+} = {}) {
+  const [q, setQ] = useState("");
+  const [appliedQ, setAppliedQ] = useState("");
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
   const [labour, setLabour] = useState<LabourDTO[]>([]);
@@ -76,11 +80,10 @@ export function AdvancesTab() {
       .catch(() => {});
   }, []);
 
-  // summary
+  // summary (global — not scoped to search)
   useEffect(() => {
     setSummaryLoading(true);
-    const url = labourId ? `/api/advances/summary?labour=${labourId}` : "/api/advances/summary";
-    fetch(url)
+    fetch("/api/advances/summary")
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? "Failed");
@@ -88,15 +91,12 @@ export function AdvancesTab() {
       })
       .catch(() => setSummary(null))
       .finally(() => setSummaryLoading(false));
-  }, [labourId, reloadKey]);
+  }, [reloadKey]);
 
   // list
   useEffect(() => {
     const params = new URLSearchParams({ page: String(page), limit: "20" });
-    if (labourId) params.set("labour", labourId);
-    if (from) params.set("from", from);
-    if (to) params.set("to", to);
-    setLoading(true);
+    if (appliedQ) params.set("q", appliedQ);
     fetch(`/api/advances?${params}`)
       .then(async (res) => {
         const json = await res.json();
@@ -107,11 +107,29 @@ export function AdvancesTab() {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [labourId, from, to, page, reloadKey]);
+  }, [appliedQ, page, reloadKey]);
+
+  // Debounce worker search so typing doesn't spam the API (labour pattern).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setAppliedQ(q.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [q]);
 
   function refresh() {
+    setLoading(true);
     setReloadKey((k) => k + 1);
   }
+
+  function clearFilters() {
+    setQ("");
+    setAppliedQ("");
+    setPage(1);
+  }
+
+  const hasActiveFilters = q.trim() !== "";
 
   // viewing summary
   useEffect(() => {
@@ -149,11 +167,6 @@ export function AdvancesTab() {
       .catch(() => setWriteOffSummary(null))
       .finally(() => setWriteOffSummaryLoading(false));
   }, [writeOffWorker, writeOffOpen]);
-
-  // prefill write-off worker from filter when opening
-  useEffect(() => {
-    if (writeOffOpen && !writeOffWorker && labourId) setWriteOffWorker(labourId);
-  }, [writeOffOpen, labourId, writeOffWorker]);
 
   async function handleDelete() {
     if (!deleting) return;
@@ -238,35 +251,27 @@ export function AdvancesTab() {
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
 
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium text-text">Advances</p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setWriteOffError(null);
-                setWriteOffSuccess(null);
-                setWriteOffAmount("");
-                setWriteOffReason("");
-                setWriteOffSite("");
-                setWriteOffDate(toDateInputValue());
-                setWriteOffOpen(true);
-              }}
-              disabled={summary ? summary.outstanding <= 0 : false}
-              title={summary && summary.outstanding <= 0 ? "No outstanding to write off" : "Write off unrecoverable outstanding as expense"}
-            >
-              Write Off
-            </Button>
-            <Button onClick={() => { setEditing(null); setFormOpen(true); }}>Add Advance</Button>
-          </div>
-        </div>
-      </div>
+  // Create signals from the page header (overtime pattern). Tab switches
+  // clear the signal and unmount this tab, so nothing stale can reopen.
+  useEffect(() => {
+    if (!advCmd) return;
+    if (advCmd.kind === "add") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEditing(null);
+      setFormOpen(true);
+    } else {
+      setWriteOffError(null);
+      setWriteOffSuccess(null);
+      setWriteOffAmount("");
+      setWriteOffReason("");
+      setWriteOffSite("");
+      setWriteOffDate(toDateInputValue());
+      setWriteOffOpen(true);
+    }
+  }, [advCmd]);
 
+  return (
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <Card className="p-3">
           <p className="text-xs text-text-muted">Total Given</p>
@@ -277,7 +282,7 @@ export function AdvancesTab() {
           <p className="mt-0.5 text-lg font-semibold tnum">{summaryLoading ? "…" : summary ? safeINR(summary.totalRecovered) : "—"}</p>
         </Card>
         <Card className="p-3">
-          <p className="text-xs text-text-muted">Total Written Off <span className="text-[11px]">· Unrecoverable</span></p>
+          <p className="text-xs text-text-muted">Written Off</p>
           <p className="mt-0.5 text-lg font-semibold tnum">{summaryLoading ? "…" : summary ? safeINR(summary.totalWrittenOff) : "—"}</p>
         </Card>
         <Card className="p-3">
@@ -286,41 +291,144 @@ export function AdvancesTab() {
         </Card>
       </div>
 
-      <Card className="p-4">
-        <div className="grid grid-cols-2 items-end gap-3 sm:grid-cols-[1.4fr_1fr_1fr_auto]">
-          <Select label="Worker" value={labourId} onChange={(e) => { setLabourId(e.target.value); setPage(1); }}>
-            <option value="">All workers</option>
-            {labour.map((l) => (<option key={l._id} value={l._id}>{l.name}</option>))}
-          </Select>
-          <Input label="From" type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
-          <Input label="To" type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} />
-          <Button variant="outline" size="sm" onClick={() => { setLabourId(""); setFrom(""); setTo(""); setPage(1); }} disabled={!from && !to && !labourId} className={!from && !to && !labourId ? "invisible" : undefined}>Clear</Button>
+      {/* Phone: search only. */}
+      <div className="sm:hidden">
+        <div className="relative min-w-0 flex-1">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+          />
+          <Input
+            aria-label="Search workers"
+            placeholder="Search workers…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="h-9 pl-10 pr-10 text-sm"
+          />
+          {q && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => setQ("")}
+              className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-text-muted hover:bg-background hover:text-text"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
-      </Card>
+      </div>
+
+      {/* Desktop: search only, full-width row like Records. */}
+      <div className="hidden sm:flex sm:flex-row">
+        <div className="flex-1">
+          <Input
+            aria-label="Search workers"
+            placeholder="Search name, phone…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="h-9 text-sm sm:h-10"
+          />
+        </div>
+      </div>
 
       {loading && <TableSkeleton rows={6} />}
-      {error && <p role="alert" className="text-sm text-danger">{error} <button type="button" className="underline" onClick={refresh}>Retry</button></p>}
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}{" "}
+          <button type="button" className="underline" onClick={refresh}>
+            Retry
+          </button>
+        </p>
+      )}
 
       {!loading && !error && data && data.data.length === 0 && (
-        <EmptyState title="No advances yet" description="Record money given in advance." action={<Button onClick={() => { setEditing(null); setFormOpen(true); }}>Add Advance</Button>} />
+        <EmptyState
+          title={hasActiveFilters ? "No advances found" : "No advances yet"}
+          description={
+            hasActiveFilters
+              ? "No advances match the current search."
+              : "Record money given in advance."
+          }
+          action={
+            hasActiveFilters ? (
+              <Button variant="outline" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            ) : (
+              <Button onClick={() => { setEditing(null); setFormOpen(true); }}>Add Advance</Button>
+            )
+          }
+        />
       )}
 
       {!loading && !error && data && data.data.length > 0 && (
         <>
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <Table>
-              <THead><TR><TH>Date</TH><TH>Worker</TH><TH>Site / Project</TH><TH numeric>Amount</TH><TH>Payment</TH><TH>Reference</TH><TH>Reason / Notes</TH><TH className="text-right">Actions</TH></TR></THead>
+          {/* Phone cards — desktop table below stays untouched. */}
+          <ul className="flex flex-col gap-2 sm:hidden">
+            {data.data.map((a) => {
+              const siteLabel = advanceSiteName(a) ?? "Unassigned";
+              const reasonNotes = [a.reason, a.notes].filter(Boolean).join(" — ") || "—";
+              return (
+                <li key={a._id}>
+                  <Card className="cursor-pointer p-3 active:bg-background">
+                    <div
+                      className="flex flex-col gap-1.5"
+                      onClick={() => setViewing(a)}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate text-[15px] font-medium text-primary">
+                          {advanceLabourName(a)}
+                        </span>
+                        <span className="shrink-0 text-[15px] font-semibold tnum text-text">
+                          {safeINR(a.amount)}
+                        </span>
+                      </div>
+                      <p className="min-w-0 truncate text-xs text-text-muted tnum">
+                        <ResponsiveDate date={a.date} /> · <span className={siteLabel === "Unassigned" ? "italic" : ""}>{siteLabel}</span>
+                      </p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="min-w-0 flex-1 truncate text-xs text-text-muted">
+                          <span className="mr-1 text-[11px] uppercase tracking-wide">Note</span>
+                          {reasonNotes}
+                        </p>
+                        <div className="-mr-1.5 flex shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            aria-label="Edit advance"
+                            onClick={() => { setEditing(a); setFormOpen(true); }}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Delete advance"
+                            onClick={() => { setDeleting(a); setDeleteError(null); }}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="hidden sm:block">
+          <Table>
+              <THead><TR><TH>Date</TH><TH>Worker</TH><TH>Site</TH><TH numeric>Amount</TH><TH>Payment</TH><TH>Reference</TH><TH>Note</TH><TH className="text-right">Actions</TH></TR></THead>
               <tbody>
                 {data.data.map((a) => {
-                  const siteLabel = advanceSiteName(a) ?? "—";
-                  const projectLabel = a.project && typeof a.project === "object" && "name" in a.project ? (a.project as { name: string }).name : a.project ? String(a.project) : "";
-                  const siteProject = projectLabel ? `${siteLabel} · ${projectLabel}` : siteLabel;
+                  const siteLabel = advanceSiteName(a) ?? "Unassigned";
                   const reasonNotes = [a.reason, a.notes].filter(Boolean).join(" — ") || "—";
                   return (
                     <TR key={a._id} className="cursor-pointer hover:bg-background/70" onClick={() => setViewing(a)}>
-                      <TD className="tnum">{formatDateShort(a.date)}</TD>
-                      <TD className="font-medium">{advanceLabourName(a)}</TD>
-                      <TD>{siteProject}</TD>
+                      <TD className="tnum"><ResponsiveDate date={a.date} /></TD>
+                      <TD><span className="font-medium text-primary">{advanceLabourName(a)}</span></TD>
+                      <TD className={siteLabel === "Unassigned" ? "italic text-text-muted" : ""}>{siteLabel}</TD>
                       <TD numeric><span className="font-semibold">{safeINR(a.amount)}</span></TD>
                       <TD>{a.paymentMethod ?? "—"}</TD>
                       <TD className="tnum">{a.reference ?? "—"}</TD>
@@ -353,8 +461,8 @@ export function AdvancesTab() {
               </tbody>
             </Table>
           </div>
-          <div className="flex items-center justify-between text-sm text-text-muted">
-            <p className="tnum">{data.total} advance(s) · {safeINR(data.totalAmount)} in filter · Page {data.page} of {totalPages}</p>
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted sm:text-sm">
+            <p className="tnum">{data.total} advance(s) · Page {data.page} of {totalPages}</p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
               <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</Button>
@@ -374,7 +482,7 @@ export function AdvancesTab() {
       )}
 
       {viewing && (
-        <Modal open={!!viewing} onClose={() => setViewing(null)} title="Advance Details" size="lg">
+        <Modal open={!!viewing} onClose={() => setViewing(null)} title="Advance Details">
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="text-base font-semibold">{advanceLabourName(viewing)}</p>
@@ -382,14 +490,13 @@ export function AdvancesTab() {
             </div>
             <p className="-mt-3 text-xs text-text-muted tnum">{formatDateShort(viewing.date)}{viewing.paymentMethod ? ` · ${viewing.paymentMethod}` : ""}{viewing.reference ? ` · ${viewing.reference}` : ""}</p>
             <dl className="grid grid-cols-2 gap-3 text-sm">
-              <div><dt className="text-xs text-text-muted">Site / Project</dt><dd className="mt-0.5 font-medium">{advanceSiteName(viewing) ?? "—"} {viewing.project && typeof viewing.project === "object" && "name" in viewing.project ? `· ${(viewing.project as { name: string }).name}` : ""}</dd></div>
-              <div><dt className="text-xs text-text-muted">Reason</dt><dd className="mt-0.5">{viewing.reason ?? "—"}</dd></div>
-              {viewing.notes && <div className="col-span-2"><dt className="text-xs text-text-muted">Notes</dt><dd className="mt-0.5 text-sm">{viewing.notes}</dd></div>}
+              <div><dt className="text-xs text-text-muted">Site</dt><dd className={`mt-0.5 font-medium ${(advanceSiteName(viewing) ?? "Unassigned") === "Unassigned" ? "italic text-text-muted" : ""}`}>{advanceSiteName(viewing) ?? "Unassigned"}</dd></div>
+              <div><dt className="text-xs text-text-muted">Note</dt><dd className="mt-0.5">{[viewing.reason, viewing.notes].filter(Boolean).join(" — ") || "—"}</dd></div>
             </dl>
             <div className="border-t border-border pt-3">
               <h3 className="text-sm font-medium text-text">Balance</h3>
               {viewSummary ? (
-                <dl className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                <dl className="mt-2 grid grid-cols-2 gap-2 rounded-lg bg-background p-3 text-sm sm:grid-cols-4">
                   <div><dt className="text-xs text-text-muted">Total given</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(viewSummary.totalGiven)}</dd></div>
                   <div><dt className="text-xs text-text-muted">Recovered</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(viewSummary.totalRecovered)}</dd></div>
                   <div><dt className="text-xs text-text-muted">Written off</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(viewSummary.totalWrittenOff)}</dd></div>
@@ -402,37 +509,43 @@ export function AdvancesTab() {
       )}
 
       {writeOffOpen && (
-        <Modal open={writeOffOpen} onClose={resetWriteOff} title="Write off outstanding advance" size="lg">
-          <form className="flex flex-col gap-4" onSubmit={handleWriteOff}>
-            <Select label="Worker" required value={writeOffWorker} onChange={(e) => { setWriteOffWorker(e.target.value); setWriteOffError(null); setWriteOffSuccess(null); }}>
-              <option value="">Select worker…</option>
-              {labour.map((l) => (<option key={l._id} value={l._id}>{l.name} · {l.skill}</option>))}
-            </Select>
+        <Modal open={writeOffOpen} onClose={resetWriteOff} title="Write off outstanding advance">
+          <form className="flex flex-col gap-3" onSubmit={handleWriteOff}>
+            <ComboSelect
+              label="Worker"
+              required
+              value={writeOffWorker}
+              options={labour.map((l) => ({ value: l._id, label: `${l.name} · ${l.skill}` }))}
+              onChange={(v) => { setWriteOffWorker(v); setWriteOffError(null); setWriteOffSuccess(null); }}
+            />
 
             {writeOffWorker && (
-              <div>
-                {writeOffSummaryLoading ? (
-                  <p className="text-xs text-text-muted">Loading balance…</p>
-                ) : writeOffSummary ? (
-                  <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-                    <div><dt className="text-xs text-text-muted">Total given</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(writeOffSummary.totalGiven)}</dd></div>
-                    <div><dt className="text-xs text-text-muted">Recovered</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(writeOffSummary.totalRecovered)}</dd></div>
-                    <div><dt className="text-xs text-text-muted">Written off</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(writeOffSummary.totalWrittenOff)}</dd></div>
-                    <div><dt className="text-xs text-text-muted">Outstanding</dt><dd className="mt-0.5 font-semibold tnum text-primary">{safeINR(writeOffSummary.outstanding)}</dd></div>
-                  </dl>
-                ) : (
-                  <p className="text-xs text-text-muted">No advance data.</p>
-                )}
-              </div>
+              writeOffSummaryLoading ? (
+                <p className="text-xs text-text-muted">Loading balance…</p>
+              ) : writeOffSummary ? (
+                <dl className="grid grid-cols-2 gap-2 rounded-lg bg-background p-3 text-sm sm:grid-cols-4">
+                  <div><dt className="text-xs text-text-muted">Total given</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(writeOffSummary.totalGiven)}</dd></div>
+                  <div><dt className="text-xs text-text-muted">Recovered</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(writeOffSummary.totalRecovered)}</dd></div>
+                  <div><dt className="text-xs text-text-muted">Written off</dt><dd className="mt-0.5 font-semibold tnum">{safeINR(writeOffSummary.totalWrittenOff)}</dd></div>
+                  <div><dt className="text-xs text-text-muted">Outstanding</dt><dd className="mt-0.5 font-semibold tnum text-primary">{safeINR(writeOffSummary.outstanding)}</dd></div>
+                </dl>
+              ) : (
+                <p className="text-xs text-text-muted">No advance data.</p>
+              )
             )}
 
-            <Input label="Write-off amount (₹)" required type="number" min={1} max={writeOffSummary?.outstanding} value={writeOffAmount} onChange={(e) => setWriteOffAmount(e.target.value)} placeholder={writeOffSummary ? `max ${safeINR(writeOffSummary.outstanding)}` : "1000"} disabled={writeOffPending} />
-            <Input label="Date" type="date" value={writeOffDate} onChange={(e) => setWriteOffDate(e.target.value)} disabled={writeOffPending} />
-            <Textarea label="Reason" required value={writeOffReason} onChange={(e) => setWriteOffReason(e.target.value)} placeholder="Worker left, advance unrecoverable…" disabled={writeOffPending} />
-            <Select label="Site (optional)" value={writeOffSite} onChange={(e) => setWriteOffSite(e.target.value)} disabled={writeOffPending}>
-              <option value="">No site</option>
-              {writeOffSites.map((s) => (<option key={s._id} value={s._id}>{s.name}</option>))}
-            </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Amount (₹)" required type="number" min={1} max={writeOffSummary?.outstanding} value={writeOffAmount} onChange={(e) => setWriteOffAmount(e.target.value)} placeholder={writeOffSummary ? `max ${safeINR(writeOffSummary.outstanding)}` : "1000"} disabled={writeOffPending} />
+              <Input label="Date" type="date" value={writeOffDate} onChange={(e) => setWriteOffDate(e.target.value)} disabled={writeOffPending} />
+            </div>
+            <Textarea label="Reason" required rows={2} value={writeOffReason} onChange={(e) => setWriteOffReason(e.target.value)} placeholder="Worker left, advance unrecoverable…" disabled={writeOffPending} />
+            <ComboSelect
+              label="Site (optional)"
+              value={writeOffSite}
+              options={[{ value: "", label: "Unassigned" }, ...writeOffSites.map((s) => ({ value: s._id, label: s.name }))]}
+              onChange={setWriteOffSite}
+              disabled={writeOffPending}
+            />
 
             {writeOffError && <p role="alert" className="text-sm text-danger">{writeOffError}</p>}
             {writeOffSuccess && (
@@ -440,8 +553,8 @@ export function AdvancesTab() {
             )}
 
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={resetWriteOff} disabled={writeOffPending}>Cancel</Button>
-              <Button type="submit" disabled={writeOffPending || !writeOffWorker || !writeOffSummary || writeOffSummary.outstanding <= 0}>{writeOffPending ? "Saving…" : "Write Off"}</Button>
+              <Button type="button" variant="outline" onClick={resetWriteOff} disabled={writeOffPending} className="h-11 sm:h-auto">Cancel</Button>
+              <Button type="submit" disabled={writeOffPending || !writeOffWorker || !writeOffSummary || writeOffSummary.outstanding <= 0} className="h-11 sm:h-auto">{writeOffPending ? "Saving…" : "Write Off"}</Button>
             </div>
           </form>
         </Modal>
@@ -525,25 +638,23 @@ function AdvanceFormModal({
       open
       onClose={onClose}
       title={initial ? "Edit Advance" : "Add Advance"}
-      size="lg"
     >
-      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-        {!initial && (
-          <Select
+      <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
+        {initial ? (
+          // Worker is immutable on edit — show it locked (overtime pattern).
+          <div className="rounded-md bg-background p-3 text-sm">
+            <p className="font-medium text-text">{advanceLabourName(initial)}</p>
+          </div>
+        ) : (
+          <ComboSelect
             label="Worker"
             required
             value={labourId}
-            onChange={(e) => setLabourId(e.target.value)}
-          >
-            <option value="">Select worker…</option>
-            {labourOptions.map((l) => (
-              <option key={l._id} value={l._id}>
-                {l.name} · {l.skill}
-              </option>
-            ))}
-          </Select>
+            options={labourOptions.map((l) => ({ value: l._id, label: `${l.name} · ${l.skill}` }))}
+            onChange={setLabourId}
+          />
         )}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3">
           <Input
             label="Date"
             required
@@ -561,58 +672,38 @@ function AdvanceFormModal({
             placeholder="5000"
           />
         </div>
-        <Select
+        <ComboSelect
           label="Site (optional)"
           value={siteId}
-          onChange={(e) => setSiteId(e.target.value)}
-        >
-          <option value="">No site</option>
-          {sites.map((s) => (
-            <option key={s._id} value={s._id}>
-              {s.name}
-            </option>
-          ))}
-        </Select>
-        <div className="grid grid-cols-2 gap-4">
-          <Select
+          options={[{ value: "", label: "Unassigned" }, ...sites.map((s) => ({ value: s._id, label: s.name }))]}
+          onChange={setSiteId}
+        />
+        <div className={paymentMethod !== "Cash" ? "grid grid-cols-2 gap-3" : ""}>
+          <ComboSelect
             label="Payment method"
             value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value)}
-          >
-            {PAYMENT_METHODS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </Select>
-
-          {paymentMethod !== "Cash" ? (
+            options={PAYMENT_METHODS.map((m) => ({ value: m, label: m }))}
+            onChange={setPaymentMethod}
+          />
+          {paymentMethod !== "Cash" && (
             <Input
               label="Reference"
               value={reference}
               onChange={(e) => setReference(e.target.value)}
               placeholder="Txn / cheque no."
-            />
-          ) : (
-            <Input
-              label="Reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Family emergency…"
+              className="h-9 text-sm sm:h-10 sm:py-0"
             />
           )}
         </div>
-
-        {paymentMethod !== "Cash" && (
-          <Input
-            label="Reason"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="Family emergency…"
-          />
-        )}
+        <Input
+          label="Reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Family emergency…"
+        />
         <Textarea
-          label="Notes"
+          label="Notes (optional)"
+          rows={2}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Notes…"
@@ -628,10 +719,11 @@ function AdvanceFormModal({
             variant="outline"
             onClick={onClose}
             disabled={pending}
+            className="h-11 sm:h-auto"
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" disabled={pending} className="h-11 sm:h-auto">
             {pending ? "Saving…" : initial ? "Save Changes" : "Add Advance"}
           </Button>
         </div>

@@ -20,6 +20,7 @@ export async function GET(req: Request) {
       limit: url.searchParams.get("limit"),
     });
     const labour = url.searchParams.get("labour")?.trim() ?? "";
+    const q = url.searchParams.get("q")?.trim() ?? "";
     const site = url.searchParams.get("site")?.trim() ?? "";
     const from = url.searchParams.get("from")?.trim() ?? "";
     const to = url.searchParams.get("to")?.trim() ?? "";
@@ -28,6 +29,27 @@ export async function GET(req: Request) {
     if (labour) {
       const parsed = objectIdSchema.safeParse(labour);
       if (parsed.success) filter.labour = parsed.data;
+    }
+    // Worker text search (same `q` convention as /api/labour and /api/salary):
+    // resolve matching labour ids first, then constrain.
+    if (q) {
+      const matched = await Labour.find({
+        $or: [
+          { name: { $regex: q, $options: "i" } },
+          { phone: { $regex: q, $options: "i" } },
+        ],
+      })
+        .select("_id")
+        .lean();
+      const ids = matched.map((l) => l._id);
+      if (labour && filter.labour) {
+        const selected = String(filter.labour);
+        filter.labour = ids.some((id) => String(id) === selected)
+          ? filter.labour
+          : { $in: [] };
+      } else {
+        filter.labour = { $in: ids };
+      }
     }
     if (site) {
       const parsed = objectIdSchema.safeParse(site);

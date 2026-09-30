@@ -414,15 +414,17 @@ export function CalculatePendingTab() {
         </div>
       </div>
 
-      {/* Desktop: search only, constrained width. */}
-      <div className="hidden sm:block sm:max-w-sm">
-        <Input
-          aria-label="Search workers"
-          placeholder="Search name, phone…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="h-9 text-sm sm:h-10"
-        />
+      {/* Desktop: search only, full-width row like Records. */}
+      <div className="hidden sm:flex sm:flex-row">
+        <div className="flex-1">
+          <Input
+            aria-label="Search workers"
+            placeholder="Search name, phone…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="h-9 text-sm sm:h-10"
+          />
+        </div>
       </div>
 
       {loading && <TableSkeleton rows={6} />}
