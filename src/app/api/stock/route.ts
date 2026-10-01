@@ -36,7 +36,8 @@ export async function GET(req: Request) {
     ] as const) {
       if (value) {
         const parsed = objectIdSchema.safeParse(value);
-        if (parsed.success) filter[key] = parsed.data;
+        // Use ObjectId instances so both find() and the aggregate $match below compare correctly.
+        if (parsed.success) filter[key] = new Types.ObjectId(parsed.data);
       }
     }
     if (type) {
