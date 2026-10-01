@@ -6,38 +6,40 @@ import { usePathname } from 'next/navigation'
 import styles from './orange-logo.module.css'
 
 /* eslint-disable @next/next/no-img-element -- static SVGs, next/image adds nothing */
+
+// Intro: pause so the collapsed mark registers, then timings mirror the CSS
+const INTRO_DELAY = 500 // ms before auto-expanding
+const EXPAND_MS = 300 // must match the .slider transition duration
+const HOLD_MS = 1000 // ms the full lockup stays open
+
 export default function OrangeLogo() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLAnchorElement>(null)
   const pathname = usePathname()
+  const timers = useRef<number[]>([])
+
+  const clearIntro = () => {
+    timers.current.forEach((t) => window.clearTimeout(t))
+    timers.current = []
+  }
 
   // topbar lives in the layout and survives navigation → collapse after we arrive
   useEffect(() => {
     setOpen(false)
   }, [pathname])
 
-  // close on outside tap/click or Escape
+  // Auto-play intro on a full load of exactly /dashboard: collapsed →
+  // expand → hold → collapse. In-app navigation never remounts the layout,
+  // so this naturally fires only on page loads.
   useEffect(() => {
-    if (!open) return
-    const onPointer = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
-    document.addEventListener('pointerdown', onPointer)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('pointerdown', onPointer)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
-
-  // 1st click expands (cancel navigation), 2nd click follows the link
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (!open) {
-      e.preventDefault()
-      setOpen(true)
-    }
-  }
+    if (pathname !== '/dashboard') return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    timers.current = [
+      window.setTimeout(() => setOpen(true), INTRO_DELAY),
+      window.setTimeout(() => setOpen(false), INTRO_DELAY + EXPAND_MS + HOLD_MS),
+    ]
+    return clearIntro
+  }, [pathname])
 
   return (
     <Link
@@ -47,7 +49,6 @@ export default function OrangeLogo() {
       data-open={open}
       aria-label="Orange ERP — dashboard"
       title="Orange ERP"
-      onClick={handleClick}
       draggable={false}
     >
       <img
