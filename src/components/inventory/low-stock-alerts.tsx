@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { MaterialDTO } from "@/types/inventory";
 
-/** Low-stock items as narrow compact cards. Silent when all stocked. */
+/** Low-stock items as one compact card with divided rows. Silent when all stocked. */
 export function LowStockAlerts({ limit = 5 }: { limit?: number }) {
   const [items, setItems] = useState<MaterialDTO[] | null>(null);
 
@@ -21,38 +21,42 @@ export function LowStockAlerts({ limit = 5 }: { limit?: number }) {
 
   if (items === null) {
     return (
-      <div className="grid max-w-sm grid-cols-2 gap-2">
-        {[0, 1].map((i) => (
-          <Skeleton key={i} className="h-[68px] w-full" />
-        ))}
-      </div>
+      <Card className="max-w-sm p-3">
+        <div className="flex flex-col gap-2">
+          {[0, 1].map((i) => (
+            <Skeleton key={i} className="h-5 w-full" />
+          ))}
+        </div>
+      </Card>
     );
   }
   if (items.length === 0) return null;
 
   return (
-    <div className="flex max-w-sm flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-text-muted">Low stock — reorder soon</p>
-        <Badge tone="warning" className="tnum">
+    <Card className="max-w-sm">
+      <div className="flex items-center justify-between gap-2 px-3 pt-2.5">
+        <p className="text-[13px] font-medium text-text sm:text-sm">Low stock</p>
+        <Badge tone="warning" className="tnum shrink-0">
           {items.length}
         </Badge>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <ul className="mt-1 divide-y divide-border">
         {items.map((m) => (
-          <Card key={m._id} className="p-3">
-            <p className="truncate text-xs text-text-muted">{m.name}</p>
-            <p className="mt-0.5 text-lg font-semibold tnum text-warning">
+          <li key={m._id} className="flex items-center justify-between gap-2 px-3 py-2">
+            <p className="min-w-0 flex-1 truncate text-[13px] font-medium text-text">
+              {m.name}
+            </p>
+            <p className="shrink-0 text-[13px] font-semibold tnum text-warning">
               {m.currentStock}
-              <span className="text-xs font-normal text-text-muted">
+              <span className="font-normal text-text-muted">
                 {" "}
                 / {m.minimumStock}
                 {m.unit ? ` ${m.unit}` : ""}
               </span>
             </p>
-          </Card>
+          </li>
         ))}
-      </div>
-    </div>
+      </ul>
+    </Card>
   );
 }

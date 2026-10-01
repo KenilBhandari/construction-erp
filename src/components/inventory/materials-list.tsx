@@ -38,6 +38,7 @@ export function MaterialsList() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<MaterialDTO | null>(null);
   const [deleting, setDeleting] = useState<MaterialDTO | null>(null);
+  const [detail, setDetail] = useState<MaterialDTO | null>(null);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -260,8 +261,11 @@ export function MaterialsList() {
           <ul className="flex flex-col gap-2 sm:hidden">
             {data.data.map((m) => (
               <li key={m._id}>
-                <Card className="p-3 active:bg-background">
-                  <div className="flex flex-col gap-1.5">
+                <Card className="cursor-pointer p-3 active:bg-background">
+                  <div
+                    className="flex flex-col gap-1.5"
+                    onClick={() => setDetail(m)}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <p className="min-w-0 flex-1 truncate text-[15px] font-medium text-text">
                         {m.name}
@@ -280,7 +284,7 @@ export function MaterialsList() {
                         {m.currentStock}{m.unit ? ` ${m.unit}` : ""}
                         <span className="text-xs font-normal text-text-muted"> · Min {m.minimumStock}</span>
                       </p>
-                      <div className="-mr-1.5 flex shrink-0 items-center">
+                      <div className="-mr-1.5 flex shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           aria-label={`Edit ${m.name}`}
@@ -320,7 +324,11 @@ export function MaterialsList() {
             </THead>
             <tbody>
               {data.data.map((m) => (
-                <TR key={m._id}>
+                <TR
+                  key={m._id}
+                  className="cursor-pointer hover:bg-background/70"
+                  onClick={() => setDetail(m)}
+                >
                   <TD>
                     <span className="font-medium">{m.name}</span>
                     <p className="text-xs text-text-muted">{m.unit ? `per ${m.unit}` : "No unit"}</p>
@@ -337,7 +345,7 @@ export function MaterialsList() {
                     )}
                   </TD>
                   <TD>
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         aria-label={`Edit ${m.name}`}
@@ -390,6 +398,10 @@ export function MaterialsList() {
         />
       )}
 
+      {detail && (
+        <MaterialDetailModal m={detail} onClose={() => setDetail(null)} />
+      )}
+
       <ConfirmDialog
         open={deleting !== null}
         onClose={() => setDeleting(null)}
@@ -399,6 +411,47 @@ export function MaterialsList() {
         pending={deletePending}
       />
     </div>
+  );
+}
+
+function MaterialDetailModal({ m, onClose }: { m: MaterialDTO; onClose: () => void }) {
+  const rows: { label: string; value: string }[] = [
+    { label: "Category", value: m.category },
+    { label: "Unit", value: m.unit ?? "No unit" },
+    { label: "In stock", value: m.unit ? `${m.currentStock} ${m.unit}` : String(m.currentStock) },
+    { label: "Minimum", value: String(m.minimumStock) },
+    { label: "Rate", value: formatINR(m.defaultPurchaseRate) },
+  ];
+
+  return (
+    <Modal open onClose={onClose} title={m.name}>
+      <div className="flex flex-col gap-4">
+        {isLowStock(m) ? (
+          <Badge tone="warning" className="self-start">Low Stock</Badge>
+        ) : (
+          <Badge tone="success" className="self-start">OK</Badge>
+        )}
+        <dl className="divide-y divide-border rounded-md border border-border">
+          {rows.map((r) => (
+            <div key={r.label} className="flex items-center justify-between gap-3 px-3 py-2">
+              <dt className="shrink-0 text-[13px] text-text-muted">{r.label}</dt>
+              <dd className="min-w-0 truncate text-right text-sm font-medium text-text tnum">{r.value}</dd>
+            </div>
+          ))}
+        </dl>
+        {m.notes && (
+          <div className="flex flex-col gap-1">
+            <p className="text-[13px] text-text-muted">Notes</p>
+            <p className="text-sm leading-6 text-text">{m.notes}</p>
+          </div>
+        )}
+        <div className="flex flex-row justify-end gap-2">
+          <Button variant="outline" onClick={onClose} className="h-11 sm:h-auto">
+            Close
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
