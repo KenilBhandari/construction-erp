@@ -8,7 +8,6 @@ export default function StockPage() {
       types={["consumption", "adjustment", "return"]}
       newLabel="Record Usage"
       headerSuffix={<LowStockAlerts limit={8} />}
-      variant="stock"
     />
   );
 }

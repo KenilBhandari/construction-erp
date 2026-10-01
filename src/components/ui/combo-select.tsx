@@ -142,21 +142,18 @@ export function ComboSelect({
     );
 
     /*
-     * Keep the menu at least as wide as the trigger.
-     * On mobile, don't make it unnecessarily wide.
+     * Menu matches the trigger width. Minimum keeps narrow triggers
+     * (e.g. 132px phone type filter) usable; maximum only clamps to
+     * the viewport so wide desktop filter bars get a same-width menu.
      */
-    const minWidth = Math.max(
-      r.width,
-      window.innerWidth < 640 ? 140 : 160,
-    );
+    const minWidth =
+      window.innerWidth < 640 ? 140 : 160;
 
-    const maxWidth = Math.min(
-      320,
-      window.innerWidth - viewportPadding * 2,
-    );
+    const maxWidth =
+      window.innerWidth - viewportPadding * 2;
 
     const width = Math.min(
-      Math.max(minWidth, r.width),
+      Math.max(r.width, minWidth),
       maxWidth,
     );
 
@@ -441,7 +438,7 @@ export function ComboSelect({
       )}
     >
       {label && (
-        <span className="text-sm font-medium text-text">
+        <span className="text-[13px] font-medium text-text sm:text-sm">
           {label}
           {required && (
             <span className="text-danger"> *</span>

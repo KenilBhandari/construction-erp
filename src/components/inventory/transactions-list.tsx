@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ComboSelect } from "@/components/ui/combo-select";
-import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { TableSkeleton } from "@/components/ui/skeleton";
@@ -81,17 +81,13 @@ export function TransactionsList({
   types,
   newLabel,
   headerSuffix,
-  variant = "legacy",
 }: {
   title: string;
   description?: string;
   types: TransactionType[];
   newLabel: string;
   headerSuffix?: React.ReactNode;
-  /** "stock" enables the polished layout; default keeps the legacy rendering (Purchases). */
-  variant?: "stock" | "legacy";
 }) {
-  const polished = variant === "stock";
   const [materialId, setMaterialId] = useState("");
   const [siteId, setSiteId] = useState("");
   const [type, setType] = useState("");
@@ -196,13 +192,8 @@ export function TransactionsList({
     { value: "", label: "All types" },
     ...types.map((t) => ({ value: t, label: TYPE_LABEL[t] })),
   ];
-  const materialFilterOptionsPhone = [
-    { value: "", label: "All materials" },
-    ...materials.map((m) => ({ value: m._id, label: m.name })),
-  ];
-
   return (
-    <div className={polished ? "flex min-w-0 flex-col gap-4 sm:gap-5" : "flex flex-col gap-5"}>
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
       <PageHeader
         title={title}
         action={
@@ -215,60 +206,45 @@ export function TransactionsList({
       {headerSuffix}
 
       {types.includes("purchase") && (
-        <Card className="w-44 p-3">
-          <p className="text-xs text-text-muted">Total</p>
-          <p className="mt-0.5 text-lg font-semibold tnum">{data && !error ? formatINR(data.totalAmount) : "—"}</p>
-        </Card>
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <StatCard
+            label="Total Purchases"
+            value={data && !error ? formatINR(data.totalAmount) : "—"}
+          />
+        </div>
       )}
 
-      {!polished && (
-      <div className={`grid grid-cols-2 items-end gap-3 ${showTypeColumn ? "lg:grid-cols-[1.4fr_1fr_0.9fr_auto]" : "lg:grid-cols-[1.4fr_1fr_auto]"}`}>
-        <Select aria-label="Filter by material" value={materialId} onChange={(e) => { setMaterialId(e.target.value); resetPage(); }}>
-          <option value="">All materials</option>
-          {materials.map((m) => (
-            <option key={m._id} value={m._id}>{m.name}</option>
-          ))}
-        </Select>
-        <Select aria-label="Filter by site" value={siteId} onChange={(e) => { setSiteId(e.target.value); resetPage(); }}>
-          <option value="">All sites</option>
-          {sites.map((s) => (
-            <option key={s._id} value={s._id}>{s.name}</option>
-          ))}
-        </Select>
-        {showTypeColumn && (
-          <Select aria-label="Filter by type" value={type} onChange={(e) => { setType(e.target.value); resetPage(); }}>
-            <option value="">All types</option>
-            {types.map((t) => (
-              <option key={t} value={t}>{TYPE_LABEL[t]}</option>
-            ))}
-          </Select>
-        )}
-        {(materialId || siteId || type) && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => { setMaterialId(""); setSiteId(""); setType(""); resetPage(); }}
-          >
-            Clear
-          </Button>
-        )}
-      </div>
-      )}
-
-      {polished && (
-      <>
-      {/* Phone: material + type on one row, site below. Matches Sites pattern. */}
-      <div className="flex flex-col gap-2 sm:hidden">
-        <div className="flex flex-row gap-2">
+      {/* Phone: Purchases (2 filters) side-by-side in one row; Stock (3 filters) keeps material+type row with site below. */}
+      {!showTypeColumn ? (
+        <div className="flex flex-row gap-2 sm:hidden">
           <div className="min-w-0 flex-1">
             <ComboSelect
               ariaLabel="Filter by material"
               value={materialId}
-              options={materialFilterOptionsPhone}
+              options={materialFilterOptions}
               onChange={(v) => { setMaterialId(v); resetPage(); }}
             />
           </div>
-          {showTypeColumn && (
+          <div className="min-w-0 flex-1">
+            <ComboSelect
+              ariaLabel="Filter by site"
+              value={siteId}
+              options={siteFilterOptions}
+              onChange={(v) => { setSiteId(v); resetPage(); }}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2 sm:hidden">
+          <div className="flex flex-row gap-2">
+            <div className="min-w-0 flex-1">
+              <ComboSelect
+                ariaLabel="Filter by material"
+                value={materialId}
+                options={materialFilterOptions}
+                onChange={(v) => { setMaterialId(v); resetPage(); }}
+              />
+            </div>
             <div className="w-[132px] shrink-0">
               <ComboSelect
                 ariaLabel="Filter by type"
@@ -277,17 +253,17 @@ export function TransactionsList({
                 onChange={(v) => { setType(v); resetPage(); }}
               />
             </div>
-          )}
+          </div>
+          <div className="min-w-0">
+            <ComboSelect
+              ariaLabel="Filter by site"
+              value={siteId}
+              options={siteFilterOptions}
+              onChange={(v) => { setSiteId(v); resetPage(); }}
+            />
+          </div>
         </div>
-        <div className="min-w-0">
-          <ComboSelect
-            ariaLabel="Filter by site"
-            value={siteId}
-            options={siteFilterOptions}
-            onChange={(v) => { setSiteId(v); resetPage(); }}
-          />
-        </div>
-      </div>
+      )}
 
       {/* Desktop: single row, no visible labels — matches Projects/Sites/Labour. */}
       <div className="hidden sm:flex sm:flex-row sm:gap-3">
@@ -318,8 +294,6 @@ export function TransactionsList({
           </div>
         )}
       </div>
-      </>
-      )}
 
       {loading && <TableSkeleton rows={6} />}
       {error && (
@@ -330,16 +304,14 @@ export function TransactionsList({
 
       {!loading && !error && data && data.data.length === 0 && (
         <EmptyState
-          title={polished && hasActiveFilters ? "No entries found" : "No entries yet"}
+          title={hasActiveFilters ? "No entries found" : "No entries yet"}
           description={
-            polished
-              ? hasActiveFilters
-                ? "Try different filters — or clear them."
-                : "Record usage, returns or corrections to track stock."
-              : description
+            hasActiveFilters
+              ? "Try different filters — or clear them."
+              : (description ?? "Record usage, returns or corrections to track stock.")
           }
           action={
-            polished && hasActiveFilters ? (
+            hasActiveFilters ? (
               <Button variant="outline" onClick={clearAllFilters}>
                 Clear Filters
               </Button>
@@ -352,83 +324,7 @@ export function TransactionsList({
         />
       )}
 
-      {!loading && !error && data && data.data.length > 0 && !polished && (
-        <>
-          <Table>
-            <THead>
-              <TR>
-                <TH>Date</TH>
-                <TH>Material</TH>
-                {showTypeColumn && <TH>Type</TH>}
-                <TH>Site</TH>
-                <TH numeric>Qty</TH>
-                <TH>Purpose</TH>
-                {types.includes("purchase") && <TH numeric>Amount</TH>}
-                <TH className="text-right">Actions</TH>
-              </TR>
-            </THead>
-            <tbody>
-              {data.data.map((t) => (
-                <TR key={t._id}>
-                  <TD className="tnum">{formatDateShort(t.date)}</TD>
-                  <TD className="font-medium">{transactionMaterialName(t)}</TD>
-                  {showTypeColumn && (
-                    <TD>
-                      <Badge tone={TYPE_TONE[t.type]}>{TYPE_LABEL[t.type]}</Badge>
-                    </TD>
-                  )}
-                  <TD>
-                    {siteNameOf(t)}
-                  </TD>
-                  <TD numeric>
-                    {qtyDisplay(t)}
-                  </TD>
-                  <TD>{detailOf(t)}</TD>
-                  {types.includes("purchase") && (
-                    <TD numeric>{t.type === "purchase" ? formatINR(t.total) : "—"}</TD>
-                  )}
-                  <TD>
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        type="button"
-                        aria-label="Edit entry"
-                        title="Edit"
-                        onClick={() => { setEditing(t); setFormOpen(true); }}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-primary/10 hover:text-primary"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="Delete entry"
-                        title="Delete"
-                        onClick={() => { setDeleting(t); setDeleteError(null); }}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-danger/10 hover:text-danger"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </TD>
-                </TR>
-              ))}
-            </tbody>
-          </Table>
-
-          <div className="flex items-center justify-between text-sm text-text-muted">
-            <p className="tnum">{data.total} entries · Page {data.page} of {totalPages}</p>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                Previous
-              </Button>
-              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-                Next
-              </Button>
-            </div>
-          </div>
-        </>
-      )}
-
-      {!loading && !error && data && data.data.length > 0 && polished && (
+      {!loading && !error && data && data.data.length > 0 && (
         <>
           {/* Phone cards — desktop table below stays untouched. */}
           <ul className="flex flex-col gap-2 sm:hidden">
@@ -628,7 +524,7 @@ function TransactionDetailModal({ t, onClose }: { t: StockTransactionDTO; onClos
             <p className="text-sm leading-6 text-text">{t.notes}</p>
           </div>
         )}
-        <div className="flex flex-row justify-end gap-2">
+        <div className="flex flex-row justify-end gap-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:pb-0">
           <Button variant="outline" onClick={onClose} className="h-11 sm:h-auto">
             Close
           </Button>
@@ -796,16 +692,20 @@ function TransactionFormModal({
     <Modal open onClose={onClose} title={initial ? `Edit ${TYPE_ACTION_LABEL[initial.type]}` : `Record ${TYPE_ACTION_LABEL[type]}`}>
       <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
         {!initial && (
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <ComboSelect
-              label="Type"
-              value={type}
-              options={allowedTypes.map((t) => ({ value: t, label: TYPE_ACTION_LABEL[t] }))}
-              onChange={(v) => setType(v as TransactionType)}
-              disabled={pending}
-              triggerClassName="h-11 text-base sm:h-[38px] sm:text-sm"
-            />
-            <div className="flex flex-col gap-1" ref={matWrapRef}>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
+            {allowedTypes.length > 1 && (
+              <div className="min-w-0">
+                <ComboSelect
+                  label="Type"
+                  value={type}
+                  options={allowedTypes.map((t) => ({ value: t, label: TYPE_ACTION_LABEL[t] }))}
+                  onChange={(v) => setType(v as TransactionType)}
+                  disabled={pending}
+                  triggerClassName="h-11 text-base sm:h-[38px] sm:text-sm"
+                />
+              </div>
+            )}
+            <div className={`flex min-w-0 flex-col gap-1 ${allowedTypes.length <= 1 ? "col-span-2" : ""}`} ref={matWrapRef}>
               <label htmlFor="txn-material" className="text-[13px] font-medium text-text sm:text-sm">Material <span className="text-danger">*</span></label>
               <div className="relative">
                 <input
@@ -849,11 +749,12 @@ function TransactionFormModal({
                   }}
                   placeholder="Select material…"
                   autoComplete="off"
+                  disabled={pending}
                   role="combobox"
                   aria-autocomplete="list"
                   aria-expanded={dropdownOpen}
                   aria-controls="txn-material-suggestions"
-                  className="h-11 w-full min-w-0 rounded-md border border-border bg-surface px-3.5 pr-9 text-base text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 sm:h-auto sm:px-3 sm:py-2 sm:text-sm"
+                  className="h-11 w-full min-w-0 rounded-md border border-border bg-surface px-3.5 pr-9 text-base text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50 sm:h-auto sm:px-3 sm:py-2 sm:text-sm"
                 />
                 <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-text-muted">
                   <ChevronDown aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
@@ -898,54 +799,75 @@ function TransactionFormModal({
           </div>
         )}
         {initial && (
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <Input label="Type" value={TYPE_LABEL[initial.type]} disabled />
-            <Input label="Material" value={transactionMaterialName(initial)} disabled />
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
+            <div className="min-w-0">
+              <Input label="Type" value={TYPE_LABEL[initial.type]} disabled />
+            </div>
+            <div className="min-w-0">
+              <Input label="Material" value={transactionMaterialName(initial)} disabled />
+            </div>
           </div>
         )}
-        <div className="grid grid-cols-2 gap-3 sm:gap-4">
-          <Input label="Date" required type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={pending} />
-          <ComboSelect
-            label="Site"
-            required={type === "purchase" || type === "consumption"}
-            value={siteId}
-            options={[
-              { value: "", label: type === "purchase" || type === "consumption" ? "Select site…" : "No site" },
-              ...(showLockedSiteOption && lockedSite
-                ? [{ value: lockedSite._id, label: lockedSite.name }]
-                : []),
-              ...sites.map((s) => ({ value: s._id, label: s.name })),
-            ]}
-            onChange={setSiteId}
-            disabled={pending || !!initial}
-            triggerClassName="h-11 text-base sm:h-[38px] sm:text-sm"
-          />
+        <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
+          <div className="min-w-0">
+            <Input label="Date" required type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={pending} />
+          </div>
+          <div className="min-w-0">
+            <ComboSelect
+              label="Site"
+              required={type === "purchase" || type === "consumption"}
+              value={siteId}
+              options={[
+                { value: "", label: type === "purchase" || type === "consumption" ? "Select site…" : "No site" },
+                ...(showLockedSiteOption && lockedSite
+                  ? [{ value: lockedSite._id, label: lockedSite.name }]
+                  : []),
+                ...sites.map((s) => ({ value: s._id, label: s.name })),
+              ]}
+              onChange={setSiteId}
+              disabled={pending || !!initial}
+              triggerClassName="h-11 text-base sm:h-[38px] sm:text-sm"
+            />
+          </div>
         </div>
-        <div className={`grid gap-3 sm:gap-4 ${(type === "purchase" || type === "consumption") ? "grid-cols-2" : "grid-cols-1"}`}>
-          <Input
-            label={`Quantity${selectedMaterial?.unit ? ` (${selectedMaterial.unit})` : ""}${type === "adjustment" ? " (+/−)" : ""}`}
-            required
-            type="number"
-            step="any"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            placeholder={type === "adjustment" ? "-5 to deduct" : "20"}
-            disabled={pending}
-          />
+        <div className={`grid gap-x-3 gap-y-4 sm:gap-4 ${(type === "purchase" || type === "consumption") ? "grid-cols-2" : "grid-cols-1"}`}>
+          <div className="min-w-0">
+            <Input
+              label={`Quantity${selectedMaterial?.unit ? ` (${selectedMaterial.unit})` : ""}${type === "adjustment" ? " (+/−)" : ""}`}
+              required
+              type="number"
+              step="any"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              placeholder={type === "adjustment" ? "-5 to deduct" : "20"}
+              disabled={pending}
+            />
+          </div>
           {type === "purchase" && (
-            <Input label="Rate (₹)" type="number" min={0} step="any" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="Defaults to material rate" disabled={pending} />
+            <div className="min-w-0">
+              <Input label={selectedMaterial?.unit ? `Rate (₹/${selectedMaterial.unit})` : "Rate (₹/unit)"} type="number" min={0} step="any" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="Defaults to material rate" disabled={pending} />
+            </div>
           )}
           {type === "consumption" && (
-            <Input label="Purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="Slab work" disabled={pending} />
+            <div className="min-w-0">
+              <Input label="Purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="Slab work" disabled={pending} />
+            </div>
           )}
         </div>
         {previewTotal !== null && !Number.isNaN(previewTotal) && (
-          <p className="text-sm text-text-muted tnum">Total: {formatINR(previewTotal)}</p>
+          <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2">
+            <p className="shrink-0 text-[13px] text-text-muted">Total</p>
+            <p className="min-w-0 truncate text-right text-sm font-semibold text-text tnum">{formatINR(previewTotal)}</p>
+          </div>
         )}
         {type === "purchase" && (
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <Input label="Supplier" value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="Supplier name" disabled={pending} />
-            <Input label="Invoice #" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="INV-1024" disabled={pending} />
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
+            <div className="min-w-0">
+              <Input label="Supplier" value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="Supplier name" disabled={pending} />
+            </div>
+            <div className="min-w-0">
+              <Input label="Invoice #" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="INV-1024" disabled={pending} />
+            </div>
           </div>
         )}
         <Textarea
@@ -959,7 +881,7 @@ function TransactionFormModal({
         {error && (
           <p role="alert" className="text-sm text-danger">{error}</p>
         )}
-        <div className="flex flex-row justify-end gap-2">
+        <div className="flex flex-row justify-end gap-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:pb-0">
           <Button type="button" variant="outline" onClick={onClose} disabled={pending} className="h-11 sm:h-auto">
             Cancel
           </Button>
