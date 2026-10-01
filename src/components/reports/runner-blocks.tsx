@@ -22,7 +22,7 @@ export function Pager({
   const pages = Math.max(1, Math.ceil(total / REPORT_PAGE_SIZE));
   const link = (p: number) => `${base}${base.includes("?") ? "&" : "?"}page=${p}`;
   return (
-    <div className="no-print flex items-center justify-between text-sm text-text-muted">
+    <div className="no-print flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted sm:text-sm">
       <p className="tnum">
         {total} {unit} · Page {page} of {pages}
       </p>

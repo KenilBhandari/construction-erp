@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { ComboSelect } from "@/components/ui/combo-select";
 
 export type RunnerType = "labour" | "materials" | "expenses" | "salary";
 
@@ -79,7 +79,9 @@ function presetRange(preset: Preset, projectStart?: string | null): [string, str
 
 /**
  * Scope form per runner type — entity selects + period presets + custom dates.
- * Run navigates to the same URL with scope params (shareable report links).
+ * Controls match the module filter bars: label-less ComboSelects (h-9/sm:h-10)
+ * and compact date inputs. Run navigates to the same URL with scope params
+ * (shareable report links).
  */
 export function ReportScopeForm({
   type,
@@ -115,7 +117,10 @@ export function ReportScopeForm({
   const [category, setCategory] = useState(initial.category);
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
-  const [preset, setPreset] = useState<Preset>((initial.preset as Preset) || "custom");
+  // Materials has no period presets — just a From/To range.
+  const [preset, setPreset] = useState<Preset>(
+    type === "materials" ? "custom" : ((initial.preset as Preset) || "custom"),
+  );
   const [projectSites, setProjectSites] = useState<ScopeOption[]>([]);
 
   function loadSites(pid: string) {
@@ -159,121 +164,164 @@ export function ReportScopeForm({
     setTo(t ?? "");
   }
 
+  function onProjectChange(pid: string) {
+    setProjectId(pid);
+    setSiteId("");
+    loadSites(pid);
+    if (preset !== "custom") {
+      const projectStart = projects.find((x) => x._id === pid)?.startDate;
+      const [f, t] = presetRange(preset, projectStart);
+      setFrom(f ?? "");
+      setTo(t ?? "");
+    }
+  }
+
+  const scoped = PROJECT_SCOPED.includes(type);
   const siteOptions = projectId ? projectSites : sites;
+  // ComboSelect options carry no per-option disabled state — hide the
+  // lifetime preset until a project is picked instead of disabling it.
+  const presetOptions = PRESETS.filter(
+    (p) => p.value !== "lifetime" || !scoped || projectId,
+  ).map((p) => ({ value: p.value, label: p.label }));
+
+  const projectNode = (
+    <ComboSelect
+      ariaLabel="Filter by project"
+      value={projectId}
+      options={[
+        { value: "", label: "All projects" },
+        ...projects.map((p) => ({ value: p._id, label: p.name })),
+      ]}
+      onChange={onProjectChange}
+    />
+  );
+  const siteNode = (
+    <ComboSelect
+      ariaLabel="Filter by site"
+      value={siteId}
+      options={[
+        { value: "", label: "All sites" },
+        ...siteOptions.map((s) => ({ value: s._id, label: s.name })),
+      ]}
+      onChange={setSiteId}
+    />
+  );
+  const workerNode = (
+    <ComboSelect
+      ariaLabel="Filter by worker"
+      value={labourId}
+      options={[
+        { value: "", label: type === "labour" ? "Select worker" : "All workers" },
+        ...workers.map((w) => ({ value: w._id, label: w.name })),
+      ]}
+      onChange={setLabourId}
+    />
+  );
+  const materialNode = (
+    <ComboSelect
+      ariaLabel="Filter by material"
+      value={materialId}
+      options={[
+        { value: "", label: "Select material" },
+        ...materials.map((m) => ({ value: m._id, label: m.name })),
+      ]}
+      onChange={setMaterialId}
+    />
+  );
+  const categoryNode = (
+    <ComboSelect
+      ariaLabel="Filter by category"
+      value={category}
+      options={[
+        { value: "", label: "All categories" },
+        ...categories.map((c) => ({ value: c, label: c })),
+      ]}
+      onChange={setCategory}
+    />
+  );
+  const periodNode = (
+    <ComboSelect
+      ariaLabel="Filter by period"
+      value={preset}
+      options={presetOptions}
+      onChange={(v) => applyPreset(v as Preset, projectId)}
+    />
+  );
+  const fromNode = (
+    <Input
+      aria-label="From date"
+      type="date"
+      value={from}
+      onChange={(e) => setFrom(e.target.value)}
+      className="h-9 text-sm sm:h-10"
+    />
+  );
+  const toNode = (
+    <Input
+      aria-label="To date"
+      type="date"
+      value={to}
+      onChange={(e) => setTo(e.target.value)}
+      className="h-9 text-sm sm:h-10"
+    />
+  );
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {PROJECT_SCOPED.includes(type) && (
-          <Select
-            label="Project"
-            value={projectId}
-            onChange={(e) => {
-              const pid = e.target.value;
-              setProjectId(pid);
-              setSiteId("");
-              loadSites(pid);
-              if (preset !== "custom") {
-                const projectStart = projects.find((x) => x._id === pid)?.startDate;
-                const [f, t] = presetRange(preset, projectStart);
-                setFrom(f ?? "");
-                setTo(t ?? "");
-              }
-            }}
-          >
-            <option value="">All projects</option>
-            {projects.map((p) => (
-              <option key={p._id} value={p._id}>
-                {p.name}
-              </option>
-            ))}
-          </Select>
-        )}
-        {PROJECT_SCOPED.includes(type) && (
-          <Select
-            label="Site"
-            value={siteId}
-            onChange={(e) => setSiteId(e.target.value)}
-          >
-            <option value="">{projectId ? "All sites" : "Pick project first"}</option>
-            {siteOptions.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.name}
-              </option>
-            ))}
-          </Select>
+    <div className="flex min-w-0 flex-col gap-2 sm:gap-3">
+      {/* Phone: paired rows, matching the module filter bars. */}
+      <div className="flex flex-col gap-2 sm:hidden">
+        {scoped && (
+          <div className="flex flex-row gap-2">
+            <div className="min-w-0 flex-1">{projectNode}</div>
+            <div className="min-w-0 flex-1">{siteNode}</div>
+          </div>
         )}
         {(type === "labour" || type === "salary") && (
-          <Select
-            label="Worker"
-            value={labourId}
-            onChange={(e) => setLabourId(e.target.value)}
-          >
-            <option value="">{type === "labour" ? "Select worker" : "All workers"}</option>
-            {workers.map((w) => (
-              <option key={w._id} value={w._id}>
-                {w.name}
-              </option>
-            ))}
-          </Select>
+          <div className="flex flex-row gap-2">
+            <div className="min-w-0 flex-1">{workerNode}</div>
+            <div className="min-w-0 flex-1">{periodNode}</div>
+          </div>
         )}
         {type === "materials" && (
-          <Select
-            label="Material"
-            value={materialId}
-            onChange={(e) => setMaterialId(e.target.value)}
-          >
-            <option value="">Select material</option>
-            {materials.map((m) => (
-              <option key={m._id} value={m._id}>
-                {m.name}
-              </option>
-            ))}
-          </Select>
+          <div className="min-w-0">{materialNode}</div>
         )}
         {type === "expenses" && (
-          <Select
-            label="Category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          >
-            <option value="">All categories</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </Select>
+          <div className="flex flex-row gap-2">
+            <div className="min-w-0 flex-1">{categoryNode}</div>
+            <div className="min-w-0 flex-1">{periodNode}</div>
+          </div>
         )}
-        <Select
-          label="Period"
-          value={preset}
-          onChange={(e) => applyPreset(e.target.value as Preset, projectId)}
-        >
-          {PRESETS.map((p) => (
-            <option key={p.value} value={p.value} disabled={p.value === "lifetime" && PROJECT_SCOPED.includes(type) && !projectId}>
-              {p.label}
-            </option>
-          ))}
-        </Select>
+        {preset === "custom" && (
+          <div className="flex flex-row gap-2">
+            <div className="min-w-0 flex-1">{fromNode}</div>
+            <div className="min-w-0 flex-1">{toNode}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Desktop: single row — matches Projects/Sites/Labour/Expenses. */}
+      <div className="hidden sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+        {scoped && (
+          <>
+            <div className="min-w-0 flex-1">{projectNode}</div>
+            <div className="w-44 shrink-0">{siteNode}</div>
+          </>
+        )}
+        {(type === "labour" || type === "salary") && (
+          <div className="min-w-0 flex-1">{workerNode}</div>
+        )}
+        {type === "materials" && <div className="min-w-0 flex-1">{materialNode}</div>}
+        {type === "expenses" && <div className="w-44 shrink-0">{categoryNode}</div>}
+        {type !== "materials" && <div className="w-40 shrink-0">{periodNode}</div>}
         {preset === "custom" && (
           <>
-            <Input
-              label="From"
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-            />
-            <Input
-              label="To"
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-            />
+            <div className="w-36 shrink-0">{fromNode}</div>
+            <div className="w-36 shrink-0">{toNode}</div>
           </>
         )}
       </div>
-      <div>
+
+      <div className="flex flex-row justify-end">
         <Button size="sm" onClick={() => run()}>
           Run Report
         </Button>

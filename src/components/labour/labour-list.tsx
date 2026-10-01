@@ -227,7 +227,7 @@ export default function LabourList() {
       {!loading && !error && data && data.data.length > 0 && (
         <>
           {/* Phone cards — desktop table below stays untouched. */}
-          <ul className="scroll-area flex max-h-[560px] flex-col gap-2 sm:hidden">
+          <ul className="flex flex-col gap-2 sm:hidden">
             {data.data.map((l) => {
               const siteName = labourSiteName(l);
               return (

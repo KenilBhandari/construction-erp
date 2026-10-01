@@ -250,19 +250,21 @@ export function ExpensesPdf({
           ) : (
             <View>
               <View style={styles.headRow}>
-                <Text style={[styles.headCell, { flex: 1.3 }]}>Date</Text>
-                <Text style={[styles.headCell, { flex: 1.4 }]}>Project</Text>
-                <Text style={[styles.headCell, { flex: 1.2 }]}>Site</Text>
-                <Text style={[styles.headCell, { flex: 1.2 }]}>Category</Text>
-                <Text style={[styles.headCell, styles.right, { flex: 1.4 }]}>Amount</Text>
+                <Text style={[styles.headCell, { flex: 1.1 }]}>Date</Text>
+                <Text style={[styles.headCell, { flex: 2 }]}>Description</Text>
+                <Text style={[styles.headCell, { flex: 1.2 }]}>Project</Text>
+                <Text style={[styles.headCell, { flex: 1 }]}>Site</Text>
+                <Text style={[styles.headCell, { flex: 1 }]}>Category</Text>
+                <Text style={[styles.headCell, styles.right, { flex: 1.2 }]}>Amount</Text>
               </View>
               {report.history.rows.map((e) => (
                 <View key={e._id} style={styles.bodyRow} wrap={false}>
-                  <Text style={[styles.bodyCell, { flex: 1.3 }]}>{formatDateShort(e.date)}</Text>
-                  <Text style={[styles.bodyCell, { flex: 1.4 }]}>{e.projectName}</Text>
-                  <Text style={[styles.bodyCell, { flex: 1.2 }]}>{e.siteName}</Text>
-                  <Text style={[styles.bodyCell, { flex: 1.2 }]}>{e.category}</Text>
-                  <Text style={[styles.bodyCell, styles.right, { flex: 1.4 }]}>{formatINR(e.amount)}</Text>
+                  <Text style={[styles.bodyCell, { flex: 1.1 }]}>{formatDateShort(e.date)}</Text>
+                  <Text style={[styles.bodyCell, { flex: 2 }]}>{e.description}</Text>
+                  <Text style={[styles.bodyCell, { flex: 1.2 }]}>{e.projectName}</Text>
+                  <Text style={[styles.bodyCell, { flex: 1 }]}>{e.siteName}</Text>
+                  <Text style={[styles.bodyCell, { flex: 1 }]}>{e.category}</Text>
+                  <Text style={[styles.bodyCell, styles.right, { flex: 1.2 }]}>{formatINR(e.amount)}</Text>
                 </View>
               ))}
             </View>

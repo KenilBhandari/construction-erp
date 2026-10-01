@@ -263,7 +263,7 @@ export default function SitesList() {
       {!loading && !error && data && data.data.length > 0 && (
         <>
           {/* Phone cards — desktop table below stays untouched. */}
-          <ul className="scroll-area flex max-h-[560px] flex-col gap-2 sm:hidden">
+          <ul className="flex flex-col gap-2 sm:hidden">
             {data.data.map((s) => (
               <li key={s._id}>
                 <Card className="cursor-pointer p-3 active:bg-background">

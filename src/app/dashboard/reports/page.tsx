@@ -40,9 +40,9 @@ const CARDS: ReportCard[] = [
 /** Reports landing — pick what to investigate, then scope and run. */
 export default function ReportsLanding() {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
       <PageHeader title="Reports" />
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
         {CARDS.map((c) => {
           const body = (
             <Card className="flex h-full flex-col gap-1 p-4">
