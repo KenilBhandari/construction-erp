@@ -163,6 +163,10 @@ export function AttendanceMuster({
   const [deletePending, setDeletePending] = useState(false);
 
   const fetchRoster = async () => {
+    if (!date) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -661,32 +665,39 @@ export function AttendanceMuster({
   return (
     <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
       <Card className="overflow-hidden p-0">
-        <div className="flex items-center justify-between gap-2 p-3 sm:p-4">
-          <button
-            type="button"
-            onClick={() => setAttOpen((o) => !o)}
-            aria-expanded={attOpen}
-            aria-label={attOpen ? "Collapse attendance summary" : "Expand attendance summary"}
-            className="flex min-w-0 flex-1 items-center gap-2 text-left"
-          >
-            <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-text sm:text-base">
-              Attendance for
-            </h2>
-          </button>
-          <DateField
-            aria-label="Select date"
-            variant="button"
-            value={date}
-            onChange={setDate}
-          />
-            <ChevronDown
-              aria-hidden="true"
-              className={cn(
-                "h-4 w-4 shrink-0 text-text-muted transition-transform duration-150",
-                attOpen && "rotate-180",
-              )}
-            />
-        </div>
+      <div className="flex items-center justify-between gap-2 p-3 sm:p-4">
+  <button
+    type="button"
+    onClick={() => setAttOpen((o) => !o)}
+    aria-expanded={attOpen}
+    aria-label={
+      attOpen
+        ? "Collapse attendance summary"
+        : "Expand attendance summary"
+    }
+    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+  >
+    <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-text sm:text-base">
+      Attendance for
+    </h2>
+  </button>
+
+  <DateField
+    aria-label="Select date"
+    value={date}
+    onChange={setDate}
+    allowClear={false}
+    className="h-9 w-[130px] shrink-0 text-sm sm:h-10 sm:w-48"
+  />
+
+  <ChevronDown
+    aria-hidden="true"
+    className={cn(
+      "h-4 w-4 shrink-0 text-text-muted transition-transform duration-150",
+      attOpen && "rotate-180",
+    )}
+  />
+</div>
 
         {attOpen && counters && (
           <div className="border-t border-border px-3 pb-3 pt-3 sm:px-4 sm:pb-4">

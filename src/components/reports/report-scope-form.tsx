@@ -250,7 +250,7 @@ export function ReportScopeForm({
   const fromNode = (
     <DateField
       aria-label="From date"
-      variant="button"
+      variant="input"
       value={from}
       onChange={setFrom}
     />
@@ -258,7 +258,7 @@ export function ReportScopeForm({
   const toNode = (
     <DateField
       aria-label="To date"
-      variant="button"
+      variant="input"
       value={to}
       onChange={setTo}
       minDate={from || undefined}

@@ -149,40 +149,43 @@ export function DateField({
         >
           {label}
 
-          {required && (
-            <span className="text-danger"> *</span>
-          )}
+          {required && <span className="text-danger"> *</span>}
         </label>
       )}
 
       <div className="relative">
-<DatePicker
-  id={id}
-  name={name}
-  selected={selected}
-  onChange={handleChange}
-  minDate={minDate ? parseLocalDate(minDate) ?? undefined : undefined}
-  maxDate={maxDate ? parseLocalDate(maxDate) ?? undefined : undefined}
-  dateFormat="dd/MM/yyyy"
-  placeholderText={placeholder}
-  disabled={disabled}
-  calendarStartDay={1}
-  popperPlacement="bottom-start"
-  wrapperClassName={variant === "input" ? "w-full" : undefined}
-  customInput={customButton}
-  className={
-    variant === "input"
-      ? cn(
-          "h-11 w-full rounded-md border border-border",
-          "bg-surface px-3.5 text-base text-text outline-none",
-          "focus:border-primary focus:ring-2 focus:ring-primary/30",
-          "sm:h-auto sm:py-2 sm:text-sm",
-          error && "border-danger",
-          className,
-        )
-      : undefined
-  }
-/>
+        <DatePicker
+          id={id}
+          name={name}
+          selected={selected}
+          onChange={handleChange}
+          minDate={minDate ? (parseLocalDate(minDate) ?? undefined) : undefined}
+          maxDate={maxDate ? (parseLocalDate(maxDate) ?? undefined) : undefined}
+          dateFormat="dd/MM/yyyy"
+          placeholderText={placeholder}
+          disabled={disabled}
+          calendarStartDay={1}
+          popperPlacement="bottom-start"
+          wrapperClassName={variant === "input" ? "w-full" : undefined}
+          customInput={customButton}
+          // popperPlacement="bottom-start"
+          // popperProps={{ strategy: "fixed" }}
+          // popperClassName="erp-popper"
+          portalId="datepicker-portal"
+          // showPopperArrow={false}
+          className={
+            variant === "input"
+              ? cn(
+                  "h-11 w-full rounded-md border border-border",
+                  "bg-surface px-3.5 text-base text-text outline-none",
+                  "focus:border-primary focus:ring-2 focus:ring-primary/30",
+                  "sm:h-auto sm:py-2 sm:text-sm",
+                  error && "border-danger",
+                  className,
+                )
+              : undefined
+          }
+        />
 
         {clearable && value && !disabled && (
           <button
@@ -191,9 +194,7 @@ export function DateField({
               event.stopPropagation();
               onChange("");
             }}
-            aria-label={`Clear ${
-              ariaLabel ?? label ?? "date"
-            }`}
+            aria-label={`Clear ${ariaLabel ?? label ?? "date"}`}
             className={
               variant === "button"
                 ? [
@@ -219,9 +220,7 @@ export function DateField({
       </div>
 
       {error && variant === "input" && (
-        <p className="text-xs text-danger">
-          {error}
-        </p>
+        <p className="text-xs text-danger">{error}</p>
       )}
     </div>
   );

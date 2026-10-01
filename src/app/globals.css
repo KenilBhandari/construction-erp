@@ -121,6 +121,9 @@ body {
 .erp-popper.react-datepicker-popper {
   z-index: 100 !important;
 }
+#datepicker-portal .react-datepicker-popper {
+  z-index: 100 !important;
+}
 .erp-calendar.react-datepicker {
   max-width: calc(100vw - 32px);
   border: 1px solid var(--color-border);

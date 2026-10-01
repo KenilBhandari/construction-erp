@@ -270,6 +270,7 @@ export function CalculatePendingTab() {
             value={calcStart}
             onChange={setCalcStart}
             disabled={calcPending}
+            allowClear={false}
             className="h-9 text-sm sm:h-10"
           />
           <DateField
@@ -277,6 +278,7 @@ export function CalculatePendingTab() {
             value={calcEnd}
             onChange={setCalcEnd}
             disabled={calcPending}
+            allowClear={false}
             minDate={calcStart || undefined}
             className="h-9 text-sm sm:h-10"
           />
