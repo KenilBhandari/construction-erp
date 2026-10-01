@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateField, formatLocalDate } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/ui/page-header";
@@ -400,7 +401,7 @@ function ExpenseFormModal({
     initial?.site ? (typeof initial.site === "string" ? initial.site : initial.site._id) : "",
   );
   const [date, setDate] = useState(
-    initial ? new Date(initial.date).toISOString().slice(0, 10) : toDateInputValue(),
+    initial ? formatLocalDate(new Date(initial.date)) : toDateInputValue(),
   );
   const [category, setCategory] = useState(initial?.category ?? "Miscellaneous");
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -481,7 +482,7 @@ function ExpenseFormModal({
         </div>
         <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
           <div className="min-w-0">
-            <Input label="Date" required type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={pending} />
+            <DateField label="Date" required value={date} onChange={setDate} disabled={pending} />
           </div>
           <div className="min-w-0">
             <ComboSelect

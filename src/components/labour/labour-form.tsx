@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { DateField, formatLocalDate } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ export function emptyLabourForm(): LabourFormValues {
     skill: "",
     dailyRate: "",
     hourlyRate: "",
-    joiningDate: new Date().toISOString().slice(0, 10),
+    joiningDate: formatLocalDate(new Date()),
     status: "active",
     assignedSite: "",
     notes: "",
@@ -241,12 +242,10 @@ export function LabourForm({
             </div>
           </div>
           <div className="min-w-0">
-            <Input
+            <DateField
               label="Joining Date"
-              name="joiningDate"
-              type="date"
               value={values.joiningDate}
-              onChange={(e) => set("joiningDate", e.target.value)}
+              onChange={(v) => set("joiningDate", v)}
             />
           </div>
         </div>

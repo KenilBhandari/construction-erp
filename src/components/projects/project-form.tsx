@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
+import { DateField, formatLocalDate } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -39,7 +40,7 @@ export function emptyProjectForm(): ProjectFormValues {
   };
 }
 
-/** Convert ISO date string (or null) to yyyy-mm-dd for <input type="date">. */
+/** Convert ISO date string (or null) to yyyy-mm-dd for date fields (timezone-safe). */
 export function isoToDateInput(value: string | null): string {
   if (!value) return "";
 
@@ -47,7 +48,7 @@ export function isoToDateInput(value: string | null): string {
 
   if (Number.isNaN(d.getTime())) return "";
 
-  return d.toISOString().slice(0, 10);
+  return formatLocalDate(d);
 }
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
@@ -192,21 +193,18 @@ export function ProjectForm({
             />
           </div>
           <div className="min-w-0">
-            <Input
+            <DateField
               label="Start Date"
-              name="startDate"
-              type="date"
               value={values.startDate}
-              onChange={(e) => set("startDate", e.target.value)}
+              onChange={(v) => set("startDate", v)}
             />
           </div>
           <div className="min-w-0">
-            <Input
+            <DateField
               label="Exp. End Date"
-              name="expectedEndDate"
-              type="date"
               value={values.expectedEndDate}
-              onChange={(e) => set("expectedEndDate", e.target.value)}
+              onChange={(v) => set("expectedEndDate", v)}
+              minDate={values.startDate || undefined}
             />
           </div>
         </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateField, formatLocalDate } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
@@ -36,7 +37,7 @@ export function AttendanceOtModal({ open, onClose, onSaved, labour, date, sites,
     return typeof l === "string" ? l : l._id;
   })();
   const existingDate = (existing as unknown as { date?: string | Date } | null)?.date
-    ? new Date((existing as unknown as { date: string | Date }).date).toISOString().slice(0, 10)
+    ? formatLocalDate(new Date((existing as unknown as { date: string | Date }).date))
     : date;
   const [freeLabourId, setFreeLabourId] = useState(existingLabourId);
   const [freeDate, setFreeDate] = useState(existingDate);
@@ -163,7 +164,7 @@ export function AttendanceOtModal({ open, onClose, onSaved, labour, date, sites,
               onChange={setFreeLabourId}
               disabled={pending}
             />
-            <Input label="Date" required type="date" value={freeDate} onChange={(e) => setFreeDate(e.target.value)} disabled={pending} />
+            <DateField label="Date" required value={freeDate} onChange={setFreeDate} disabled={pending} />
           </>
         ) : (
           <div className="rounded-md bg-background p-3 text-sm">

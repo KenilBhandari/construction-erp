@@ -11,6 +11,7 @@ import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/ui/modal";
 import { AttendanceOtModal } from "@/components/attendance/attendance-ot-modal";
+import { formatLocalDate } from "@/components/ui/date-field";
 import { formatDateShort, formatINR, toDateInputValue } from "@/lib/utils";
 import { Pencil, Search, Trash2, X } from "lucide-react";
 import type { OvertimeDTO } from "@/types/attendance";
@@ -398,7 +399,7 @@ export function OvertimeList({
               hourlyRate: found?.hourlyRate ?? 0,
             };
           })()}
-          date={editing ? new Date(editing.date).toISOString().slice(0, 10) : toDateInputValue()}
+          date={editing ? formatLocalDate(new Date(editing.date)) : toDateInputValue()}
           sites={allSites}
           suggestedSiteId={null}
           existing={editing}

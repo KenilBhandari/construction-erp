@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateField, formatLocalDate } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
@@ -25,7 +26,7 @@ export function SalaryPaymentModal({
     0,
   );
   const [amount, setAmount] = useState(remaining > 0 ? String(remaining) : "");
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => formatLocalDate(new Date()));
   const [method, setMethod] = useState<string>("Cash");
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
@@ -158,11 +159,10 @@ export function SalaryPaymentModal({
             required
             disabled={pending}
           />
-          <Input
+          <DateField
             label="Date"
-            type="date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={setDate}
             required
             disabled={pending}
           />

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateField, formatLocalDate } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/ui/page-header";
@@ -400,7 +401,7 @@ function PaymentFormModal({
     initial ? (typeof initial.project === "string" ? initial.project : initial.project._id) : "",
   );
   const [date, setDate] = useState(
-    initial ? new Date(initial.date).toISOString().slice(0, 10) : toDateInputValue(),
+    initial ? formatLocalDate(new Date(initial.date)) : toDateInputValue(),
   );
   const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
   const [paymentMethod, setPaymentMethod] = useState(initial?.paymentMethod ?? "UPI");
@@ -486,7 +487,7 @@ function PaymentFormModal({
         )}
         <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
           <div className="min-w-0">
-            <Input label="Date" required type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={pending} />
+            <DateField label="Date" required value={date} onChange={setDate} disabled={pending} />
           </div>
           <div className="min-w-0">
             <Input label="Amount (₹)" required type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="50000" disabled={pending} />

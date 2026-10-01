@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateField, formatLocalDate } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -536,7 +537,7 @@ export function AdvancesTab({
 
             <div className="grid grid-cols-2 gap-3">
               <Input label="Amount (₹)" required type="number" min={1} max={writeOffSummary?.outstanding} value={writeOffAmount} onChange={(e) => setWriteOffAmount(e.target.value)} placeholder={writeOffSummary ? `max ${safeINR(writeOffSummary.outstanding)}` : "1000"} disabled={writeOffPending} />
-              <Input label="Date" type="date" value={writeOffDate} onChange={(e) => setWriteOffDate(e.target.value)} disabled={writeOffPending} />
+              <DateField label="Date" value={writeOffDate} onChange={setWriteOffDate} disabled={writeOffPending} />
             </div>
             <Textarea label="Reason" required rows={2} value={writeOffReason} onChange={(e) => setWriteOffReason(e.target.value)} placeholder="Worker left, advance unrecoverable…" disabled={writeOffPending} />
             <ComboSelect
@@ -578,7 +579,7 @@ function AdvanceFormModal({
 }) {
   const [labourId, setLabourId] = useState(initial ? (typeof initial.labour === "string" ? initial.labour : initial.labour._id) : "");
   const [siteId, setSiteId] = useState(initial?.site ? (typeof initial.site === "string" ? initial.site : initial.site._id) : "");
-  const [date, setDate] = useState(initial ? new Date(initial.date).toISOString().slice(0, 10) : toDateInputValue());
+  const [date, setDate] = useState(initial ? formatLocalDate(new Date(initial.date)) : toDateInputValue());
   const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
   const [reason, setReason] = useState(initial?.reason ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
@@ -655,12 +656,11 @@ function AdvanceFormModal({
           />
         )}
         <div className="grid grid-cols-2 gap-3">
-          <Input
+          <DateField
             label="Date"
             required
-            type="date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={setDate}
           />
           <Input
             label="Amount (₹)"

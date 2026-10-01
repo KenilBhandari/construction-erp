@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -126,21 +127,18 @@ export function SiteForm({
             />
           </div>
           <div className="min-w-0">
-            <Input
+            <DateField
               label="Start Date"
-              name="startDate"
-              type="date"
               value={values.startDate}
-              onChange={(e) => set("startDate", e.target.value)}
+              onChange={(v) => set("startDate", v)}
             />
           </div>
           <div className="min-w-0">
-            <Input
+            <DateField
               label="Exp. End Date"
-              name="expectedEndDate"
-              type="date"
               value={values.expectedEndDate}
-              onChange={(e) => set("expectedEndDate", e.target.value)}
+              onChange={(v) => set("expectedEndDate", v)}
+              minDate={values.startDate || undefined}
             />
           </div>
         </div>

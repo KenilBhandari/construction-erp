@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -264,20 +265,19 @@ export function CalculatePendingTab() {
             onChange={setCalcLabour}
             disabled={calcPending}
           />
-          <Input
+          <DateField
             label="Period start *"
-            type="date"
             value={calcStart}
-            onChange={(e) => setCalcStart(e.target.value)}
+            onChange={setCalcStart}
             disabled={calcPending}
             className="h-9 text-sm sm:h-10"
           />
-          <Input
+          <DateField
             label="Period end *"
-            type="date"
             value={calcEnd}
-            onChange={(e) => setCalcEnd(e.target.value)}
+            onChange={setCalcEnd}
             disabled={calcPending}
+            minDate={calcStart || undefined}
             className="h-9 text-sm sm:h-10"
           />
         </div>

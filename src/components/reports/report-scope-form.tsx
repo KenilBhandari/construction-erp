@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 
 export type RunnerType = "labour" | "materials" | "expenses" | "salary";
@@ -248,21 +248,20 @@ export function ReportScopeForm({
     />
   );
   const fromNode = (
-    <Input
+    <DateField
       aria-label="From date"
-      type="date"
+      variant="button"
       value={from}
-      onChange={(e) => setFrom(e.target.value)}
-      className="h-9 text-sm sm:h-10"
+      onChange={setFrom}
     />
   );
   const toNode = (
-    <Input
+    <DateField
       aria-label="To date"
-      type="date"
+      variant="button"
       value={to}
-      onChange={(e) => setTo(e.target.value)}
-      className="h-9 text-sm sm:h-10"
+      onChange={setTo}
+      minDate={from || undefined}
     />
   );
 

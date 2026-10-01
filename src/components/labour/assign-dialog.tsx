@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Modal } from "@/components/ui/modal";
 import { ComboSelect } from "@/components/ui/combo-select";
-import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/date-field";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toDateInputValue } from "@/lib/utils";
@@ -87,7 +87,7 @@ export function AssignSiteDialog({
           ]}
           onChange={setSite}
         />
-        <Input label="From date" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        <DateField label="From date" value={from} onChange={setFrom} />
         <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reason for move…" />
         {error && (
           <p role="alert" className="text-sm text-danger">{error}</p>

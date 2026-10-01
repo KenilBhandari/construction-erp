@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -672,12 +673,11 @@ export function AttendanceMuster({
               Attendance for
             </h2>
           </button>
-          <Input
+          <DateField
             aria-label="Select date"
-            type="date"
+            variant="button"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="h-9 w-auto text-sm sm:h-10 sm:w-48"
+            onChange={setDate}
           />
             <ChevronDown
               aria-hidden="true"

@@ -117,6 +117,41 @@ body {
   .glide-pill { transition: none !important; }
 }
 
+/* ---------- react-datepicker: floating popup + modal/phone safety ---------- */
+.erp-popper.react-datepicker-popper {
+  z-index: 100 !important;
+}
+.erp-calendar.react-datepicker {
+  max-width: calc(100vw - 32px);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px -8px rgba(28, 28, 30, 0.25);
+  font-family: var(--font-sans);
+}
+.erp-calendar .react-datepicker__header {
+  background: var(--color-background);
+  border-bottom-color: var(--color-border);
+}
+.erp-calendar .react-datepicker__day--selected,
+.erp-calendar .react-datepicker__day--keyboard-selected {
+  background: var(--color-primary);
+  color: #fff;
+}
+.erp-calendar .react-datepicker__day:hover {
+  background: var(--color-primary-light);
+}
+@media (max-width: 480px) {
+  .erp-calendar.react-datepicker {
+    font-size: 14px;
+  }
+  .erp-calendar .react-datepicker__day,
+  .erp-calendar .react-datepicker__day-name {
+    width: 2rem;
+    line-height: 2rem;
+    margin: 0.1rem;
+  }
+}
+
 /* ---------- Sandboxed card lists: thin scrollbar, visible on demand, auto-hides ----------
    Touch devices use native overlay scrollbars (auto-hide by default).
    Desktop reveals a 4px bar on hover / keyboard focus, hides otherwise. */
