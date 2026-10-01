@@ -28,11 +28,11 @@ export default function OrangeLogo() {
     setOpen(false)
   }, [pathname])
 
-  // Auto-play intro on a full load of exactly /dashboard: collapsed →
+  // Auto-play intro on a full load of / or /dashboard: collapsed →
   // expand → hold → collapse. In-app navigation never remounts the layout,
   // so this naturally fires only on page loads.
   useEffect(() => {
-    if (pathname !== '/dashboard') return
+    if (pathname !== '/dashboard' && pathname !== '/') return
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     timers.current = [
       window.setTimeout(() => setOpen(true), INTRO_DELAY),
