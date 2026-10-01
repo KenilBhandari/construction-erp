@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DateField, formatLocalDate } from "@/components/ui/date-field";
+import { DateField } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/ui/page-header";
@@ -401,7 +401,7 @@ function ExpenseFormModal({
     initial?.site ? (typeof initial.site === "string" ? initial.site : initial.site._id) : "",
   );
   const [date, setDate] = useState(
-    initial ? formatLocalDate(new Date(initial.date)) : toDateInputValue(),
+    initial ? new Date(initial.date).toISOString().slice(0, 10) : toDateInputValue(),
   );
   const [category, setCategory] = useState(initial?.category ?? "Miscellaneous");
   const [description, setDescription] = useState(initial?.description ?? "");

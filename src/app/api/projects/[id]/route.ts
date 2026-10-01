@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import { fail, ok, requireAuth } from "@/lib/api";
 import { objectIdSchema } from "@/lib/validation";
 import { projectUpdateSchema } from "@/lib/schemas";
+import { toDayDate } from "@/lib/utils";
 import { Project } from "@/models/Project";
 import { Site } from "@/models/Site";
 
@@ -41,10 +42,18 @@ export async function PATCH(
     const id = await getId(params);
     await connectDB();
     const body = projectUpdateSchema.parse(await req.json());
-    const updated = await Project.findByIdAndUpdate(id, body, {
-      new: true,
-      runValidators: true,
-    }).lean();
+    const updated = await Project.findByIdAndUpdate(
+      id,
+      {
+        ...body,
+        ...(body.startDate ? { startDate: toDayDate(body.startDate) } : {}),
+        ...(body.expectedEndDate ? { expectedEndDate: toDayDate(body.expectedEndDate) } : {}),
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
+    ).lean();
     if (!updated) return fail(new Error("Project not found."), 404);
     if (body.status === "cancelled") {
       // Use the underlying collection to bypass any stale Mongoose validator

@@ -91,6 +91,19 @@ export function toDateInputValue(date: Date = new Date()): string {
 }
 
 /**
+ * "2026-09-18" for the IST (Asia/Kolkata) business day, regardless of server TZ.
+ * Use for server-side "today" defaults of DATE-ONLY fields — never toISOString().
+ */
+export function istDateInputValue(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+/**
  * Normalize a yyyy-mm-dd (or Date) to UTC midnight for storage.
  * Write and read paths must both use this so same-day records match.
  */

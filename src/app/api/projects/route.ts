@@ -2,6 +2,7 @@ import { connectDB } from "@/lib/mongodb";
 import { fail, ok, requireAuth } from "@/lib/api";
 import { paginationSchema } from "@/lib/validation";
 import { projectCreateSchema } from "@/lib/schemas";
+import { toDayDate } from "@/lib/utils";
 import { Project } from "@/models/Project";
 import { PROJECT_STATUSES } from "@/types/project";
 
@@ -53,7 +54,11 @@ export async function POST(req: Request) {
   try {
     await connectDB();
     const body = projectCreateSchema.parse(await req.json());
-    const created = await Project.create(body);
+    const created = await Project.create({
+      ...body,
+      ...(body.startDate ? { startDate: toDayDate(body.startDate) } : {}),
+      ...(body.expectedEndDate ? { expectedEndDate: toDayDate(body.expectedEndDate) } : {}),
+    });
     return ok(created, { status: 201 });
   } catch (err) {
     return fail(err, 422);

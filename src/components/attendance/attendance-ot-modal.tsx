@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DateField, formatLocalDate } from "@/components/ui/date-field";
+import { DateField } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
@@ -37,7 +37,7 @@ export function AttendanceOtModal({ open, onClose, onSaved, labour, date, sites,
     return typeof l === "string" ? l : l._id;
   })();
   const existingDate = (existing as unknown as { date?: string | Date } | null)?.date
-    ? formatLocalDate(new Date((existing as unknown as { date: string | Date }).date))
+    ? new Date((existing as unknown as { date: string | Date }).date).toISOString().slice(0, 10)
     : date;
   const [freeLabourId, setFreeLabourId] = useState(existingLabourId);
   const [freeDate, setFreeDate] = useState(existingDate);

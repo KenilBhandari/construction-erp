@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DateField, formatLocalDate } from "@/components/ui/date-field";
+import { DateField } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/ui/page-header";
@@ -558,7 +558,7 @@ function TransactionFormModal({
     initial?.site ? (typeof initial.site === "string" ? initial.site : initial.site._id) : "",
   );
   const [date, setDate] = useState(
-    initial ? formatLocalDate(new Date(initial.date)) : toDateInputValue(),
+    initial ? new Date(initial.date).toISOString().slice(0, 10) : toDateInputValue(),
   );
   const [quantity, setQuantity] = useState(initial ? String(initial.quantity) : "");
   const [rate, setRate] = useState(initial ? String(initial.rate) : "");

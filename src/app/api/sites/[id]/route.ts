@@ -2,6 +2,7 @@ import { connectDB } from "@/lib/mongodb";
 import { fail, ok, requireAuth } from "@/lib/api";
 import { objectIdSchema } from "@/lib/validation";
 import { siteUpdateSchema } from "@/lib/schemas";
+import { toDayDate } from "@/lib/utils";
 import { Site } from "@/models/Site";
 import { Project } from "@/models/Project";
 
@@ -43,10 +44,18 @@ export async function PATCH(
       const projectExists = await Project.exists({ _id: body.project });
       if (!projectExists) return fail(new Error("Selected project not found."), 404);
     }
-    const updated = await Site.findByIdAndUpdate(id, body, {
-      new: true,
-      runValidators: true,
-    })
+    const updated = await Site.findByIdAndUpdate(
+      id,
+      {
+        ...body,
+        ...(body.startDate ? { startDate: toDayDate(body.startDate) } : {}),
+        ...(body.expectedEndDate ? { expectedEndDate: toDayDate(body.expectedEndDate) } : {}),
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
+    )
       .populate("project", "name")
       .lean();
     if (!updated) return fail(new Error("Site not found."), 404);

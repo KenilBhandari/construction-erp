@@ -2,6 +2,7 @@ import { connectDB } from "@/lib/mongodb";
 import { fail, ok, requireAuth } from "@/lib/api";
 import { objectIdSchema } from "@/lib/validation";
 import { labourUpdateSchema } from "@/lib/schemas";
+import { toDayDate } from "@/lib/utils";
 import { Labour } from "@/models/Labour";
 import { LabourAssignment } from "@/models/LabourAssignment";
 
@@ -52,10 +53,17 @@ export async function PATCH(
         400,
       );
     }
-    const updated = await Labour.findByIdAndUpdate(id, body, {
-      new: true,
-      runValidators: true,
-    })
+    const updated = await Labour.findByIdAndUpdate(
+      id,
+      {
+        ...body,
+        ...(body.joiningDate ? { joiningDate: toDayDate(body.joiningDate) } : {}),
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
+    )
       .populate("assignedSite", "name")
       .lean();
     if (!updated) return fail(new Error("Labour not found."), 404);

@@ -2,6 +2,7 @@ import { connectDB } from "@/lib/mongodb";
 import { fail, ok, requireAuth } from "@/lib/api";
 import { objectIdSchema, paginationSchema } from "@/lib/validation";
 import { labourCreateSchema } from "@/lib/schemas";
+import { toDayDate } from "@/lib/utils";
 import { Labour } from "@/models/Labour";
 import { LabourAssignment } from "@/models/LabourAssignment";
 import { Site } from "@/models/Site";
@@ -75,6 +76,7 @@ export async function POST(req: Request) {
     }
     const created = await Labour.create({
       ...body,
+      joiningDate: body.joiningDate ? toDayDate(body.joiningDate) : null,
       assignedSite: body.assignedSite ?? null,
     });
     // Open an assignment record so history starts at registration (§14).

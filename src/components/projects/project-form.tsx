@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
-import { DateField, formatLocalDate } from "@/components/ui/date-field";
+import { DateField } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,9 @@ export function isoToDateInput(value: string | null): string {
 
   if (Number.isNaN(d.getTime())) return "";
 
-  return formatLocalDate(d);
+  // Stored dates are canonical UTC-midnight: slice the UTC calendar day
+  // directly instead of local getters (which shift behind UTC).
+  return d.toISOString().slice(0, 10);
 }
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {

@@ -27,8 +27,10 @@ export async function GET(req: Request) {
     const q = url.searchParams.get("q")?.trim() ?? "";
 
     const filter: Record<string, unknown> = {};
-    if (date) filter.date = toDayDate(date);
-    else if (from || to) {
+    if (date) {
+      const { start, end } = dayRange(date, date);
+      filter.date = { $gte: start, $lte: end };
+    } else if (from || to) {
       const { start, end } = dayRange(from || to, to || from);
       filter.date = { $gte: start, $lte: end };
     }

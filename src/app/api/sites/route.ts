@@ -2,6 +2,7 @@ import { connectDB } from "@/lib/mongodb";
 import { fail, ok, requireAuth } from "@/lib/api";
 import { objectIdSchema, paginationSchema } from "@/lib/validation";
 import { siteCreateSchema } from "@/lib/schemas";
+import { toDayDate } from "@/lib/utils";
 import { Site } from "@/models/Site";
 import { SITE_STATUSES } from "@/types/site";
 import { Project } from "@/models/Project";
@@ -62,7 +63,11 @@ export async function POST(req: Request) {
     const body = siteCreateSchema.parse(await req.json());
     const projectExists = await Project.exists({ _id: body.project });
     if (!projectExists) return fail(new Error("Selected project not found."), 404);
-    const created = await Site.create(body);
+    const created = await Site.create({
+      ...body,
+      ...(body.startDate ? { startDate: toDayDate(body.startDate) } : {}),
+      ...(body.expectedEndDate ? { expectedEndDate: toDayDate(body.expectedEndDate) } : {}),
+    });
     return ok(created, { status: 201 });
   } catch (err) {
     return fail(err, 422);

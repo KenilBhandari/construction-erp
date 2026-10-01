@@ -3,7 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import { fail, ok, requireAuth, idempotencyKeyFrom } from "@/lib/api";
 import { objectIdSchema } from "@/lib/validation";
 import { writeOffCreateSchema } from "@/lib/schemas";
-import { toDayDate } from "@/lib/utils";
+import { toDayDate, istDateInputValue } from "@/lib/utils";
 import { Labour } from "@/models/Labour";
 import { LabourAdvance } from "@/models/LabourAdvance";
 import { Expense } from "@/models/Expense";
@@ -83,10 +83,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const expenseType =
       body.expenseType ?? (projectOid ? "PROJECT" : "GENERAL");
 
-    const expenseDate = body.date ? toDayDate(body.date) : new Date();
-    if (!body.date) {
-      expenseDate.setUTCHours(0, 0, 0, 0);
-    }
+    const expenseDate = body.date ? toDayDate(body.date) : toDayDate(istDateInputValue());
 
     const description =
       body.description?.trim() ||

@@ -40,38 +40,39 @@ const PRESETS: { value: Preset; label: string }[] = [
   { value: "custom", label: "Custom" },
 ];
 
-function iso(d: Date): string {
-  return d.toISOString().slice(0, 10);
+/** Local yyyy-MM-dd for date-only presets (mirrors toDateInputValue, no UTC shift). */
+function toYMD(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** Preset → [from, to] in UTC days. Lifetime resolves from the project start date. */
+/** Preset → [from, to] in local calendar days. Lifetime resolves from the project start date. */
 function presetRange(preset: Preset, projectStart?: string | null): [string, string] | [] {
   const now = new Date();
-  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const monday = new Date(today);
-  monday.setUTCDate(today.getUTCDate() - ((today.getUTCDay() + 6) % 7));
-  const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
-  const yearStart = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
+  monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const yearStart = new Date(today.getFullYear(), 0, 1);
   switch (preset) {
     case "today":
-      return [iso(today), iso(today)];
+      return [toYMD(today), toYMD(today)];
     case "week":
-      return [iso(monday), iso(today)];
+      return [toYMD(monday), toYMD(today)];
     case "month":
-      return [iso(monthStart), iso(today)];
+      return [toYMD(monthStart), toYMD(today)];
     case "last-month": {
-      const first = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
-      const last = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 0));
-      return [iso(first), iso(last)];
+      const first = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const last = new Date(today.getFullYear(), today.getMonth(), 0);
+      return [toYMD(first), toYMD(last)];
     }
     case "year":
-      return [iso(yearStart), iso(today)];
+      return [toYMD(yearStart), toYMD(today)];
     case "last-12": {
-      const from = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 11, 1));
-      return [iso(from), iso(today)];
+      const from = new Date(today.getFullYear(), today.getMonth() - 11, 1);
+      return [toYMD(from), toYMD(today)];
     }
     case "lifetime":
-      return projectStart ? [projectStart.slice(0, 10), iso(today)] : [];
+      return projectStart ? [projectStart.slice(0, 10), toYMD(today)] : [];
     case "custom":
       return [];
   }

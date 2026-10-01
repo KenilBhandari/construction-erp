@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DateField, formatLocalDate } from "@/components/ui/date-field";
+import { DateField } from "@/components/ui/date-field";
 import { ComboSelect } from "@/components/ui/combo-select";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -579,7 +579,7 @@ function AdvanceFormModal({
 }) {
   const [labourId, setLabourId] = useState(initial ? (typeof initial.labour === "string" ? initial.labour : initial.labour._id) : "");
   const [siteId, setSiteId] = useState(initial?.site ? (typeof initial.site === "string" ? initial.site : initial.site._id) : "");
-  const [date, setDate] = useState(initial ? formatLocalDate(new Date(initial.date)) : toDateInputValue());
+  const [date, setDate] = useState(initial ? new Date(initial.date).toISOString().slice(0, 10) : toDateInputValue());
   const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
   const [reason, setReason] = useState(initial?.reason ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");

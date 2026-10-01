@@ -1,6 +1,6 @@
 import { connectDB } from "@/lib/mongodb";
 import { fail, ok, requireAuth } from "@/lib/api";
-import { toDayDate } from "@/lib/utils";
+import { dayRange } from "@/lib/utils";
 import { Attendance } from "@/models/Attendance";
 import { Labour } from "@/models/Labour";
 import { Site } from "@/models/Site";
@@ -21,7 +21,8 @@ export async function GET(req: Request) {
     const dateStr = url.searchParams.get("date")?.trim() ?? "";
     if (!dateStr) return fail(new Error("date is required (yyyy-mm-dd)."), 400);
     // Validate date
-    const date = toDayDate(dateStr);
+    const { start, end } = dayRange(dateStr, dateStr);
+    const date = { $gte: start, $lte: end };
 
     // Fetch active labour, attendance and overtime for date in parallel
     const [labours, attendances, sites, overtimes] = await Promise.all([
