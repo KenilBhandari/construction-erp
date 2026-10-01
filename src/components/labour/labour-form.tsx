@@ -296,6 +296,7 @@ export function LabourForm({
                     ...sites.map((s) => ({ value: s._id, label: s.name })),
                   ]}
                   onChange={(v) => set("assignedSite", v)}
+                  triggerClassName="h-11 text-base sm:h-[38px] sm:text-sm"
                 />
               </div>
               <div className="min-w-0">
@@ -307,6 +308,7 @@ export function LabourForm({
                     label: STATUS_LABELS[s],
                   }))}
                   onChange={(v) => set("status", v as LabourStatus)}
+                  triggerClassName="h-11 text-base sm:h-[38px] sm:text-sm"
                 />
               </div>
             </>
@@ -321,6 +323,7 @@ export function LabourForm({
                   label: STATUS_LABELS[s],
                 }))}
                 onChange={(v) => set("status", v as LabourStatus)}
+                triggerClassName="h-11 text-base sm:h-[38px] sm:text-sm"
               />
             </div>
           )}

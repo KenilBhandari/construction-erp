@@ -104,6 +104,7 @@ export function SiteForm({
                 ...projects.map((p) => ({ value: p._id, label: p.name })),
               ]}
               onChange={(v) => set("project", v)}
+              triggerClassName="h-11 text-base sm:h-[38px] sm:text-sm"
             />
           </div>
           <div className="min-w-0">
@@ -159,6 +160,7 @@ export function SiteForm({
                 label: siteStatusLabel(s),
               }))}
               onChange={(v) => set("status", v as SiteStatus)}
+              triggerClassName="h-11 text-base sm:h-[38px] sm:text-sm"
             />
           </div>
           <div className="min-w-0">

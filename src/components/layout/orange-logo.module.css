@@ -1,0 +1,89 @@
+.logo {
+  --h: 44px; /* logo height on phones */
+  --gap: calc(var(--h) * 0.12); /* tight lockup spacing, scales with the logo */
+  display: inline-flex;
+  align-items: center;
+  height: var(--h);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  border-radius: 6px;
+}
+.logo:focus-visible {
+  outline: 2px solid rgba(255, 99, 33, 0.6);
+  outline-offset: 2px;
+}
+
+.fruit {
+  display: block;
+  height: 100%;
+  width: auto;
+  flex-shrink: 0;
+  margin-right: var(--gap);
+  user-select: none;
+}
+
+/* Collapsible "orange" word: grid 0fr -> 1fr slides cleanly, no layout jank */
+.slider {
+  display: grid;
+  grid-template-columns: 0fr;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition:
+    grid-template-columns 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.3s ease,
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
+}
+.clip {
+  overflow: hidden;
+  min-width: 0;
+  display: block;
+  /* optical baseline nudge lives on the clip (not the image) so the
+     overflow:hidden box moves with it and never shaves the "g" descender.
+     Extra downward shift centers the words on the fruit DISC (the leaf adds
+     dead space on top, so geometric centering floats the text too high). */
+  position: relative;
+  top: calc(var(--h) * 0.13);
+}
+.word {
+  display: block;
+  /* "orange" glyph body is ~65% of its viewBox (rest is descender space),
+     so it needs a taller box than "ERP" to look the same size */
+  height: calc(var(--h) * 0.5);
+  width: auto;
+  max-width: none;
+  /* the word↔ERP spacing sits inside the clip, so it collapses with the word
+     (a flex `gap` would leave a stray gap when the word is hidden) */
+  margin-right: var(--gap);
+  user-select: none;
+}
+.logo[data-open='true'] .slider {
+  grid-template-columns: 1fr;
+  opacity: 1;
+  transform: none;
+}
+
+.erp {
+  display: block;
+  /* "ERP" caps fill ~92% of their viewBox, so a shorter box matches the
+     "orange" x-height; lifted to share the same baseline */
+  height: calc(var(--h) * 0.36);
+  width: auto;
+  flex-shrink: 0;
+  user-select: none;
+  /* shifted down with the "orange" word to stay on the shared baseline */
+  transform: translateY(calc(var(--h) * 0.05));
+}
+
+@media (min-width: 768px) {
+  .logo { --h: 56px; } /* fills the h-16 (64px) bar with breathing room */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slider { transition: none; }
+}

@@ -254,6 +254,7 @@ export function ProjectForm({
                 label: STATUS_LABELS[s],
               }))}
               onChange={(v) => set("status", v as ProjectStatus)}
+              triggerClassName="h-11 text-base sm:h-[38px] sm:text-sm"
             />
           </div>
           <div className="min-w-0">

@@ -3,6 +3,7 @@
 import { LogOut } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { signOutAction } from "./actions";
+import OrangeLogo from '@/components/layout/orange-logo'
 
 function initials(name?: string | null, email?: string | null) {
   const src = name?.trim() || email?.trim() || "?";
@@ -17,14 +18,9 @@ export function Topbar() {
 
   return (
     <header className="glass-topbar sticky top-0 z-40">
-      <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-2 px-4 sm:px-6">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold text-text">
-            Construction ERP
-          </p>
-          <p className="hidden truncate text-xs text-text-muted sm:block">
-            Labour &amp; project management
-          </p>
+      <div className="flex h-16 w-full items-center gap-2 px-4 sm:px-6">
+        <div className="flex min-w-0 flex-1 items-center">
+          <OrangeLogo />
         </div>
 
         {user && (
