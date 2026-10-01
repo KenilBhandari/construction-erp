@@ -6,6 +6,7 @@ import { paymentCreateSchema } from "@/lib/schemas";
 import { toDayDate, dayRange } from "@/lib/utils";
 import { ClientPayment } from "@/models/ClientPayment";
 import { Project } from "@/models/Project";
+import { PAYMENT_METHODS } from "@/types/finance";
 
 export async function GET(req: Request) {
   const { error } = await requireAuth();
@@ -19,13 +20,18 @@ export async function GET(req: Request) {
       limit: url.searchParams.get("limit"),
     });
     const project = url.searchParams.get("project")?.trim() ?? "";
+    const method = url.searchParams.get("method")?.trim() ?? "";
     const from = url.searchParams.get("from")?.trim() ?? "";
     const to = url.searchParams.get("to")?.trim() ?? "";
 
     const filter: Record<string, unknown> = {};
     if (project) {
       const parsed = objectIdSchema.safeParse(project);
-      if (parsed.success) filter.project = parsed.data;
+      // Use ObjectId instance so both find() and the aggregate $match below compare correctly.
+      if (parsed.success) filter.project = new Types.ObjectId(parsed.data);
+    }
+    if (method && (PAYMENT_METHODS as readonly string[]).includes(method)) {
+      filter.paymentMethod = method;
     }
     if (from || to) {
       const { start, end } = dayRange(from || to, to || from);
