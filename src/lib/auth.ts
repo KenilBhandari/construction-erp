@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
 import { connectDB } from "./mongodb";
 import { User } from "@/models/User";
+import { authConfig } from "./auth.config";
 
 declare module "next-auth" {
   interface Session {
@@ -15,18 +15,7 @@ declare module "next-auth" {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  trustHost: true,
-  session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
-  providers: [
-    // Auth.js v5 auto-reads AUTH_GOOGLE_ID / AUTH_GOOGLE_SECRET. 30 Days expiresIn
-    // Passed explicitly too so the legacy GOOGLE_CLIENT_ID names keep working.
-    Google({
-      clientId: process.env.AUTH_GOOGLE_ID ?? process.env.GOOGLE_CLIENT_ID,
-      clientSecret:
-        process.env.AUTH_GOOGLE_SECRET ?? process.env.GOOGLE_CLIENT_SECRET,
-    }),
-  ],
+  ...authConfig,
   callbacks: {
     // Sync Google profile to MongoDB. Allow sign-in even if DB is
     // unreachable (dev without MONGODB_URI) so UI work isn't blocked.
