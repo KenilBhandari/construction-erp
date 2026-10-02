@@ -665,82 +665,88 @@ export function AttendanceMuster({
   return (
     <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
       <Card className="overflow-hidden p-0">
-      <div className="flex items-center justify-between gap-2 p-3 sm:p-4">
-  <button
-    type="button"
-    onClick={() => setAttOpen((o) => !o)}
-    aria-expanded={attOpen}
-    aria-label={
-      attOpen
-        ? "Collapse attendance summary"
-        : "Expand attendance summary"
-    }
-    className="flex min-w-0 flex-1 items-center gap-2 text-left"
-  >
-    <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-text sm:text-base">
-      Attendance for
-    </h2>
-  </button>
+        <div
+        onClick={() => setAttOpen((o) => !o)}
+            aria-expanded={attOpen}
+            aria-label={
+              attOpen
+                ? "Collapse attendance summary"
+                : "Expand attendance summary"
+            } 
+        className="flex items-center justify-between gap-2 p-3 sm:p-4">
+          <button
+            type="button"
+            
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          >
+            <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-text sm:text-base">
+              Attendance for
+            </h2>
+          </button>
 
-  <DateField
-    aria-label="Select date"
-    value={date}
-    onChange={setDate}
-    allowClear={false}
-    className="h-9 w-[130px] shrink-0 text-sm sm:h-10 sm:w-48"
-  />
+        <div onClick={(e) => e.stopPropagation()}>
+    <DateField
+      aria-label="Select date"
+      value={date}
+      onChange={setDate}
+      allowClear={false}
+      className="h-9 w-[130px] shrink-0 text-sm sm:h-10 sm:w-48"
+    />
+  </div>
 
-  <ChevronDown
-    aria-hidden="true"
-    className={cn(
-      "h-4 w-4 shrink-0 text-text-muted transition-transform duration-150",
-      attOpen && "rotate-180",
-    )}
-  />
-</div>
+          <ChevronDown
+            aria-hidden="true"
+            className={cn(
+              "h-4 w-4 shrink-0 text-text-muted transition-transform duration-150",
+              attOpen && "rotate-180",
+            )}
+          />
+        </div>
 
         {attOpen && counters && (
           <div className="border-t border-border px-3 pb-3 pt-3 sm:px-4 sm:pb-4">
-          <dl className="grid grid-cols-3 gap-2 text-sm sm:grid-cols-6 sm:gap-4">
-            <div className="min-w-0 rounded-lg bg-background px-3 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
-              <dt className="text-xs text-nowrap truncate text-text-muted sm:text-sm">
-                Total Labour
-              </dt>
-              <dd className="mt-0.5 truncate text-[15px] font-semibold tnum sm:mt-1 sm:text-base">
-                {counters.total}
-              </dd>
-            </div>
-            <div className="min-w-0 rounded-lg bg-background px-3 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
-              <dt className="text-xs text-text-muted sm:text-sm">Marked</dt>
-              <dd className="mt-0.5 truncate text-[15px] font-semibold tnum sm:mt-1 sm:text-base">
-                {counters.marked}
-              </dd>
-            </div>
-            <div className="min-w-0 rounded-lg bg-background px-3 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
-              <dt className="text-xs text-text-muted sm:text-sm">Not Marked</dt>
-              <dd className="mt-0.5 truncate text-[15px] font-semibold tnum sm:mt-1 sm:text-base">
-                {counters.remaining}
-              </dd>
-            </div>
-            <div className="min-w-0 rounded-lg bg-background px-3 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
-              <dt className="text-xs text-text-muted sm:text-sm">Present</dt>
-              <dd className="mt-0.5 truncate text-[15px] font-semibold text-success tnum sm:mt-1 sm:text-base">
-                {counters.present}
-              </dd>
-            </div>
-            <div className="min-w-0 rounded-lg bg-background px-3 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
-              <dt className="text-xs text-text-muted sm:text-sm">Half Day</dt>
-              <dd className="mt-0.5 truncate text-[15px] font-semibold text-amber-600 tnum sm:mt-1 sm:text-base">
-                {counters.halfDay}
-              </dd>
-            </div>
-            <div className="min-w-0 rounded-lg bg-background px-3 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
-              <dt className="text-xs text-text-muted sm:text-sm">Absent</dt>
-              <dd className="mt-0.5 truncate text-[15px] font-semibold text-danger tnum sm:mt-1 sm:text-base">
-                {counters.absent}
-              </dd>
-            </div>
-          </dl>
+            <dl className="grid grid-cols-3 gap-2 text-sm sm:grid-cols-6 sm:gap-4">
+              <div className="min-w-0 rounded-lg bg-background px-3 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
+                <dt className="text-xs text-nowrap truncate text-text-muted sm:text-sm">
+                  Total Labour
+                </dt>
+                <dd className="mt-0.5 truncate text-[15px] font-semibold tnum sm:mt-1 sm:text-base">
+                  {counters.total}
+                </dd>
+              </div>
+              <div className="min-w-0 rounded-lg bg-background px-3 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
+                <dt className="text-xs text-text-muted sm:text-sm">Marked</dt>
+                <dd className="mt-0.5 truncate text-[15px] font-semibold tnum sm:mt-1 sm:text-base">
+                  {counters.marked}
+                </dd>
+              </div>
+              <div className="min-w-0 rounded-lg bg-background px-3 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
+                <dt className="text-xs text-text-muted sm:text-sm">
+                  Not Marked
+                </dt>
+                <dd className="mt-0.5 truncate text-[15px] font-semibold tnum sm:mt-1 sm:text-base">
+                  {counters.remaining}
+                </dd>
+              </div>
+              <div className="min-w-0 rounded-lg bg-background px-3 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
+                <dt className="text-xs text-text-muted sm:text-sm">Present</dt>
+                <dd className="mt-0.5 truncate text-[15px] font-semibold text-success tnum sm:mt-1 sm:text-base">
+                  {counters.present}
+                </dd>
+              </div>
+              <div className="min-w-0 rounded-lg bg-background px-3 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
+                <dt className="text-xs text-text-muted sm:text-sm">Half Day</dt>
+                <dd className="mt-0.5 truncate text-[15px] font-semibold text-amber-600 tnum sm:mt-1 sm:text-base">
+                  {counters.halfDay}
+                </dd>
+              </div>
+              <div className="min-w-0 rounded-lg bg-background px-3 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
+                <dt className="text-xs text-text-muted sm:text-sm">Absent</dt>
+                <dd className="mt-0.5 truncate text-[15px] font-semibold text-danger tnum sm:mt-1 sm:text-base">
+                  {counters.absent}
+                </dd>
+              </div>
+            </dl>
           </div>
         )}
       </Card>
@@ -813,7 +819,6 @@ export function AttendanceMuster({
             />
           </div>
         </div>
-
       </div>
 
       {/* Desktop: original row, selects swapped to ComboSelect popups. */}
@@ -971,7 +976,6 @@ export function AttendanceMuster({
           <p className="text-sm text-text-muted">
             No labour matches current filters.
           </p>
-        
         </Card>
       )}
 
@@ -1104,7 +1108,10 @@ export function AttendanceMuster({
                                   }
                                 }}
                                 autoOpen
-                                disabled={isSiteSaving || pendingAttendance.has(item.labour._id)}
+                                disabled={
+                                  isSiteSaving ||
+                                  pendingAttendance.has(item.labour._id)
+                                }
                                 className="w-full"
                                 triggerClassName="h-8 w-full px-2 text-sm"
                               />
@@ -1127,7 +1134,10 @@ export function AttendanceMuster({
                                 ) ?? "No site"
                               }
                               onClick={() => setEditingSiteId(att._id)}
-                              disabled={isSiteSaving || pendingAttendance.has(item.labour._id)}
+                              disabled={
+                                isSiteSaving ||
+                                pendingAttendance.has(item.labour._id)
+                              }
                               className="flex h-8 w-44 min-w-0 max-w-full items-center justify-between gap-2 rounded-md border border-border bg-surface px-2 text-left text-sm transition-colors hover:border-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 disabled:opacity-60"
                             >
                               <span

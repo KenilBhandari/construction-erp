@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { LogOut } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { signOutAction } from "./actions";
@@ -15,6 +16,29 @@ function initials(name?: string | null, email?: string | null) {
 export function Topbar() {
   const { data: session } = useSession();
   const user = session?.user;
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click / Escape (cards and modals in this app dismiss).
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    function onPointerDown(e: PointerEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setIsMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isMenuOpen]);
+
+  const firstName = user?.name?.trim().split(/\s+/)[0] || "Guest";
 
   return (
     <header className="glass-topbar sticky top-0 z-40">
@@ -24,31 +48,61 @@ export function Topbar() {
         </div>
 
         {user && (
-          <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
-            <div className="hidden text-right sm:block">
-              <p className="max-w-40 truncate text-sm font-medium text-text">
-                {user.name}
-              </p>
-              <p className="max-w-40 truncate text-xs text-text-muted">
-                {user.email}
-              </p>
-            </div>
-            <span
-              aria-hidden="true"
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-primary/20 bg-primary-light text-xs font-semibold text-primary"
-            >
-              {initials(user.name, user.email)}
-            </span>
-            <form action={signOutAction} className="flex">
+          <div className="flex shrink-0 items-center gap-4">
+            {/* User Account Section */}
+            <div className="relative" ref={menuRef}>
               <button
-                type="submit"
-                aria-label="Sign out"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-white/60 text-text outline-none transition-colors hover:bg-white focus-visible:ring-2 focus-visible:ring-primary/60 sm:h-auto sm:w-auto sm:px-3 sm:py-1.5 sm:text-sm"
+                type="button"
+                onClick={() => setIsMenuOpen((o) => !o)}
+                aria-haspopup="menu"
+                aria-expanded={isMenuOpen}
+                aria-label="Account menu"
+                className="flex items-center gap-3 rounded-full border border-border bg-surface py-1 pl-2.5 pr-1 transition-colors hover:bg-background"
               >
-                <LogOut className="h-4 w-4 sm:hidden" />
-                <span className="hidden sm:inline">Sign out</span>
+                <span className="text-right">
+                  <span className="block max-w-[90px] truncate whitespace-nowrap text-xs font-bold leading-none text-text sm:max-w-[120px]">
+                    Hi, {firstName}!
+                  </span>
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-primary/20 bg-primary-light text-xs font-semibold text-primary"
+                >
+                  {initials(user.name, user.email)}
+                </span>
               </button>
-            </form>
+
+              {isMenuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 z-[100] mt-2 w-56 divide-y divide-border rounded-lg border border-border bg-surface py-1 shadow-xl"
+                >
+                  <div className="px-4 py-3">
+                    <p className="text-xs font-medium text-text-muted">
+                      Signed in as
+                    </p>
+                    <p className="truncate text-sm font-bold text-text">
+                      {user.email || "user@example.com"}
+                    </p>
+                  </div>
+
+                  <div className="py-1">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        void signOutAction();
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-bold text-danger transition-colors hover:bg-danger/10"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sign out
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
