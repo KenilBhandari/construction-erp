@@ -18,6 +18,7 @@ import { Pencil, Search, Trash2, X } from "lucide-react";
 import type { OvertimeDTO } from "@/types/attendance";
 import type { SiteDTO } from "@/types/site";
 import type { LabourDTO } from "@/types/labour";
+import { useMarkDirtyFor, usePageOneList, useReferenceData } from "@/context/CacheContext";
 
 interface ListResponse {
   data: OvertimeDTO[];
@@ -53,8 +54,16 @@ export function OvertimeList({
   const [page, setPage] = useState(1);
   const [sortDir, setSortDir] = useState<DateSortDir>("desc");
   const [reloadKey, setReloadKey] = useState(0);
-  const [labour, setLabour] = useState<LabourDTO[]>([]);
-  const [allSites, setAllSites] = useState<SiteDTO[]>([]);
+  // Shared reference caches — no per-page labour/sites fetches.
+  const { items: labour } = useReferenceData<LabourDTO>("labour");
+  const { items: allSites } = useReferenceData<SiteDTO>("sites");
+  const markDirtyFor = useMarkDirtyFor();
+  // Page-1 default-view cache (default sort only). Filtered views fetch fresh.
+  const {
+    read: readOvertimePage,
+    write: writeOvertimePage,
+    isDirty: overtimePageDirty,
+  } = usePageOneList<ListResponse>("overtime");
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,21 +72,6 @@ export function OvertimeList({
   const [deleting, setDeleting] = useState<OvertimeDTO | null>(null);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/labour?limit=100&sort=name")
-      .then(async (r) => r.json())
-      .then((j) => {
-        if (Array.isArray(j.data)) setLabour(j.data);
-      })
-      .catch(() => {});
-    fetch("/api/sites?limit=100")
-      .then(async (r) => r.json())
-      .then((j) => {
-        if (Array.isArray(j.data)) setAllSites(j.data);
-      })
-      .catch(() => {});
-  }, []);
 
   // Controlled create signal from the page header. A boolean carries no
   // history, so remounts replay `false` (no-op) — nothing stale can reopen
@@ -91,6 +85,23 @@ export function OvertimeList({
   }, [createOpen]);
 
   useEffect(() => {
+    // Default view only; manual refresh (reloadKey) always refetches.
+    // A refresh fetch still rewrites the cache via isDefault below.
+    const isDefault =
+      !appliedQ && !siteId && !labourId && sortDir === "desc" && page === 1;
+    const useCache = isDefault && reloadKey === 0;
+    if (useCache) {
+      const hit = readOvertimePage();
+      if (hit) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setData(hit.data);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setError(null);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setLoading(false);
+        if (!hit.revalidate) return;
+      }
+    }
     const params = new URLSearchParams({ page: String(page), limit: "20" });
     if (appliedQ) params.set("q", appliedQ);
     if (siteId) params.set("site", siteId);
@@ -103,10 +114,13 @@ export function OvertimeList({
         if (!json || !Array.isArray(json.data)) throw new Error("Invalid overtime response.");
         setData(json);
         setError(null);
+        if (isDefault) writeOvertimePage(json);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [appliedQ, siteId, labourId, page, sortDir, reloadKey]);
+    // read/write are scope-bound helpers; isDirty re-runs after mutations.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedQ, siteId, labourId, page, sortDir, reloadKey, overtimePageDirty]);
 
   // Debounce worker search so typing doesn't spam the API (labour pattern).
   useEffect(() => {
@@ -160,6 +174,7 @@ export function OvertimeList({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Delete failed.");
       setDeleting(null);
+      markDirtyFor("overtime");
       refresh();
     } catch (err) {
       setDeleteError((err as Error).message);
@@ -420,6 +435,7 @@ export function OvertimeList({
           onSaved={() => {
             setFormOpen(false);
             onCreateOpenChange?.(false);
+            markDirtyFor("overtime");
             refresh();
           }}
         />

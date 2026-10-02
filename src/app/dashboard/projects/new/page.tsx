@@ -9,9 +9,11 @@ import {
   toProjectPayload,
   type ProjectFormValues,
 } from "@/components/projects/project-form";
+import { useMarkDirtyFor } from "@/context/CacheContext";
 
 export default function NewProjectPage() {
   const router = useRouter();
+  const markDirtyFor = useMarkDirtyFor();
   const [pending, setPending] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -26,6 +28,7 @@ export default function NewProjectPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to create project.");
+      markDirtyFor("projects");
       router.push(`/dashboard/projects/${json._id}`);
     } catch (err) {
       setServerError((err as Error).message);

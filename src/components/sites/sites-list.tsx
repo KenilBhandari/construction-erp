@@ -17,6 +17,7 @@ import { Modal } from "@/components/ui/modal";
 import type { SiteDTO } from "@/types/site";
 import { siteProjectName } from "@/types/site";
 import type { ProjectDTO } from "@/types/project";
+import { useMarkDirtyFor, usePageOneList, useReferenceData } from "@/context/CacheContext";
 import { Pencil, Search, Trash2, X } from "lucide-react";
 
 interface ListResponse {
@@ -34,7 +35,17 @@ export default function SitesList() {
   const [project, setProject] = useState("");
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
-  const [projects, setProjects] = useState<ProjectDTO[]>([]);
+  // Shared reference cache: projects dropdown served instantly from
+  // memory/localStorage, revalidated quietly. No per-page fetch.
+  const { items: projects } = useReferenceData<ProjectDTO>("projects");
+  const markDirtyFor = useMarkDirtyFor();
+  // Page-1 default-view cache: instant on repeat navigation, zero network
+  // while young. Filtered views and pages 2+ always fetch fresh.
+  const {
+    read: readSitesPage,
+    write: writeSitesPage,
+    isDirty: sitesPageDirty,
+  } = usePageOneList<ListResponse>("sites");
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,19 +54,28 @@ export default function SitesList() {
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch("/api/projects?limit=100")
-      .then((r) => r.json())
-      .then((json) => {
-        if (Array.isArray(json.data)) setProjects(json.data);
-      })
-      .catch(() => {});
-  }, []);
-
   // Fetch from the API when filters change. All state updates live in
   // the promise callbacks, keeping the effect body free of synchronous
-  // setState (per hooks lint). No data-fetching library, per README.
+  // setState (per hooks lint) except the cache paint below. No
+  // data-fetching library, per README.
   useEffect(() => {
+    // Default view only; manual refresh (reloadKey) always refetches so a
+    // mutation the user just made is never hidden behind cache. A refresh
+    // fetch still rewrites the cache via isDefault below.
+    const isDefault = !appliedQuery && !status && !project && page === 1;
+    const useCache = isDefault && reloadKey === 0;
+    if (useCache) {
+      const hit = readSitesPage();
+      if (hit) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setData(hit.data);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setError(null);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setLoading(false);
+        if (!hit.revalidate) return;
+      }
+    }
     const params = new URLSearchParams({ page: String(page), limit: "20" });
     if (appliedQuery) params.set("q", appliedQuery);
     if (status) params.set("status", status);
@@ -66,10 +86,13 @@ export default function SitesList() {
         if (!res.ok) throw new Error(json.error ?? "Failed to load sites.");
         setData(json);
         setError(null);
+        if (isDefault) writeSitesPage(json);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [appliedQuery, status, project, page, reloadKey]);
+    // read/write are scope-bound helpers; isDirty re-runs after mutations.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedQuery, status, project, page, reloadKey, sitesPageDirty]);
 
   function refresh() {
     setLoading(true);
@@ -105,6 +128,7 @@ export default function SitesList() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Delete failed.");
       closeDelete();
+      markDirtyFor("sites");
       refresh();
       return true;
     } catch (err) {

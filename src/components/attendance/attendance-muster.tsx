@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import type { AttendanceStatus } from "@/types/attendance";
 import type { SiteDTO } from "@/types/site";
 import { AttendanceOtModal } from "./attendance-ot-modal";
+import { useMarkDirtyFor } from "@/context/CacheContext";
 import {
   X,
   Check,
@@ -107,6 +108,7 @@ export function AttendanceMuster({
   onOtChange,
 }: { onOtChange?: () => void } = {}) {
   const router = useRouter();
+  const markDirtyFor = useMarkDirtyFor();
   const [date, setDate] = useState(() => toDateInputValue());
   const [attOpen, setAttOpen] = useState(true);
   const [search, setSearch] = useState("");
@@ -1849,6 +1851,7 @@ export function AttendanceMuster({
             setOtEditing(null);
           }}
           onSaved={() => {
+            markDirtyFor("overtime");
             fetchRoster();
             onOtChange?.();
           }}

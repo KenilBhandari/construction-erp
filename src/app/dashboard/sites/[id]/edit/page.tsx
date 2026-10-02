@@ -11,13 +11,15 @@ import {
   type SiteFormValues,
 } from "@/components/sites/site-form";
 import { isoToDateInput } from "@/components/projects/project-form";
+import { useMarkDirtyFor, useReferenceData } from "@/context/CacheContext";
 import type { SiteDTO } from "@/types/site";
 import { siteProjectId } from "@/types/site";
 
 export default function EditSitePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const [id, setId] = useState<string | null>(null);
-  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const { items: projects } = useReferenceData<ProjectOption>("projects");
+  const markDirtyFor = useMarkDirtyFor();
   const [initial, setInitial] = useState<SiteFormValues | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -32,14 +34,9 @@ export default function EditSitePage({ params }: { params: Promise<{ id: string 
     if (!id) return;
     async function load() {
       try {
-        const [siteRes, projRes] = await Promise.all([
-          fetch(`/api/sites/${id}`),
-          fetch("/api/projects?limit=100"),
-        ]);
+        const siteRes = await fetch(`/api/sites/${id}`);
         const siteJson = await siteRes.json();
         if (!siteRes.ok) throw new Error(siteJson.error ?? "Failed to load site.");
-        const projJson = await projRes.json();
-        if (projRes.ok && Array.isArray(projJson.data)) setProjects(projJson.data);
         const s = siteJson as SiteDTO;
         setInitial({
           name: s.name,
@@ -73,6 +70,7 @@ export default function EditSitePage({ params }: { params: Promise<{ id: string 
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to update site.");
+      markDirtyFor("sites");
       router.push(`/dashboard/sites/${id}`);
     } catch (err) {
       setServerError((err as Error).message);

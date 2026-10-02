@@ -17,6 +17,7 @@ import { formatINR } from "@/lib/utils";
 import type { LabourDTO } from "@/types/labour";
 import { labourSiteId, labourSiteName, SKILL_TYPES } from "@/types/labour";
 import type { SiteDTO } from "@/types/site";
+import { useMarkDirtyFor, usePageOneList, useReferenceData } from "@/context/CacheContext";
 import { Pencil, Search, UserPlus, X } from "lucide-react";
 
 interface ListResponse {
@@ -35,23 +36,41 @@ export default function LabourList() {
   const [status, setStatus] = useState("active");
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
-  const [sites, setSites] = useState<SiteDTO[]>([]);
+  // Shared reference cache — no per-page /api/sites fetch.
+  const { items: sites } = useReferenceData<SiteDTO>("sites");
+  const markDirtyFor = useMarkDirtyFor();
+  // Page-1 default-view cache. Default status is "active", so only that
+  // exact view is cached; any other filter/sort/page fetches fresh.
+  const {
+    read: readLabourPage,
+    write: writeLabourPage,
+    isDirty: labourPageDirty,
+  } = usePageOneList<ListResponse>("labour");
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<LabourDTO | null>(null);
 
-  useEffect(() => {
-    fetch("/api/sites?limit=100")
-      .then(async (res) => {
-        const json = await res.json();
-        if (res.ok && Array.isArray(json.data)) setSites(json.data);
-      })
-      .catch(() => {});
-  }, []);
-
   // Fetch when filters change; updates live in promise callbacks.
   useEffect(() => {
+    // Default view only ("active" is the default status); manual refresh
+    // (reloadKey) always refetches. A refresh fetch still rewrites the
+    // cache via isDefault below.
+    const isDefault =
+      !appliedQ && !skill && !site && status === "active" && page === 1;
+    const useCache = isDefault && reloadKey === 0;
+    if (useCache) {
+      const hit = readLabourPage();
+      if (hit) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setData(hit.data);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setError(null);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setLoading(false);
+        if (!hit.revalidate) return;
+      }
+    }
     const params = new URLSearchParams({ page: String(page), limit: "20" });
     if (appliedQ) params.set("q", appliedQ);
     if (skill) params.set("skill", skill);
@@ -63,10 +82,13 @@ export default function LabourList() {
         if (!res.ok) throw new Error(json.error ?? "Failed to load labour.");
         setData(json);
         setError(null);
+        if (isDefault) writeLabourPage(json);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [appliedQ, skill, site, status, page, reloadKey]);
+    // read/write are scope-bound helpers; isDirty re-runs after mutations.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedQ, skill, site, status, page, reloadKey, labourPageDirty]);
 
   function refresh() {
     setLoading(true);
@@ -357,7 +379,10 @@ export default function LabourList() {
           currentSiteId={labourSiteId(assigning)}
           open
           onClose={() => setAssigning(null)}
-          onAssigned={refresh}
+          onAssigned={() => {
+            markDirtyFor("assignments");
+            refresh();
+          }}
         />
       )}
     </div>

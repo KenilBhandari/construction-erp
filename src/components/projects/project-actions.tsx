@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/modal";
+import { useMarkDirtyFor } from "@/context/CacheContext";
 import { useProject } from "@/context/ProjectContext";
 
 export function ProjectActions({
@@ -15,6 +16,7 @@ export function ProjectActions({
   projectName: string;
 }) {
   const router = useRouter();
+  const markDirtyFor = useMarkDirtyFor();
   // const { selectedProjectId, setSelectedProjectId } = useProject();
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
@@ -29,6 +31,7 @@ export function ProjectActions({
       const res = await fetch(`/api/projects/${projectId}`, { method: "DELETE" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Delete failed.");
+      markDirtyFor("projects");
       router.push("/dashboard/projects");
     } catch (err) {
       setError((err as Error).message);

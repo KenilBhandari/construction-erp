@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal, ConfirmDialog } from "@/components/ui/modal";
 import { AssignSiteDialog } from "@/components/labour/assign-dialog";
+import { useMarkDirtyFor } from "@/context/CacheContext";
 
 export function LabourActions({
   labourId,
@@ -20,6 +21,7 @@ export function LabourActions({
   currentSiteId: string | null;
 }) {
   const router = useRouter();
+  const markDirtyFor = useMarkDirtyFor();
   const [assignOpen, setAssignOpen] = useState(false);
   const [confirming, setConfirming] = useState<"toggle" | "delete" | null>(null);
   const [pending, setPending] = useState(false);
@@ -38,6 +40,7 @@ export function LabourActions({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Update failed.");
       setConfirming(null);
+      markDirtyFor("labour");
       router.refresh();
     } catch (err) {
       setError((err as Error).message);
@@ -53,6 +56,7 @@ export function LabourActions({
       const res = await fetch(`/api/labour/${labourId}`, { method: "DELETE" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Delete failed.");
+      markDirtyFor("labour");
       router.push("/dashboard/labour");
     } catch (err) {
       setError((err as Error).message);
@@ -91,7 +95,10 @@ export function LabourActions({
           currentSiteId={currentSiteId}
           open
           onClose={() => setAssignOpen(false)}
-          onAssigned={() => router.refresh()}
+          onAssigned={() => {
+            markDirtyFor("assignments");
+            router.refresh();
+          }}
         />
       )}
 

@@ -21,6 +21,7 @@ import { formatDateShort, formatINR, toDateInputValue } from "@/lib/utils";
 import type { ClientPaymentDTO } from "@/types/finance";
 import { PAYMENT_METHODS } from "@/types/finance";
 import type { ProjectDTO } from "@/types/project";
+import { useMarkDirtyFor, usePageOneList, useReferenceData } from "@/context/CacheContext";
 
 interface ListResponse {
   data: ClientPaymentDTO[];
@@ -44,7 +45,15 @@ export function PaymentsList() {
   const [page, setPage] = useState(1);
   const [sortDir, setSortDir] = useState<DateSortDir>("desc");
   const [reloadKey, setReloadKey] = useState(0);
-  const [projects, setProjects] = useState<ProjectDTO[]>([]);
+  // Shared reference cache — no per-page /api/projects fetch.
+  const { items: projects } = useReferenceData<ProjectDTO>("projects");
+  const markDirtyFor = useMarkDirtyFor();
+  // Page-1 default-view cache (default sort only). Filtered views fetch fresh.
+  const {
+    read: readPaymentsPage,
+    write: writePaymentsPage,
+    isDirty: paymentsPageDirty,
+  } = usePageOneList<ListResponse>("payments");
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,15 +65,22 @@ export function PaymentsList() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/projects?limit=100")
-      .then(async (r) => r.json())
-      .then((j) => {
-        if (Array.isArray(j.data)) setProjects(j.data);
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
+    // Default view only; manual refresh (reloadKey) always refetches.
+    // A refresh fetch still rewrites the cache via isDefault below.
+    const isDefault = !projectId && !method && sortDir === "desc" && page === 1;
+    const useCache = isDefault && reloadKey === 0;
+    if (useCache) {
+      const hit = readPaymentsPage();
+      if (hit) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setData(hit.data);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setError(null);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setLoading(false);
+        if (!hit.revalidate) return;
+      }
+    }
     const params = new URLSearchParams({ page: String(page), limit: "20" });
     if (projectId) params.set("project", projectId);
     if (method) params.set("method", method);
@@ -75,10 +91,13 @@ export function PaymentsList() {
         if (!res.ok) throw new Error(json.error ?? "Failed to load payments.");
         setData(json);
         setError(null);
+        if (isDefault) writePaymentsPage(json);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [projectId, method, page, sortDir, reloadKey]);
+    // read/write are scope-bound helpers; isDirty re-runs after mutations.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, method, page, sortDir, reloadKey, paymentsPageDirty]);
 
   function toggleSortDir() {
     setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -103,6 +122,7 @@ export function PaymentsList() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Delete failed.");
       setDeleting(null);
+      markDirtyFor("payments");
       refresh();
     } catch (err) {
       setDeleteError((err as Error).message);
@@ -338,6 +358,7 @@ export function PaymentsList() {
           onClose={() => setFormOpen(false)}
           onSaved={() => {
             setFormOpen(false);
+            markDirtyFor("payments");
             refresh();
           }}
         />

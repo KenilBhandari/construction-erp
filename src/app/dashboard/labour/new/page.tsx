@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import {
@@ -11,23 +11,16 @@ import {
   type LabourFormValues,
   type SiteOption,
 } from "@/components/labour/labour-form";
+import { useMarkDirtyFor, useReferenceData } from "@/context/CacheContext";
 
 export default function NewLabourPage() {
   const router = useRouter();
-  const [sites, setSites] = useState<SiteOption[]>([]);
-  const [loadingSites, setLoadingSites] = useState(true);
+  // Shared reference cache — no dedicated /api/sites fetch.
+  const { items: sites, loading: loadingSites } =
+    useReferenceData<SiteOption>("sites");
+  const markDirtyFor = useMarkDirtyFor();
   const [pending, setPending] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/sites?limit=100")
-      .then(async (res) => {
-        const json = await res.json();
-        if (res.ok && Array.isArray(json.data)) setSites(json.data);
-      })
-      .catch(() => {})
-      .finally(() => setLoadingSites(false));
-  }, []);
 
   async function handleSubmit(values: LabourFormValues) {
     setPending(true);
@@ -40,6 +33,7 @@ export default function NewLabourPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to register labour.");
+      markDirtyFor("labour");
       router.push(`/dashboard/labour/${json._id}`);
     } catch (err) {
       setServerError((err as Error).message);

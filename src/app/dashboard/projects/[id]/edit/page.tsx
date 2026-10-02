@@ -11,9 +11,11 @@ import {
   type ProjectFormValues,
 } from "@/components/projects/project-form";
 import type { ProjectDTO } from "@/types/project";
+import { useMarkDirtyFor } from "@/context/CacheContext";
 
 export default function EditProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
+  const markDirtyFor = useMarkDirtyFor();
   const [id, setId] = useState<string | null>(null);
   const [initial, setInitial] = useState<ProjectFormValues | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,6 +69,7 @@ export default function EditProjectPage({ params }: { params: Promise<{ id: stri
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to update project.");
+      markDirtyFor("projects");
       router.push(`/dashboard/projects/${id}`);
     } catch (err) {
       setServerError((err as Error).message);

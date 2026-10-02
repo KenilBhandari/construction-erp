@@ -10,10 +10,12 @@ import {
   type LabourFormValues,
 } from "@/components/labour/labour-form";
 import { isoToDateInput } from "@/components/projects/project-form";
+import { useMarkDirtyFor } from "@/context/CacheContext";
 import type { LabourDTO } from "@/types/labour";
 
 export default function EditLabourPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
+  const markDirtyFor = useMarkDirtyFor();
   const [id, setId] = useState<string | null>(null);
   const [initial, setInitial] = useState<LabourFormValues | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,6 +63,7 @@ export default function EditLabourPage({ params }: { params: Promise<{ id: strin
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to update labour.");
+      markDirtyFor("labour");
       router.push(`/dashboard/labour/${id}`);
     } catch (err) {
       setServerError((err as Error).message);

@@ -16,6 +16,7 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { Modal } from "@/components/ui/modal";
 import { formatINR, formatCompactINR } from "@/lib/utils";
 import type { ProjectDTO } from "@/types/project";
+import { useMarkDirtyFor, usePageOneList } from "@/context/CacheContext";
 import { statusLabel, statusTone } from "./project-status";
 import { Pencil, Trash2, Search, X } from "lucide-react";
 
@@ -33,6 +34,14 @@ export default function ProjectsList() {
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
+  const markDirtyFor = useMarkDirtyFor();
+  // Page-1 default-view cache: instant on repeat navigation, zero network
+  // while young. Filtered views and pages 2+ always fetch fresh.
+  const {
+    read: readProjectsPage,
+    write: writeProjectsPage,
+    isDirty: projectsPageDirty,
+  } = usePageOneList<ListResponse>("projects");
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,8 +52,25 @@ export default function ProjectsList() {
 
   // Fetch from the API when filters change. All state updates live in
   // the promise callbacks, keeping the effect body free of synchronous
-  // setState (per hooks lint). No data-fetching library, per README.
+  // setState (per hooks lint) except the cache paint below. No data-fetching library, per README.
   useEffect(() => {
+    // Default view only; manual refresh (reloadKey) always refetches so a
+    // mutation the user just made is never hidden behind cache. A refresh
+    // fetch still rewrites the cache via isDefault below.
+    const isDefault = !appliedQ && !status && page === 1;
+    const useCache = isDefault && reloadKey === 0;
+    if (useCache) {
+      const hit = readProjectsPage();
+      if (hit) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setData(hit.data);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setError(null);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setLoading(false);
+        if (!hit.revalidate) return;
+      }
+    }
     const params = new URLSearchParams({
       page: String(page),
       limit: "20",
@@ -57,10 +83,13 @@ export default function ProjectsList() {
         if (!res.ok) throw new Error(json.error ?? "Failed to load projects.");
         setData(json);
         setError(null);
+        if (isDefault) writeProjectsPage(json);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [appliedQ, status, page, reloadKey]);
+    // read/write are scope-bound helpers; isDirty re-runs after mutations.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedQ, status, page, reloadKey, projectsPageDirty]);
 
   function refresh() {
     setLoading(true);
@@ -92,6 +121,7 @@ export default function ProjectsList() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Delete failed.");
       closeDelete();
+      markDirtyFor("projects");
       refresh();
     } catch (err) {
       setDeleteError((err as Error).message);

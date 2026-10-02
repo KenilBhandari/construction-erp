@@ -13,6 +13,7 @@ import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { Modal, ConfirmDialog } from "@/components/ui/modal";
 import { cn, formatINR } from "@/lib/utils";
+import { useMarkDirtyFor, usePageOneList } from "@/context/CacheContext";
 import { Check, Pencil, Search, Trash2, X } from "lucide-react";
 import type { MaterialDTO } from "@/types/inventory";
 import { isLowStock, MATERIAL_CATEGORIES, STOCK_UNITS } from "@/types/inventory";
@@ -41,8 +42,31 @@ export function MaterialsList() {
   const [detail, setDetail] = useState<MaterialDTO | null>(null);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const markDirtyFor = useMarkDirtyFor();
+  // Page-1 default-view cache (sort is always name). Filtered views fetch fresh.
+  const {
+    read: readMaterialsPage,
+    write: writeMaterialsPage,
+    isDirty: materialsPageDirty,
+  } = usePageOneList<ListResponse>("materials");
 
   useEffect(() => {
+    // Default view only; manual refresh (reloadKey) always refetches.
+    // A refresh fetch still rewrites the cache via isDefault below.
+    const isDefault = !appliedQ && !category && !lowOnly && page === 1;
+    const useCache = isDefault && reloadKey === 0;
+    if (useCache) {
+      const hit = readMaterialsPage();
+      if (hit) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setData(hit.data);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setError(null);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setLoading(false);
+        if (!hit.revalidate) return;
+      }
+    }
     const params = new URLSearchParams({ page: String(page), limit: "20", sort: "name" });
     if (appliedQ) params.set("q", appliedQ);
     if (category) params.set("category", category);
@@ -53,10 +77,13 @@ export function MaterialsList() {
         if (!res.ok) throw new Error(json.error ?? "Failed to load materials.");
         setData(json);
         setError(null);
+        if (isDefault) writeMaterialsPage(json);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [appliedQ, category, lowOnly, page, reloadKey]);
+    // read/write are scope-bound helpers; isDirty re-runs after mutations.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedQ, category, lowOnly, page, reloadKey, materialsPageDirty]);
 
   function refresh() {
     setLoading(true);
@@ -80,6 +107,7 @@ export function MaterialsList() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Delete failed.");
       setDeleting(null);
+      markDirtyFor("materials");
       refresh();
     } catch (err) {
       setDeleteError((err as Error).message);
@@ -393,6 +421,7 @@ export function MaterialsList() {
           onClose={() => setFormOpen(false)}
           onSaved={() => {
             setFormOpen(false);
+            markDirtyFor("materials");
             refresh();
           }}
         />

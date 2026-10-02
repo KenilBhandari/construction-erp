@@ -21,6 +21,8 @@ import { Check, ChevronDown, Pencil, Trash2 } from "lucide-react";
 import type { MaterialDTO, StockTransactionDTO, TransactionType } from "@/types/inventory";
 import { transactionMaterialName } from "@/types/inventory";
 import type { SiteDTO } from "@/types/site";
+import { useMarkDirtyFor, usePageOneList, useReferenceData } from "@/context/CacheContext";
+import type { ListScope } from "@/lib/list-cache";
 
 interface ListResponse {
   data: StockTransactionDTO[];
@@ -97,8 +99,6 @@ export function TransactionsList({
   const [page, setPage] = useState(1);
   const [sortDir, setSortDir] = useState<DateSortDir>("desc");
   const [reloadKey, setReloadKey] = useState(0);
-  const [materials, setMaterials] = useState<MaterialDTO[]>([]);
-  const [sites, setSites] = useState<SiteDTO[]>([]);
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -108,27 +108,40 @@ export function TransactionsList({
   const [detail, setDetail] = useState<StockTransactionDTO | null>(null);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/materials?limit=100&sort=name")
-      .then(async (r) => r.json())
-      .then((j) => {
-        if (Array.isArray(j.data)) setMaterials(j.data);
-      })
-      .catch(() => {});
-    fetch("/api/sites?limit=100")
-      .then(async (r) => r.json())
-      .then((j) => {
-        if (Array.isArray(j.data)) setSites(j.data);
-      })
-      .catch(() => {});
-  }, []);
+  // Shared reference caches — no per-page /api/materials or /api/sites fetch.
+  const { items: materials } = useReferenceData<MaterialDTO>("materials");
+  const { items: sites } = useReferenceData<SiteDTO>("sites");
+  const markDirtyFor = useMarkDirtyFor();
+  // Purchases and stock-usage pages cache separately (different type sets).
+  const listScope: ListScope = types.includes("purchase") ? "purchases" : "stock";
+  const {
+    read: readTxnsPage,
+    write: writeTxnsPage,
+    isDirty: txnsPageDirty,
+  } = usePageOneList<ListResponse>(listScope);
 
   // Stable string — the `types` prop is an inline array literal.
   const typeParam = type || types.join(",");
   const sortParam = dateSortParam(sortDir);
 
   useEffect(() => {
+    // Default view only (default type set + sort); manual refresh bypasses.
+    // A refresh fetch still rewrites the cache via isDefault below.
+    const isDefault =
+      !materialId && !siteId && !type && sortDir === "desc" && page === 1;
+    const useCache = isDefault && reloadKey === 0;
+    if (useCache) {
+      const hit = readTxnsPage();
+      if (hit) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setData(hit.data);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setError(null);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setLoading(false);
+        if (!hit.revalidate) return;
+      }
+    }
     const params = new URLSearchParams({
       page: String(page),
       limit: "20",
@@ -143,10 +156,13 @@ export function TransactionsList({
         if (!res.ok) throw new Error(json.error ?? "Failed to load transactions.");
         setData(json);
         setError(null);
+        if (isDefault) writeTxnsPage(json);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [materialId, siteId, typeParam, sortParam, page, reloadKey]);
+    // read/write are scope-bound helpers; isDirty re-runs after mutations.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [materialId, siteId, typeParam, sortParam, page, reloadKey, txnsPageDirty]);
 
   function toggleSortDir() {
     setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -171,6 +187,7 @@ export function TransactionsList({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Delete failed.");
       setDeleting(null);
+      markDirtyFor("stock");
       refresh();
     } catch (err) {
       setDeleteError((err as Error).message);
@@ -481,6 +498,7 @@ export function TransactionsList({
           onClose={() => setFormOpen(false)}
           onSaved={() => {
             setFormOpen(false);
+            markDirtyFor("stock");
             refresh();
           }}
         />
