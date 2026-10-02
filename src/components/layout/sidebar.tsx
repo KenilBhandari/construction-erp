@@ -4,14 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
-  Boxes,
   Building2,
+  CirclePile,
   ClipboardCheck,
   CreditCard,
   LayoutDashboard,
   MapPin,
   Package,
-  Receipt,
+  ReceiptIndianRupee,
   ShoppingCart,
   Users,
   Wallet,
@@ -49,7 +49,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Inventory",
     items: [
-      { href: "/dashboard/materials", label: "Materials", icon: Boxes },
+      { href: "/dashboard/materials", label: "Materials", icon: CirclePile },
       { href: "/dashboard/stock", label: "Stock", icon: Package },
       { href: "/dashboard/purchases", label: "Purchases", icon: ShoppingCart },
     ],
@@ -57,7 +57,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Finance",
     items: [
-      { href: "/dashboard/expenses", label: "Expenses", icon: Receipt },
+      { href: "/dashboard/expenses", label: "Expenses", icon: ReceiptIndianRupee },
       { href: "/dashboard/payments", label: "Client Payments", icon: CreditCard },
       { href: "/dashboard/reports", label: "Reports", icon: BarChart3 },
     ],

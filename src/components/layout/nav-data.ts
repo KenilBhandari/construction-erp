@@ -1,6 +1,6 @@
 import {
   BarChart3,
-  Boxes,
+  CirclePile,
   ClipboardCheck,
   CreditCard,
   FolderKanban,
@@ -8,7 +8,7 @@ import {
   Landmark,
   MapPin,
   Package,
-  Receipt,
+  ReceiptIndianRupee,
   ShoppingCart,
   UsersRound,
   Wallet,
@@ -63,9 +63,9 @@ export const NAV_AREAS: NavArea[] = [
   {
     label: "Inventory",
     href: "/dashboard/materials",
-    icon: Boxes,
+    icon: CirclePile,
     children: [
-      { href: "/dashboard/materials", label: "Materials", icon: Boxes },
+      { href: "/dashboard/materials", label: "Materials", icon: CirclePile },
       { href: "/dashboard/stock", label: "Stock", icon: Package },
       { href: "/dashboard/purchases", label: "Purchases", icon: ShoppingCart },
     ],
@@ -75,7 +75,7 @@ export const NAV_AREAS: NavArea[] = [
     href: "/dashboard/expenses",
     icon: Landmark,
     children: [
-      { href: "/dashboard/expenses", label: "Expenses", icon: Receipt },
+      { href: "/dashboard/expenses", label: "Expenses", icon: ReceiptIndianRupee },
       { href: "/dashboard/payments", label: "Client Payments", icon: CreditCard },
       { href: "/dashboard/reports", label: "Reports", icon: BarChart3 },
     ],
