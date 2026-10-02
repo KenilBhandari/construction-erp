@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { Modal, ConfirmDialog } from "@/components/ui/modal";
+import { DateSortToggle, dateSortParam } from "@/components/ui/date-sort-toggle";
+import type { DateSortDir } from "@/components/ui/date-sort-toggle";
 import { formatDateShort, formatINR, toDateInputValue } from "@/lib/utils";
 import { Check, ChevronDown, Pencil, Trash2 } from "lucide-react";
 import type { MaterialDTO, StockTransactionDTO, TransactionType } from "@/types/inventory";
@@ -93,6 +95,7 @@ export function TransactionsList({
   const [siteId, setSiteId] = useState("");
   const [type, setType] = useState("");
   const [page, setPage] = useState(1);
+  const [sortDir, setSortDir] = useState<DateSortDir>("desc");
   const [reloadKey, setReloadKey] = useState(0);
   const [materials, setMaterials] = useState<MaterialDTO[]>([]);
   const [sites, setSites] = useState<SiteDTO[]>([]);
@@ -123,6 +126,7 @@ export function TransactionsList({
 
   // Stable string — the `types` prop is an inline array literal.
   const typeParam = type || types.join(",");
+  const sortParam = dateSortParam(sortDir);
 
   useEffect(() => {
     const params = new URLSearchParams({
@@ -132,6 +136,7 @@ export function TransactionsList({
     });
     if (materialId) params.set("material", materialId);
     if (siteId) params.set("site", siteId);
+    params.set("sort", sortParam);
     fetch(`/api/stock?${params}`)
       .then(async (res) => {
         const json = await res.json();
@@ -141,7 +146,12 @@ export function TransactionsList({
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [materialId, siteId, typeParam, page, reloadKey]);
+  }, [materialId, siteId, typeParam, sortParam, page, reloadKey]);
+
+  function toggleSortDir() {
+    setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    resetPage();
+  }
 
   function refresh() {
     setLoading(true);
@@ -327,6 +337,10 @@ export function TransactionsList({
 
       {!loading && !error && data && data.data.length > 0 && (
         <>
+          {/* Phone sort bar — right-aligned pill below filters, cards untouched. */}
+          <div className="-my-1 flex justify-end sm:hidden">
+            <DateSortToggle dir={sortDir} onToggle={toggleSortDir} variant="pill" />
+          </div>
           {/* Phone cards — desktop table below stays untouched. */}
           <ul className="flex flex-col gap-2 sm:hidden">
             {data.data.map((t) => {
@@ -382,7 +396,7 @@ export function TransactionsList({
           <Table>
             <THead>
               <TR>
-                <TH>Date</TH>
+                <TH><DateSortToggle dir={sortDir} onToggle={toggleSortDir} /></TH>
                 <TH>Material</TH>
                 {showTypeColumn && <TH>Type</TH>}
                 <TH>Site</TH>

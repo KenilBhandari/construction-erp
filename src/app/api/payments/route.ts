@@ -23,6 +23,11 @@ export async function GET(req: Request) {
     const method = url.searchParams.get("method")?.trim() ?? "";
     const from = url.searchParams.get("from")?.trim() ?? "";
     const to = url.searchParams.get("to")?.trim() ?? "";
+    const sort = url.searchParams.get("sort")?.trim() ?? "";
+    const sortSpec =
+      sort === "date-asc"
+        ? { date: 1 as const, createdAt: 1 as const }
+        : { date: -1 as const, createdAt: -1 as const };
 
     const filter: Record<string, unknown> = {};
     if (project) {
@@ -41,7 +46,7 @@ export async function GET(req: Request) {
     const [data, total, totals] = await Promise.all([
       ClientPayment.find(filter)
         .populate("project", "name clientName")
-        .sort({ date: -1, createdAt: -1 })
+        .sort(sortSpec)
         .skip((page - 1) * limit)
         .limit(limit)
         .lean(),

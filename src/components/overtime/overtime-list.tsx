@@ -10,6 +10,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/ui/modal";
+import { DateSortToggle, dateSortParam } from "@/components/ui/date-sort-toggle";
+import type { DateSortDir } from "@/components/ui/date-sort-toggle";
 import { AttendanceOtModal } from "@/components/attendance/attendance-ot-modal";
 import { formatDateShort, formatINR, toDateInputValue } from "@/lib/utils";
 import { Pencil, Search, Trash2, X } from "lucide-react";
@@ -49,6 +51,7 @@ export function OvertimeList({
   const [siteId, setSiteId] = useState("");
   const [labourId, setLabourId] = useState("");
   const [page, setPage] = useState(1);
+  const [sortDir, setSortDir] = useState<DateSortDir>("desc");
   const [reloadKey, setReloadKey] = useState(0);
   const [labour, setLabour] = useState<LabourDTO[]>([]);
   const [allSites, setAllSites] = useState<SiteDTO[]>([]);
@@ -92,6 +95,7 @@ export function OvertimeList({
     if (appliedQ) params.set("q", appliedQ);
     if (siteId) params.set("site", siteId);
     if (labourId) params.set("labour", labourId);
+    params.set("sort", dateSortParam(sortDir));
     fetch(`/api/overtime?${params}`)
       .then(async (res) => {
         const json = await res.json();
@@ -102,7 +106,7 @@ export function OvertimeList({
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [appliedQ, siteId, labourId, page, reloadKey]);
+  }, [appliedQ, siteId, labourId, page, sortDir, reloadKey]);
 
   // Debounce worker search so typing doesn't spam the API (labour pattern).
   useEffect(() => {
@@ -120,6 +124,11 @@ export function OvertimeList({
 
   function resetPage() {
     setPage(1);
+  }
+
+  function toggleSortDir() {
+    setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    resetPage();
   }
 
   function clearFilters() {
@@ -273,6 +282,10 @@ export function OvertimeList({
 
       {!loading && !error && data && data.data.length > 0 && (
         <>
+          {/* Phone sort bar — right-aligned pill below filters, cards untouched. */}
+          <div className="-my-1 flex justify-end sm:hidden">
+            <DateSortToggle dir={sortDir} onToggle={toggleSortDir} variant="pill" />
+          </div>
           {/* Phone cards flow with the page — no fixed inner height. */}
           <ul className="flex flex-col gap-2 sm:hidden">
             {data.data.map((o) => (
@@ -326,7 +339,7 @@ export function OvertimeList({
           <Table>
             <THead>
               <TR>
-                <TH>Date</TH>
+                <TH><DateSortToggle dir={sortDir} onToggle={toggleSortDir} /></TH>
                 <TH>Worker</TH>
                 <TH>Site</TH>
                 <TH numeric>Hours</TH>

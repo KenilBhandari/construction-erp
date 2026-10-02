@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { Modal, ConfirmDialog } from "@/components/ui/modal";
+import { DateSortToggle, dateSortParam } from "@/components/ui/date-sort-toggle";
+import type { DateSortDir } from "@/components/ui/date-sort-toggle";
 import { formatDateShort, formatINR, toDateInputValue } from "@/lib/utils";
 import type { ExpenseDTO } from "@/types/finance";
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS } from "@/types/finance";
@@ -36,6 +38,7 @@ export function ExpensesList() {
   const [siteId, setSiteId] = useState("");
   const [category, setCategory] = useState("");
   const [page, setPage] = useState(1);
+  const [sortDir, setSortDir] = useState<DateSortDir>("desc");
   const [reloadKey, setReloadKey] = useState(0);
   const [sites, setSites] = useState<SiteDTO[]>([]);
   const [data, setData] = useState<ListResponse | null>(null);
@@ -61,6 +64,7 @@ export function ExpensesList() {
     const params = new URLSearchParams({ page: String(page), limit: "20" });
     if (siteId) params.set("site", siteId);
     if (category) params.set("category", category);
+    params.set("sort", dateSortParam(sortDir));
     fetch(`/api/expenses?${params}`)
       .then(async (res) => {
         const json = await res.json();
@@ -70,7 +74,12 @@ export function ExpensesList() {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [siteId, category, page, reloadKey]);
+  }, [siteId, category, page, sortDir, reloadKey]);
+
+  function toggleSortDir() {
+    setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    resetPage();
+  }
 
   function refresh() {
     setLoading(true);
@@ -196,6 +205,10 @@ export function ExpensesList() {
 
       {!loading && !error && data && data.data.length > 0 && (
         <>
+          {/* Phone sort bar — right-aligned pill below filters, cards untouched. */}
+          <div className="-my-1 flex justify-end sm:hidden">
+            <DateSortToggle dir={sortDir} onToggle={toggleSortDir} variant="pill" />
+          </div>
           {/* Phone cards — desktop table below stays untouched. */}
           <ul className="flex flex-col gap-2 sm:hidden">
             {data.data.map((e) => {
@@ -250,7 +263,7 @@ export function ExpensesList() {
             <Table>
               <THead>
                 <TR>
-                  <TH>Date</TH>
+                  <TH><DateSortToggle dir={sortDir} onToggle={toggleSortDir} /></TH>
                   <TH>Description</TH>
                   <TH>Site</TH>
                   <TH>Category</TH>

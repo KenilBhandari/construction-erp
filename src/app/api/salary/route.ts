@@ -24,6 +24,14 @@ export async function GET(req: Request) {
     const status = url.searchParams.get("status")?.trim() ?? "";
     const from = url.searchParams.get("from")?.trim() ?? "";
     const to = url.searchParams.get("to")?.trim() ?? "";
+    const sort = url.searchParams.get("sort")?.trim() ?? "";
+    // Date toggle sorts by period start; default keeps legacy periodEnd desc.
+    const sortSpec: Record<string, 1 | -1> =
+      sort === "start-asc"
+        ? { periodStart: 1, periodEnd: 1 }
+        : sort === "start-desc"
+          ? { periodStart: -1, periodEnd: -1 }
+          : { periodEnd: -1 };
 
     const filter: Record<string, unknown> = {};
     if (labour) {
@@ -72,7 +80,7 @@ export async function GET(req: Request) {
         .populate({ path: "project", select: "name", strictPopulate: false })
         .populate({ path: "earningsBreakdown.site", select: "name", strictPopulate: false })
         .populate({ path: "earningsBreakdown.project", select: "name", strictPopulate: false })
-        .sort({ periodEnd: -1 })
+        .sort(sortSpec)
         .skip((page - 1) * limit)
         .limit(limit)
         .lean(),

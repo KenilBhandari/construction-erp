@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { Modal, ConfirmDialog } from "@/components/ui/modal";
+import { DateSortToggle, dateSortParam } from "@/components/ui/date-sort-toggle";
+import type { DateSortDir } from "@/components/ui/date-sort-toggle";
 import { formatDateShort, formatINR, toDateInputValue } from "@/lib/utils";
 import type { ClientPaymentDTO } from "@/types/finance";
 import { PAYMENT_METHODS } from "@/types/finance";
@@ -40,6 +42,7 @@ export function PaymentsList() {
   const [projectId, setProjectId] = useState("");
   const [method, setMethod] = useState("");
   const [page, setPage] = useState(1);
+  const [sortDir, setSortDir] = useState<DateSortDir>("desc");
   const [reloadKey, setReloadKey] = useState(0);
   const [projects, setProjects] = useState<ProjectDTO[]>([]);
   const [data, setData] = useState<ListResponse | null>(null);
@@ -65,6 +68,7 @@ export function PaymentsList() {
     const params = new URLSearchParams({ page: String(page), limit: "20" });
     if (projectId) params.set("project", projectId);
     if (method) params.set("method", method);
+    params.set("sort", dateSortParam(sortDir));
     fetch(`/api/payments?${params}`)
       .then(async (res) => {
         const json = await res.json();
@@ -74,7 +78,12 @@ export function PaymentsList() {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [projectId, method, page, reloadKey]);
+  }, [projectId, method, page, sortDir, reloadKey]);
+
+  function toggleSortDir() {
+    setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    resetPage();
+  }
 
   function refresh() {
     setLoading(true);
@@ -200,6 +209,10 @@ export function PaymentsList() {
 
       {!loading && !error && data && data.data.length > 0 && (
         <>
+          {/* Phone sort bar — right-aligned pill below filters, cards untouched. */}
+          <div className="-my-1 flex justify-end sm:hidden">
+            <DateSortToggle dir={sortDir} onToggle={toggleSortDir} variant="pill" />
+          </div>
           {/* Phone cards — desktop table below stays untouched. */}
           <ul className="flex flex-col gap-2 sm:hidden">
             {data.data.map((p) => {
@@ -254,7 +267,7 @@ export function PaymentsList() {
             <Table>
               <THead>
                 <TR>
-                  <TH>Date</TH>
+                  <TH><DateSortToggle dir={sortDir} onToggle={toggleSortDir} /></TH>
                   <TH>Project / Client</TH>
                   <TH>Method</TH>
                   <TH numeric>Amount</TH>

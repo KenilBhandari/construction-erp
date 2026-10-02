@@ -24,6 +24,8 @@ export async function GET(req: Request) {
     const site = url.searchParams.get("site")?.trim() ?? "";
     const from = url.searchParams.get("from")?.trim() ?? "";
     const to = url.searchParams.get("to")?.trim() ?? "";
+    const sort = url.searchParams.get("sort")?.trim() ?? "";
+    const sortSpec = sort === "date-asc" ? { date: 1 as const } : { date: -1 as const };
 
     const filter: Record<string, unknown> = {};
     if (labour) {
@@ -65,7 +67,7 @@ export async function GET(req: Request) {
         .populate("labour", "name")
         .populate({ path: "site", select: "name", strictPopulate: false })
         .populate({ path: "project", select: "name", strictPopulate: false })
-        .sort({ date: -1 })
+        .sort(sortSpec)
         .skip((page - 1) * limit)
         .limit(limit)
         .lean(),

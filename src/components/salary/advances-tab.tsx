@@ -13,6 +13,8 @@ import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { Modal, ConfirmDialog } from "@/components/ui/modal";
 import { Card } from "@/components/ui/card";
 import { ResponsiveDate } from "@/components/ui/responsive-date";
+import { DateSortToggle, dateSortParam } from "@/components/ui/date-sort-toggle";
+import type { DateSortDir } from "@/components/ui/date-sort-toggle";
 import { formatDateShort, safeINR, toSafeNumber, toDateInputValue } from "@/lib/utils";
 import type { AdvanceDTO } from "@/types/salary";
 import { advanceLabourName, advanceSiteName } from "@/types/salary";
@@ -43,6 +45,7 @@ export function AdvancesTab({
   const [q, setQ] = useState("");
   const [appliedQ, setAppliedQ] = useState("");
   const [page, setPage] = useState(1);
+  const [sortDir, setSortDir] = useState<DateSortDir>("desc");
   const [reloadKey, setReloadKey] = useState(0);
   const [labour, setLabour] = useState<LabourDTO[]>([]);
   const [data, setData] = useState<ListResponse | null>(null);
@@ -98,6 +101,7 @@ export function AdvancesTab({
   useEffect(() => {
     const params = new URLSearchParams({ page: String(page), limit: "20" });
     if (appliedQ) params.set("q", appliedQ);
+    params.set("sort", dateSortParam(sortDir));
     fetch(`/api/advances?${params}`)
       .then(async (res) => {
         const json = await res.json();
@@ -108,7 +112,7 @@ export function AdvancesTab({
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [appliedQ, page, reloadKey]);
+  }, [appliedQ, page, sortDir, reloadKey]);
 
   // Debounce worker search so typing doesn't spam the API (labour pattern).
   useEffect(() => {
@@ -127,6 +131,11 @@ export function AdvancesTab({
   function clearFilters() {
     setQ("");
     setAppliedQ("");
+    setPage(1);
+  }
+
+  function toggleSortDir() {
+    setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     setPage(1);
   }
 
@@ -364,6 +373,10 @@ export function AdvancesTab({
 
       {!loading && !error && data && data.data.length > 0 && (
         <>
+          {/* Phone sort bar — right-aligned pill below filters, cards untouched. */}
+          <div className="-my-1 flex justify-end sm:hidden">
+            <DateSortToggle dir={sortDir} onToggle={toggleSortDir} variant="pill" />
+          </div>
           {/* Phone cards — desktop table below stays untouched. */}
           <ul className="flex flex-col gap-2 sm:hidden">
             {data.data.map((a) => {
@@ -420,7 +433,7 @@ export function AdvancesTab({
 
           <div className="hidden sm:block">
           <Table>
-              <THead><TR><TH>Date</TH><TH>Worker</TH><TH>Site</TH><TH numeric>Amount</TH><TH>Payment</TH><TH>Reference</TH><TH>Note</TH><TH className="text-right">Actions</TH></TR></THead>
+              <THead><TR><TH><DateSortToggle dir={sortDir} onToggle={toggleSortDir} /></TH><TH>Worker</TH><TH>Site</TH><TH numeric>Amount</TH><TH>Payment</TH><TH>Reference</TH><TH>Note</TH><TH className="text-right">Actions</TH></TR></THead>
               <tbody>
                 {data.data.map((a) => {
                   const siteLabel = advanceSiteName(a) ?? "Unassigned";

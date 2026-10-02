@@ -10,6 +10,8 @@ import { Card } from "@/components/ui/card";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, THead, TH, TD, TR } from "@/components/ui/table";
 import { ResponsiveDate } from "@/components/ui/responsive-date";
+import { DateSortToggle, salarySortParam } from "@/components/ui/date-sort-toggle";
+import type { DateSortDir } from "@/components/ui/date-sort-toggle";
 import { safeINR, toSafeNumber } from "@/lib/utils";
 import { CreditCardPlus, Eye, Search, X } from "lucide-react";
 import type { SalaryDTO, SalaryStatus } from "@/types/salary";
@@ -40,6 +42,7 @@ export function SalaryRecordsTab() {
   const [appliedQ, setAppliedQ] = useState("");
   const [status, setStatus] = useState<string>(""); // "" = all
   const [page, setPage] = useState(1);
+  const [sortDir, setSortDir] = useState<DateSortDir>("desc");
   const [reloadKey, setReloadKey] = useState(0);
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,6 +55,7 @@ export function SalaryRecordsTab() {
     if (appliedQ) params.set("q", appliedQ);
     if (status) params.set("status", status);
     else params.set("status", "partially-paid,paid");
+    params.set("sort", salarySortParam(sortDir));
     fetch(`/api/salary?${params}`)
       .then(async (res) => {
         const json = await res.json();
@@ -62,7 +66,7 @@ export function SalaryRecordsTab() {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [appliedQ, status, page, reloadKey]);
+  }, [appliedQ, status, page, sortDir, reloadKey]);
 
   // Debounce worker search so typing doesn't spam the API (labour pattern).
   useEffect(() => {
@@ -80,6 +84,11 @@ export function SalaryRecordsTab() {
 
   function resetPage() {
     setPage(1);
+  }
+
+  function toggleSortDir() {
+    setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    resetPage();
   }
 
   function clearFilters() {
@@ -193,6 +202,10 @@ export function SalaryRecordsTab() {
       )}
       {!loading && !error && data && data.data.length > 0 && (
         <>
+          {/* Phone sort bar — right-aligned pill below filters, cards untouched. */}
+          <div className="-my-1 flex justify-end sm:hidden">
+            <DateSortToggle dir={sortDir} onToggle={toggleSortDir} label="Start date" variant="pill" />
+          </div>
           {/* Phone cards — desktop table below stays untouched. */}
           <ul className="flex flex-col gap-2 sm:hidden">
             {data.data.map((s) => {
@@ -257,7 +270,7 @@ export function SalaryRecordsTab() {
           <Table>
               <THead>
                 <TR>
-                  <TH>Worker / Period</TH>
+                  <TH><span className="inline-flex items-center gap-2">Worker / Period <DateSortToggle dir={sortDir} onToggle={toggleSortDir} label="Start date" /></span></TH>
                   <TH numeric>P / H</TH>
                   <TH numeric>Gross</TH>
                   <TH numeric>Recovery</TH>
