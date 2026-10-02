@@ -19,7 +19,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [
-    // Auth.js v5 auto-reads AUTH_GOOGLE_ID / AUTH_GOOGLE_SECRET.
+    // Auth.js v5 auto-reads AUTH_GOOGLE_ID / AUTH_GOOGLE_SECRET. 30 Days expiresIn
     // Passed explicitly too so the legacy GOOGLE_CLIENT_ID names keep working.
     Google({
       clientId: process.env.AUTH_GOOGLE_ID ?? process.env.GOOGLE_CLIENT_ID,

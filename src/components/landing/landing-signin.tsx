@@ -1,6 +1,6 @@
-import { signIn } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { signInWithGoogle } from "./signin-action";
 
 /**
  * Google sign-in embedded directly in the landing page, so visitors never
@@ -9,13 +9,7 @@ import { cn } from "@/lib/utils";
  */
 export function LandingSignIn({ className }: { className?: string }) {
   return (
-    <form
-      className={cn("min-w-0", className)}
-      action={async () => {
-        "use server";
-        await signIn("google", { redirectTo: "/dashboard" });
-      }}
-    >
+    <form className={cn("min-w-0", className)} action={signInWithGoogle}>
       <Button
         type="submit"
         className="w-full px-5 py-3 text-[15px] sm:w-auto"

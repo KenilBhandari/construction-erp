@@ -5,10 +5,10 @@ import { Menu, X, ArrowRight } from "lucide-react";
 import OrangeLogo from "@/components/layout/orange-logo";
 
 const LINKS = [
-  { label: "Product", href: "#product" },
-  { label: "Workflow", href: "#workflow" },
-  { label: "Features", href: "#features" },
-  { label: "FAQ", href: "#faq" },
+  { label: "Product", href: "/#product" },
+  { label: "Workflow", href: "/#workflow" },
+  { label: "Features", href: "/#features" },
+  { label: "FAQ", href: "/#faq" },
 ];
 
 export function LandingNav() {
@@ -41,7 +41,7 @@ export function LandingNav() {
 
         <div className="hidden items-center gap-2 md:flex">
           <a
-            href="#get-started"
+            href="/#get-started"
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             Get started <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -75,7 +75,7 @@ export function LandingNav() {
           </nav>
           <div className="mt-3">
             <a
-              href="#get-started"
+              href="/#get-started"
               onClick={() => setOpen(false)}
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-hover"
             >

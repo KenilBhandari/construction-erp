@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Construction ERP — Labour & Project Management",
+  title: "Orange ERP",
   description:
     "Manage construction projects, sites, labour, attendance, salary, stock, expenses and client payments.",
 };
