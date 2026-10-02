@@ -21,6 +21,7 @@ import { advanceLabourName, advanceSiteName } from "@/types/salary";
 import type { LabourDTO } from "@/types/labour";
 import type { SiteDTO } from "@/types/site";
 import { PAYMENT_METHODS } from "@/types/finance";
+import { useMarkDirtyFor } from "@/context/CacheContext";
 
 interface ListResponse {
   data: AdvanceDTO[];
@@ -42,6 +43,7 @@ export function AdvancesTab({
 }: {
   advCmd?: { kind: "add" | "writeoff"; n: number } | null;
 } = {}) {
+  const markDirtyFor = useMarkDirtyFor();
   const [q, setQ] = useState("");
   const [appliedQ, setAppliedQ] = useState("");
   const [page, setPage] = useState(1);
@@ -187,6 +189,7 @@ export function AdvancesTab({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Delete failed.");
       setDeleting(null);
+      markDirtyFor("advances");
       refresh();
     } catch (err) {
       setDeleteError((err as Error).message);
@@ -235,6 +238,8 @@ export function AdvancesTab({
       setWriteOffSuccess({ amount: amt, remaining });
       setWriteOffAmount("");
       setWriteOffReason("");
+      // Write-off persists an Expense row (advance balance is derived).
+      markDirtyFor("expenses");
       refresh();
       // keep modal open to show success, auto-reset after 2s
       setTimeout(() => {
@@ -491,7 +496,7 @@ export function AdvancesTab({
           initial={editing}
           labourOptions={labour}
           onClose={() => setFormOpen(false)}
-          onSaved={() => { setFormOpen(false); refresh(); }}
+          onSaved={() => { setFormOpen(false); markDirtyFor("advances"); refresh(); }}
         />
       )}
 

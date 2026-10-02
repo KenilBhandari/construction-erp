@@ -345,6 +345,7 @@ export function AttendanceMuster({
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Site update failed");
+      markDirtyFor("attendance");
       if (dateRef.current !== requestDate) return;
       // Server is truth: replace row with returned doc, discard optimistic.
       type SavedAtt = NonNullable<RosterItem["attendance"]>;
@@ -472,6 +473,7 @@ export function AttendanceMuster({
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Failed to save");
+      markDirtyFor("attendance");
       // Date changed mid-flight: canonical roster for the new date is
       // already loading — drop this stale response.
       if (dateRef.current !== requestDate) return;
@@ -550,6 +552,7 @@ export function AttendanceMuster({
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Bulk failed");
+      markDirtyFor("attendance");
       setPendingSite({});
       await fetchRoster();
     } catch (e) {
@@ -600,6 +603,7 @@ export function AttendanceMuster({
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Bulk failed");
+      markDirtyFor("attendance");
       setPendingSite({});
       await fetchRoster();
     } catch (e) {
@@ -634,6 +638,7 @@ export function AttendanceMuster({
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Bulk failed");
+      markDirtyFor("attendance");
       setSelected(new Set());
       setPendingSite({});
       await fetchRoster();
@@ -654,6 +659,7 @@ export function AttendanceMuster({
       );
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Delete failed");
+      markDirtyFor("attendance");
       setDeleteTarget(null);
       await fetchRoster();
       onOtChange?.();

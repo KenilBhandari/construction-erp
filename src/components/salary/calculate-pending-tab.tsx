@@ -21,6 +21,7 @@ import type { LabourDTO } from "@/types/labour";
 import { SalaryDetailView } from "./salary-detail-view";
 import { SalaryPaymentModal } from "./salary-payment-modal";
 import { SalaryEditModal } from "./salary-edit-modal";
+import { useMarkDirtyFor } from "@/context/CacheContext";
 
 interface ListResponse {
   data: SalaryDTO[];
@@ -55,6 +56,7 @@ function friendlyCalcError(msg: string): string {
 }
 
 export function CalculatePendingTab() {
+  const markDirtyFor = useMarkDirtyFor();
   const [calcOpen, setCalcOpen] = useState(true);
   const [calcLabour, setCalcLabour] = useState("");
   const [calcStart, setCalcStart] = useState(() => firstOfMonth());
@@ -178,6 +180,7 @@ export function CalculatePendingTab() {
       setLastResult(saved);
       setLastOutstanding(outstanding);
       setCalcMessage({ kind: "ok", text: "Salary calculated — review below." });
+      markDirtyFor("salary");
       refresh();
     } catch (err) {
       setCalcMessage({ kind: "error", text: friendlyCalcError((err as Error).message) });
@@ -208,6 +211,7 @@ export function CalculatePendingTab() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Recalculation failed.");
+      markDirtyFor("salary");
       refresh();
     } catch (err) {
       setError((err as Error).message);
@@ -223,6 +227,7 @@ export function CalculatePendingTab() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Delete failed.");
       setDeleting(null);
+      markDirtyFor("salary");
       refresh();
     } catch (err) {
       setDeleteError((err as Error).message);
@@ -674,6 +679,7 @@ export function CalculatePendingTab() {
           onClose={() => setPaying(null)}
           onSaved={() => {
             setPaying(null);
+            markDirtyFor("salary");
             refresh();
             setLastResult(null);
           }}
@@ -685,6 +691,7 @@ export function CalculatePendingTab() {
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
+            markDirtyFor("salary");
             refresh();
           }}
         />

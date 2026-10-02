@@ -25,6 +25,14 @@ import {
   listScopesForDomain,
   type ListScope,
 } from "@/lib/list-cache";
+import {
+  dashboardDirtiedBy,
+  decideDashboardRead,
+  reviveDashboardSummary,
+  todayKeyUTC,
+  type DashboardEntry,
+} from "@/lib/dashboard-cache";
+import type { DashboardSummary } from "@/lib/dashboard";
 
 interface CacheEntry {
   at: number;
@@ -51,6 +59,16 @@ interface CacheContextValue {
   /** Memory-only page-1 entries (never localStorage). */
   getListEntry: (scope: ListScope) => ListEntry | null;
   setListEntry: (scope: ListScope, data: unknown) => void;
+  /**
+   * Dashboard entry is dirty when any dashboard-affecting mutation ran
+   * since the last successful dashboard fetch. Cleared only on success —
+   * a failed fetch keeps it dirty so the next visit retries fresh.
+   */
+  dashboardDirty: boolean;
+  /** Memory-only full-summary entry (never localStorage). Single scope. */
+  getDashboardEntry: () => DashboardEntry | null;
+  setDashboardEntry: (data: DashboardSummary, dayKey: string) => void;
+  markDashboardDirty: () => void;
 }
 
 const CacheContext = createContext<CacheContextValue | null>(null);
@@ -101,9 +119,12 @@ async function fetchScope(scope: ReferenceScope): Promise<unknown[]> {
 export function CacheProvider({ children }: { children: ReactNode }) {
   const [dirty, setDirty] = useState<Set<ReferenceScope>>(new Set());
   const [listDirty, setListDirty] = useState<Set<ListScope>>(new Set());
+  const [dashboardDirty, setDashboardDirty] = useState(false);
   const memRef = useRef<Map<ReferenceScope, CacheEntry>>(new Map());
   // Page-1 list responses: session memory only, never persisted.
   const listMemRef = useRef<Map<ListScope, ListEntry>>(new Map());
+  // Full dashboard summary: single session-memory entry, never persisted.
+  const dashboardRef = useRef<DashboardEntry | null>(null);
   const [, bump] = useState(0);
 
   const getEntry = useCallback((scope: ReferenceScope): CacheEntry | null => {
@@ -156,12 +177,33 @@ export function CacheProvider({ children }: { children: ReactNode }) {
     bump((n) => n + 1);
   }, []);
 
+  const markDashboardDirty = useCallback(() => {
+    setDashboardDirty(true);
+  }, []);
+
+  const getDashboardEntry = useCallback((): DashboardEntry | null => {
+    return dashboardRef.current;
+  }, []);
+
+  /**
+   * Record a successful dashboard fetch. Clearing dirty here — and only
+   * here — guarantees a failed fetch keeps the dashboard dirty so the
+   * next visit retries fresh.
+   */
+  const setDashboardEntry = useCallback((data: DashboardSummary, dayKey: string) => {
+    dashboardRef.current = { dayKey, data };
+    setDashboardDirty(false);
+    bump((n) => n + 1);
+  }, []);
+
   const markDirtyFor = useCallback(
     (domain: MutationDomain) => {
       for (const s of scopesForDomain(domain)) markDirty(s);
       for (const s of listScopesForDomain(domain)) markListDirty(s);
+      // Every mutation domain dirties the dashboard (see DASHBOARD_DIRTY_DOMAINS).
+      if (dashboardDirtiedBy(domain)) markDashboardDirty();
     },
-    [markDirty],
+    [markDirty, markDashboardDirty],
   );
 
   const clearDirty = useCallback((scope: ReferenceScope) => {
@@ -184,6 +226,10 @@ export function CacheProvider({ children }: { children: ReactNode }) {
       listDirty,
       getListEntry,
       setListEntry,
+      dashboardDirty,
+      getDashboardEntry,
+      setDashboardEntry,
+      markDashboardDirty,
     }),
     [
       dirty,
@@ -195,6 +241,10 @@ export function CacheProvider({ children }: { children: ReactNode }) {
       listDirty,
       getListEntry,
       setListEntry,
+      dashboardDirty,
+      getDashboardEntry,
+      setDashboardEntry,
+      markDashboardDirty,
     ],
   );
 
@@ -354,4 +404,70 @@ export function usePageOneList<TResponse>(scope: ListScope): {
   );
 
   return { read, write, isDirty: listDirty.has(scope) };
+}
+
+/**
+ * Full-dashboard summary with mutation-driven invalidation (no TTL, no
+ * background revalidation — deliberately simpler than the list cache).
+ *
+ * Mount behavior:
+ * - clean + cached + same UTC day -> paint cache, zero network requests.
+ * - dirty / missing / previous-day entry -> blocking fetch; dirty clears
+ *   only after the fetch succeeds, so a failure retries fresh next visit.
+ *
+ * Manual refresh() always refetches (and rewrites the entry on success).
+ */
+export function useDashboardSummary(): {
+  data: DashboardSummary | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+} {
+  const { dashboardDirty, getDashboardEntry, setDashboardEntry } = useCacheContext();
+  const [reloadKey, setReloadKey] = useState(0);
+  const [data, setData] = useState<DashboardSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const dayKey = todayKeyUTC();
+    const useCache = reloadKey === 0;
+    if (useCache) {
+      const entry = getDashboardEntry();
+      const decision = decideDashboardRead({
+        hasEntry: entry !== null,
+        sameDay: entry?.dayKey === dayKey,
+        dirty: dashboardDirty,
+      });
+      if (decision === "cache" && entry) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setData(entry.data);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+    }
+    fetch("/api/dashboard/summary")
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "Failed to load dashboard.");
+        const revived = reviveDashboardSummary(json as DashboardSummary);
+        setData(revived);
+        setError(null);
+        // Clears dashboardDirty — success-only, a failure keeps it dirty.
+        setDashboardEntry(revived, dayKey);
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false));
+    // getDashboardEntry/setDashboardEntry are stable; re-run when dirtiness
+    // changes (a mutation while mounted) or on manual refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dashboardDirty, reloadKey]);
+
+  function refresh() {
+    setLoading(true);
+    setReloadKey((k) => k + 1);
+  }
+
+  return { data, loading, error, refresh };
 }

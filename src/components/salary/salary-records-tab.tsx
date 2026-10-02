@@ -18,6 +18,7 @@ import type { SalaryDTO, SalaryStatus } from "@/types/salary";
 import { salaryLabourName } from "@/types/salary";
 import { SalaryDetailView } from "./salary-detail-view";
 import { SalaryPaymentModal } from "./salary-payment-modal";
+import { useMarkDirtyFor } from "@/context/CacheContext";
 
 interface ListResponse {
   data: SalaryDTO[];
@@ -38,6 +39,7 @@ const STATUS_LABEL: Record<SalaryStatus, string> = {
 };
 
 export function SalaryRecordsTab() {
+  const markDirtyFor = useMarkDirtyFor();
   const [q, setQ] = useState("");
   const [appliedQ, setAppliedQ] = useState("");
   const [status, setStatus] = useState<string>(""); // "" = all
@@ -390,6 +392,7 @@ export function SalaryRecordsTab() {
           onClose={() => setPaying(null)}
           onSaved={() => {
             setPaying(null);
+            markDirtyFor("salary");
             refresh();
           }}
         />

@@ -1,14 +1,18 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { connectDB } from "@/lib/mongodb";
 import { formatINR, formatCompactINR, formatDateShort } from "@/lib/utils";
-import { getDashboardSummary } from "@/lib/dashboard";
+import { useDashboardSummary } from "@/context/CacheContext";
+import type { DashboardSummary } from "@/lib/dashboard";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { EmptyState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { statusLabel, statusTone } from "@/components/projects/project-status";
 import type { ProjectStatus } from "@/types/project";
 
@@ -26,10 +30,49 @@ function dayLabel(d: Date): string {
 /**
  * "How is my construction business doing today?" — every figure derived
  * from underlying records (see src/lib/dashboard.ts).
+ *
+ * Client-rendered over GET /api/dashboard/summary with a
+ * mutation-driven memory cache (see src/lib/dashboard-cache.ts): repeat
+ * visits with no intervening mutation serve cache with zero network.
  */
-export default async function DashboardPage() {
-  await connectDB();
-  const s = await getDashboardSummary();
+export default function DashboardPage() {
+  // Summary arrives revived (real Dates) from useDashboardSummary, so the
+  // JSX below is unchanged from the former server component.
+  const { data: s, loading, error, refresh } = useDashboardSummary();
+
+  if (loading) {
+    return (
+      <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
+        <PageHeader
+          title="Dashboard"
+          description="How is the construction business doing today?"
+        />
+        <TableSkeleton rows={8} />
+      </div>
+    );
+  }
+
+  if (error || !s) {
+    return (
+      <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
+        <PageHeader
+          title="Dashboard"
+          description="How is the construction business doing today?"
+        />
+        <p role="alert" className="text-sm text-danger">
+          {error ?? "Failed to load dashboard."}{" "}
+          <Button type="button" variant="outline" size="sm" onClick={refresh}>
+            Retry
+          </Button>
+        </p>
+      </div>
+    );
+  }
+
+  return <DashboardView s={s} />;
+}
+
+function DashboardView({ s }: { s: DashboardSummary }) {
 
   const contracted = s.contractsTotal;
   const receivedPct =
