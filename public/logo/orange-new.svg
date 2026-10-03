@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <style>
+      .polar-font {
+        fill: none;
+        stroke: #ff6321;
+        stroke-linecap: butt;
+        stroke-linejoin: miter;
+      }
+      .polar-fill {
+        fill: #ff6321;
+        stroke: none;
+      }
+      .leaf-style {
+        fill: #2fb45a;
+        stroke: #2fb45a;
+        stroke-width: 4;
+        stroke-linejoin: round;
+      }
+      .leaf-vein {
+        fill: none;
+        stroke: #ffffff;
+        stroke-width: 6;
+        stroke-linecap: round;
+      }
+      .leaf-stem {
+        fill: none;
+        stroke: #2fb45a;
+        stroke-width: 10;
+        stroke-linecap: round;
+      }
+    </style>
+  </defs>
+
+  <!-- ================================================= -->
+  <!-- MAIN RADIAL LOGO -->
+  <!-- Scaled to 0.75 and shifted down (Y=270) so the leaf fits perfectly -->
+  <!-- ================================================= -->
+  <g transform="translate(250, 270) scale(0.75)">
+
+    <!-- ================================================= -->
+    <!-- FULL GEOMETRIC TEXT (O-R-A-N-G-E) -->
+    <!-- ================================================= -->
+    <g class="polar-font">
+      
+      <!-- O (Top Center) -->
+      <g transform="rotate(-90)">
+        <circle r="170" stroke-width="100" stroke-dasharray="41.54 2000" transform="rotate(-27)" />
+        <circle r="170" stroke-width="100" stroke-dasharray="41.54 2000" transform="rotate(13)" />
+        <circle r="210" stroke-width="20" stroke-dasharray="102.63 2000" transform="rotate(-14)" />
+        <circle r="130" stroke-width="20" stroke-dasharray="63.53 2000" transform="rotate(-14)" />
+      </g>
+
+      <!-- R -->
+      <g transform="rotate(-30)">
+        <circle r="170" stroke-width="100" stroke-dasharray="41.54 2000" transform="rotate(-27)" />
+        <circle r="210" stroke-width="20" stroke-dasharray="102.63 2000" transform="rotate(-14)" />
+        <circle r="170" stroke-width="20" stroke-dasharray="83.08 2000" transform="rotate(-14)" />
+        <circle r="190" stroke-width="60" stroke-dasharray="49.74 2000" transform="rotate(12)" />
+        <circle r="150" stroke-width="60" stroke-dasharray="39.27 2000" transform="rotate(12)" />
+      </g>
+
+      <!-- A -->
+      <g transform="rotate(30)">
+        <circle r="170" stroke-width="100" stroke-dasharray="41.54 2000" transform="rotate(-27)" />
+        <circle r="170" stroke-width="100" stroke-dasharray="41.54 2000" transform="rotate(13)" />
+        <circle r="210" stroke-width="20" stroke-dasharray="102.63 2000" transform="rotate(-14)" />
+        <circle r="170" stroke-width="20" stroke-dasharray="83.08 2000" transform="rotate(-14)" />
+      </g>
+
+      <!-- N -->
+      <g transform="rotate(90)">
+        <circle r="170" stroke-width="100" stroke-dasharray="41.54 2000" transform="rotate(-27)" />
+        <circle r="170" stroke-width="100" stroke-dasharray="41.54 2000" transform="rotate(13)" />
+        <polygon class="polar-fill" points="213.47,-53.22 174.65,43.55 116.44,29.03 155.25,-38.71" />
+      </g>
+
+      <!-- G -->
+      <g transform="rotate(150)">
+        <circle r="170" stroke-width="100" stroke-dasharray="41.54 2000" transform="rotate(-27)" />
+        <circle r="210" stroke-width="20" stroke-dasharray="102.63 2000" transform="rotate(-14)" />
+        <circle r="130" stroke-width="20" stroke-dasharray="63.53 2000" transform="rotate(-14)" />
+        <circle r="210" stroke-width="20" stroke-dasharray="54.98 2000" transform="rotate(12)" />
+        <circle r="140" stroke-width="40" stroke-dasharray="36.65 2000" transform="rotate(12)" />
+        <circle r="170" stroke-width="20" stroke-dasharray="44.51 2000" transform="rotate(-1)" />
+      </g>
+
+      <!-- E -->
+      <g transform="rotate(210)">
+        <circle r="170" stroke-width="100" stroke-dasharray="41.54 2000" transform="rotate(-27)" />
+        <circle r="210" stroke-width="20" stroke-dasharray="150.27 2000" transform="rotate(-14)" />
+        <circle r="170" stroke-width="20" stroke-dasharray="91.98 2000" transform="rotate(-14)" />
+        <circle r="130" stroke-width="20" stroke-dasharray="93.03 2000" transform="rotate(-14)" />
+      </g>
+    </g>
+
+    <!-- ================================================= -->
+    <!-- PROPERLY ALIGNED TOP LEAF                         -->
+    <!-- Translates exactly to the top edge (Y = -200)     -->
+    <!-- and rotated slightly for a natural, dynamic look  -->
+    <!-- ================================================= -->
+    <g transform="translate(0, -200) rotate(18)">
+      
+      <!-- Leaf Stem (Connects firmly into the 'O') -->
+      <path d="M 0,18 L 0,0" class="leaf-stem" />
+      
+      <!-- Main Fancy Curvy Leaf Body (Symmetric, pointing straight up) -->
+      <path 
+        d="M 0,0 
+           C -55,-40 -55,-120 0,-145 
+           C 55,-120 55,-40 0,0 Z" 
+        class="leaf-style" 
+      />
+      
+      <!-- Smooth Internal Leaf Vein -->
+      <path 
+        d="M 0,-4 
+           C 8,-40 -12,-90 0,-140" 
+        class="leaf-vein" 
+      />
+
+    </g>
+
+  </g>
+</svg>

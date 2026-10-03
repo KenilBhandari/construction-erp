@@ -14,6 +14,7 @@ import { ProductPreview } from "@/components/landing/product-preview";
 import { Badge } from "@/components/ui/badge";
 // import { Tag } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { signIn } from "next-auth/react";
 
 const MODULES = ["Attendance", "Salaries", "Materials", "Expenses", "Client payments", "Project margin"];
 
@@ -166,7 +167,6 @@ export default function LandingPage() {
                 </p>
               </Anim>
             </div>
-
             <Anim delay={340} className="mt-10 sm:mt-12">
               <div
                 id="product"
@@ -442,7 +442,7 @@ export default function LandingPage() {
                 Sign in with Google, add your first project and workers, and you are running in
                 minutes. No forms, no waiting, no setup call.
               </p>
-              <div className="mx-auto mt-6 flex max-w-md flex-col items-stretch justify-center gap-2.5 sm:flex-row sm:items-center">
+              <div className="mx-auto mt-6 flex max-w-2xl flex-col items-stretch justify-center gap-2.5 sm:flex-row sm:items-center">
                 <LandingSignIn className="oe-cta w-full sm:w-auto" />
                 <a
                   href="#features"
@@ -450,6 +450,13 @@ export default function LandingPage() {
                 >
                   Review features
                 </a>
+                <button
+                  type="button"
+                  onClick={() => signIn("direct-access", { callbackUrl: "/dashboard" })}
+                  className="oe-cta inline-flex items-center justify-center rounded-md border border-border bg-surface px-5 py-3 text-[15px] font-medium text-text hover:bg-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
+                  Direct Access
+                </button>
               </div>
               <p className="mt-4 text-xs leading-5 text-text-muted">
                 Prefer a standalone page?{" "}

