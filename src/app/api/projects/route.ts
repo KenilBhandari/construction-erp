@@ -32,12 +32,36 @@ export async function GET(req: Request) {
       filter.status = status;
     }
 
+    // Progress is derived from sites (simple average, rounded) — projects
+    // hold no progress of their own. One lookup for the whole page.
     const [data, total] = await Promise.all([
-      Project.find(filter)
-        .sort({ updatedAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean(),
+      Project.aggregate([
+        { $match: filter },
+        { $sort: { updatedAt: -1 } },
+        { $skip: (page - 1) * limit },
+        { $limit: limit },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "_id",
+            foreignField: "project",
+            pipeline: [{ $project: { progress: 1 } }],
+            as: "_sites",
+          },
+        },
+        {
+          $addFields: {
+            progress: {
+              $cond: [
+                { $gt: [{ $size: "$_sites" }, 0] },
+                { $round: [{ $avg: "$_sites.progress" }] },
+                0,
+              ],
+            },
+          },
+        },
+        { $unset: "_sites" },
+      ]),
       Project.countDocuments(filter),
     ]);
 

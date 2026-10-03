@@ -20,7 +20,6 @@ export async function GET(req: Request) {
   try {
     await connectDB();
     const url = new URL(req.url);
-    console.log("ddasfsdfs");
     const { page, limit } = paginationSchema.parse({
       page: url.searchParams.get("page"),
       limit: url.searchParams.get("limit"),
@@ -47,8 +46,6 @@ export async function GET(req: Request) {
         $expr: { $lte: ["$currentStock", "$minimumStock"] },
       }),
     ]);
-console.log(data);
-
     return ok({ data, page, limit, total, lowCount });
   } catch (err) {
     return fail(err);

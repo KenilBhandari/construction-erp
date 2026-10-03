@@ -20,7 +20,6 @@ export interface ProjectFormValues {
   budget: string;
   contractValue: string;
   status: ProjectStatus;
-  progress: string;
   description: string;
 }
 
@@ -35,7 +34,6 @@ export function emptyProjectForm(): ProjectFormValues {
     budget: "",
     contractValue: "",
     status: "active",
-    progress: "0",
     description: "",
   };
 }
@@ -124,16 +122,6 @@ export function ProjectForm({
       Number(values.contractValue) < 0
     ) {
       next.contractValue = "Contract value must be 0 or more.";
-    }
-
-    const progress = Number(values.progress);
-
-    if (
-      values.progress === "" ||
-      progress < 0 ||
-      progress > 100
-    ) {
-      next.progress = "Progress must be 0–100.";
     }
 
     setErrors(next);
@@ -257,20 +245,6 @@ export function ProjectForm({
               triggerClassName="h-11 text-base sm:h-[38px] sm:text-sm"
             />
           </div>
-          <div className="min-w-0">
-            <Input
-              label="Progress %"
-              name="progress"
-              required
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={100}
-              value={values.progress}
-              error={errors.progress}
-              onChange={(e) => set("progress", e.target.value)}
-            />
-          </div>
         </div>
         <div className="mt-4">
           <Textarea
@@ -320,7 +294,6 @@ export function toProjectPayload(values: ProjectFormValues) {
     budget: Number(values.budget),
     contractValue: Number(values.contractValue),
     status: values.status,
-    progress: Number(values.progress),
     description:
       values.description.trim() === ""
         ? null

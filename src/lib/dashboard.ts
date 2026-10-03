@@ -10,6 +10,7 @@ import { Expense } from "@/models/Expense";
 import { ClientPayment } from "@/models/ClientPayment";
 import { getProjectFinance } from "@/lib/finance";
 import { getBulkAdvanceSummaries } from "@/lib/advances";
+import { derivedProjectProgress } from "@/lib/progress";
 
 export interface DashboardSummary {
   activeProjects: number;
@@ -309,12 +310,15 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   const projects = await Promise.all(
     activeProjectDocs.map(async (p) => {
       const f = await getProjectFinance(String(p._id));
+      const siteProgress = await Site.find({ project: p._id })
+        .select("progress")
+        .lean();
       return {
         _id: String(p._id),
         name: p.name,
         clientName: p.clientName,
         location: p.location,
-        progress: p.progress,
+        progress: derivedProjectProgress(siteProgress),
         budget: p.budget,
         expense: f.totalExpense,
         remaining: p.budget - f.totalExpense,

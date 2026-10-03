@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { statusLabel, statusTone } from "@/components/projects/project-status";
+import { derivedProjectProgress } from "@/lib/progress";
 
 export default async function ProjectDetailPage({
   params,
@@ -32,6 +33,8 @@ export default async function ProjectDetailPage({
   ]);
 
   const pid = String(project._id);
+  // Project progress is derived from its sites — never stored separately.
+  const progress = derivedProjectProgress(sites);
   const hasStart = Boolean(project.startDate);
   const hasEnd = Boolean(project.expectedEndDate);
   const hasDescription = Boolean(project.description && String(project.description).trim().length > 0);
@@ -61,8 +64,8 @@ export default async function ProjectDetailPage({
             {statusLabel(project.status)}
           </Badge>
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2.5 sm:flex-none sm:gap-3">
-            <span className="shrink-0 text-[13px] text-text-muted tnum sm:text-sm">{project.progress}%</span>
-            <ProgressBar value={project.progress} className="w-full max-w-[160px] sm:w-[220px] sm:max-w-none" />
+            <span className="shrink-0 text-[13px] text-text-muted tnum sm:text-sm">{progress}%</span>
+            <ProgressBar value={progress} className="w-full max-w-[160px] sm:w-[220px] sm:max-w-none" />
           </div>
         </div>
 

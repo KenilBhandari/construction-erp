@@ -45,7 +45,6 @@ export default function EditProjectPage({ params }: { params: Promise<{ id: stri
           budget: String(p.budget),
           contractValue: String(p.contractValue),
           status: p.status,
-          progress: String(p.progress),
           description: p.description ?? "",
         });
       } catch (err) {

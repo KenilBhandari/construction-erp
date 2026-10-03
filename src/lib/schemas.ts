@@ -25,7 +25,6 @@ export const projectCreateSchema = z.object({
   budget: z.coerce.number().min(0, "Budget must be 0 or more."),
   contractValue: z.coerce.number().min(0, "Contract value must be 0 or more."),
   status: z.enum(PROJECT_STATUSES).default("active"),
-  progress: z.coerce.number().min(0).max(100).default(0),
   description: optionalText,
 });
 
